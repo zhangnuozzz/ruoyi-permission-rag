@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven
+**/target/
+*.log
+
+# Frontend
+**/node_modules/
+dist/
+
+# Runtime
+logs/
+*.pid
+
+# Local env
+.env
+.env.local
+
+# Local upload files
+ruoyi/uploadPath/
