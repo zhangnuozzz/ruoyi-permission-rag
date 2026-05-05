@@ -7,7 +7,7 @@ ruoyi:
   # 版权年份
   copyrightYear: 2026
   # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
-  profile: /Users/zhangnuo/ruoyi/uploadPath
+  profile: /home/fufu/workspace/RAGproject/uploadPath
   # 获取ip地址开关
   addressEnabled: false
   # 验证码类型 math 数字计算 char 字符验证
@@ -136,6 +136,26 @@ referer:
   enabled: false
   # 允许的域名列表
   allowed-domains: localhost,127.0.0.1,ruoyi.vip,www.ruoyi.vip
+
+# RAG文件处理配置
+# author: fufu
+# date: 2026-05-05
+rag:
+  file:
+    # LangChain4j切块大小
+    chunk-size: 1000
+    # LangChain4j切块重叠大小
+    chunk-overlap: 100
+    minio:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      bucket: rag-files
+    milvus:
+      host: localhost
+      port: 19530
+      collection-name: rag_file_chunks
+      vector-dimension: 128
 
 # 防止XSS攻击
 xss:

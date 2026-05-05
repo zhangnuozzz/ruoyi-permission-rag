@@ -7,8 +7,8 @@ spring:
             # 主库数据源
             master:
                 url: jdbc:mysql://127.0.0.1:3306/ruoyi?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
-                username: "zhangnuo"
-                password: "001106"
+                username: "fufu"
+                password: "Eee2.71828"
             # 从库数据源
             slave:
                 # 从数据源开关/默认关闭

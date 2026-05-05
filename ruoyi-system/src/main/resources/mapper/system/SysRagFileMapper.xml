@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  RAG文件元数据Mapper
+  author: fufu
+  date: 2026-05-05
+-->
+<mapper namespace="com.ruoyi.system.mapper.SysRagFileMapper">
+
+    <resultMap type="SysRagFile" id="SysRagFileResult">
+        <id property="fileId" column="file_id" />
+        <result property="fileName" column="file_name" />
+        <result property="uploadUserId" column="upload_user_id" />
+        <result property="uploadUserName" column="upload_user_name" />
+        <result property="securityLevel" column="security_level" />
+        <result property="groupId" column="group_id" />
+        <result property="groupName" column="group_name" />
+        <result property="minioObjectName" column="minio_object_name" />
+        <result property="createBy" column="create_by" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <sql id="selectSysRagFileVo">
+        select file_id, file_name, upload_user_id, upload_user_name, security_level,
+               group_id, group_name, minio_object_name, create_by, create_time
+        from sys_rag_file
+    </sql>
+
+    <select id="selectSysRagFileByFileId" parameterType="String" resultMap="SysRagFileResult">
+        <include refid="selectSysRagFileVo"/>
+        where file_id = #{fileId}
+    </select>
+
+    <insert id="insertSysRagFile" parameterType="SysRagFile">
+        insert into sys_rag_file
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="fileId != null and fileId != ''">file_id,</if>
+            <if test="fileName != null and fileName != ''">file_name,</if>
+            <if test="uploadUserId != null">upload_user_id,</if>
+            <if test="uploadUserName != null and uploadUserName != ''">upload_user_name,</if>
+            <if test="securityLevel != null and securityLevel != ''">security_level,</if>
+            <if test="groupId != null and groupId != ''">group_id,</if>
+            <if test="groupName != null and groupName != ''">group_name,</if>
+            <if test="minioObjectName != null and minioObjectName != ''">minio_object_name,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="fileId != null and fileId != ''">#{fileId},</if>
+            <if test="fileName != null and fileName != ''">#{fileName},</if>
+            <if test="uploadUserId != null">#{uploadUserId},</if>
+            <if test="uploadUserName != null and uploadUserName != ''">#{uploadUserName},</if>
+            <if test="securityLevel != null and securityLevel != ''">#{securityLevel},</if>
+            <if test="groupId != null and groupId != ''">#{groupId},</if>
+            <if test="groupName != null and groupName != ''">#{groupName},</if>
+            <if test="minioObjectName != null and minioObjectName != ''">#{minioObjectName},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+        </trim>
+    </insert>
+</mapper>

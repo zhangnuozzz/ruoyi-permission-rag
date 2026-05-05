@@ -31,6 +31,9 @@
         <jwt.version>0.9.1</jwt.version>
         <jaxb-api.version>2.3.1</jaxb-api.version>
         <springdoc.version>3.0.2</springdoc.version>
+        <langchain4j.version>1.4.0</langchain4j.version>
+        <milvus.sdk.version>2.5.10</milvus.sdk.version>
+        <minio.version>8.5.17</minio.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -168,6 +171,27 @@
                 <groupId>com.ruoyi</groupId>
                 <artifactId>ruoyi-common</artifactId>
                 <version>${ruoyi.version}</version>
+            </dependency>
+
+            <!-- LangChain4j 文档切块 -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+
+            <!-- Milvus Java SDK -->
+            <dependency>
+                <groupId>io.milvus</groupId>
+                <artifactId>milvus-sdk-java</artifactId>
+                <version>${milvus.sdk.version}</version>
+            </dependency>
+
+            <!-- MinIO Java SDK -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
             </dependency>
 
         </dependencies>
