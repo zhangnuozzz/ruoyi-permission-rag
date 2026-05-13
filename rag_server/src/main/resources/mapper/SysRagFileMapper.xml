@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  RAG文件元数据Mapper
+  author: fufu
+  date: 2026-05-13 12:37:47 CST
+-->
+<mapper namespace="com.fufu.ragserver.mapper.SysRagFileMapper">
+
+    <resultMap type="SysRagFile" id="SysRagFileResult">
+        <id property="fileId" column="file_id" />
+        <result property="fileName" column="file_name" />
+        <result property="uploadUserId" column="upload_user_id" />
+        <result property="uploadUserName" column="upload_user_name" />
+        <result property="securityLevel" column="security_level" />
+        <result property="scopeCode" column="scope_code" />
+        <result property="groupId" column="group_id" />
+        <result property="groupName" column="group_name" />
+        <result property="minioObjectName" column="minio_object_name" />
+        <result property="createBy" column="create_by" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <sql id="selectSysRagFileVo">
+        select file_id, file_name, upload_user_id, upload_user_name, security_level, scope_code,
+               group_id, group_name, minio_object_name, create_by, create_time
+        from sys_rag_file
+    </sql>
+
+    <select id="selectSysRagFileByFileId" parameterType="String" resultMap="SysRagFileResult">
+        <include refid="selectSysRagFileVo"/>
+        where file_id = #{fileId}
+    </select>
+
+    <select id="selectSysRagFileList" parameterType="SysRagFile" resultMap="SysRagFileResult">
+        <include refid="selectSysRagFileVo"/>
+        <where>
+            <if test="fileName != null and fileName != ''">
+                and file_name like concat('%', #{fileName}, '%')
+            </if>
+            <if test="securityLevel != null and securityLevel != ''">
+                and security_level = #{securityLevel}
+            </if>
+            <if test="scopeCode != null and scopeCode != ''">
+                and scope_code = #{scopeCode}
+            </if>
+            <if test="groupId != null and groupId != ''">
+                and group_id = #{groupId}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertSysRagFile" parameterType="SysRagFile">
+        insert into sys_rag_file
+        (file_id, file_name, upload_user_id, upload_user_name, security_level, scope_code,
+         group_id, group_name, minio_object_name, create_by, create_time)
+        values
+        (#{fileId}, #{fileName}, #{uploadUserId}, #{uploadUserName}, #{securityLevel}, #{scopeCode},
+         #{groupId}, #{groupName}, #{minioObjectName}, #{createBy}, #{createTime})
+    </insert>
+</mapper>

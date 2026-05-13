@@ -93,6 +93,43 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  // RAG功能测试目录
+  // author: fufu
+  // date: 2026-05-13 12:37:47 CST
+  {
+    path: '/rag',
+    component: Layout,
+    redirect: '/rag/upload',
+    alwaysShow: true,
+    name: 'Rag',
+    meta: { title: 'RAG功能测试', icon: 'upload' },
+    children: [
+      {
+        path: 'upload',
+        component: () => import('@/views/rag/upload/index'),
+        name: 'RagUpload',
+        meta: { title: '上传文件', icon: 'upload' }
+      },
+      {
+        path: 'milvus',
+        component: () => import('@/views/rag/milvus/index'),
+        name: 'RagMilvus',
+        meta: { title: 'milvus存储的内容', icon: 'list' }
+      },
+      {
+        path: 'mariadb',
+        component: () => import('@/views/rag/mariadb/index'),
+        name: 'RagMariadb',
+        meta: { title: 'mariadb存储的内容', icon: 'table' }
+      },
+      {
+        path: 'minio',
+        component: () => import('@/views/rag/minio/index'),
+        name: 'RagMinio',
+        meta: { title: 'minIO中存储的内容', icon: 'documentation' }
+      }
+    ]
   }
 ]
 

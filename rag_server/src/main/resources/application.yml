@@ -1,0 +1,37 @@
+server:
+  port: 8081
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  datasource:
+    # author: fufu
+    # date: 2026-05-13 12:37:47 CST
+    driver-class-name: ${RAG_DB_DRIVER:org.mariadb.jdbc.Driver}
+    url: ${RAG_DB_URL:jdbc:mariadb://127.0.0.1:3306/ruoyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${RAG_DB_USERNAME:fufu}
+    password: ${RAG_DB_PASSWORD:Eee2.71828}
+
+mybatis:
+  type-aliases-package: com.fufu.ragserver.domain
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+
+# RAG文件处理配置
+# author: fufu
+# date: 2026-05-12
+rag:
+  file:
+    chunk-size: 1000
+    chunk-overlap: 100
+    minio:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      bucket: rag-files
+    milvus:
+      host: localhost
+      port: 19530
+      collection-name: rag_file_chunks
+      vector-dimension: 128
