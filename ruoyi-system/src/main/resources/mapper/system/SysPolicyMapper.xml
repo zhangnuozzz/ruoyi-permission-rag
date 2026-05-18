@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysPolicyMapper">
+    
+    <resultMap type="SysPolicy" id="SysPolicyResult">
+        <result property="id"    column="id"    />
+        <result property="policyCode"    column="policy_code"    />
+        <result property="policyName"    column="policy_name"    />
+        <result property="effect"    column="effect"    />
+        <result property="subjectType"    column="subject_type"    />
+        <result property="subjectExpr"    column="subject_expr"    />
+        <result property="resourceExpr"    column="resource_expr"    />
+        <result property="envExpr"    column="env_expr"    />
+        <result property="priority"    column="priority"    />
+        <result property="status"    column="status"    />
+        <result property="remark"    column="remark"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="delFlag"    column="del_flag"    />
+    </resultMap>
+
+    <sql id="selectSysPolicyVo">
+        select id, policy_code, policy_name, effect, subject_type, subject_expr, resource_expr, env_expr, priority, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_policy
+    </sql>
+
+    <select id="selectSysPolicyList" parameterType="SysPolicy" resultMap="SysPolicyResult">
+        <include refid="selectSysPolicyVo"/>
+        <where>  
+            <if test="policyCode != null  and policyCode != ''"> and policy_code = #{policyCode}</if>
+            <if test="policyName != null  and policyName != ''"> and policy_name like concat('%', #{policyName}, '%')</if>
+            <if test="effect != null  and effect != ''"> and effect = #{effect}</if>
+            <if test="subjectType != null  and subjectType != ''"> and subject_type = #{subjectType}</if>
+            <if test="priority != null "> and priority = #{priority}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+        </where>
+    </select>
+    
+    <select id="selectSysPolicyById" parameterType="Long" resultMap="SysPolicyResult">
+        <include refid="selectSysPolicyVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSysPolicy" parameterType="SysPolicy" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_policy
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="policyCode != null and policyCode != ''">policy_code,</if>
+            <if test="policyName != null and policyName != ''">policy_name,</if>
+            <if test="effect != null and effect != ''">effect,</if>
+            <if test="subjectType != null">subject_type,</if>
+            <if test="subjectExpr != null">subject_expr,</if>
+            <if test="resourceExpr != null">resource_expr,</if>
+            <if test="envExpr != null">env_expr,</if>
+            <if test="priority != null">priority,</if>
+            <if test="status != null">status,</if>
+            <if test="remark != null">remark,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="delFlag != null">del_flag,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="policyCode != null and policyCode != ''">#{policyCode},</if>
+            <if test="policyName != null and policyName != ''">#{policyName},</if>
+            <if test="effect != null and effect != ''">#{effect},</if>
+            <if test="subjectType != null">#{subjectType},</if>
+            <if test="subjectExpr != null">#{subjectExpr},</if>
+            <if test="resourceExpr != null">#{resourceExpr},</if>
+            <if test="envExpr != null">#{envExpr},</if>
+            <if test="priority != null">#{priority},</if>
+            <if test="status != null">#{status},</if>
+            <if test="remark != null">#{remark},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="delFlag != null">#{delFlag},</if>
+         </trim>
+    </insert>
+
+    <update id="updateSysPolicy" parameterType="SysPolicy">
+        update sys_policy
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="policyCode != null and policyCode != ''">policy_code = #{policyCode},</if>
+            <if test="policyName != null and policyName != ''">policy_name = #{policyName},</if>
+            <if test="effect != null and effect != ''">effect = #{effect},</if>
+            <if test="subjectType != null">subject_type = #{subjectType},</if>
+            <if test="subjectExpr != null">subject_expr = #{subjectExpr},</if>
+            <if test="resourceExpr != null">resource_expr = #{resourceExpr},</if>
+            <if test="envExpr != null">env_expr = #{envExpr},</if>
+            <if test="priority != null">priority = #{priority},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="delFlag != null">del_flag = #{delFlag},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSysPolicyById" parameterType="Long">
+        delete from sys_policy where id = #{id}
+    </delete>
+
+    <delete id="deleteSysPolicyByIds" parameterType="String">
+        delete from sys_policy where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

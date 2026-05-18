@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysRagAuditLogMapper">
+    
+    <resultMap type="SysRagAuditLog" id="SysRagAuditLogResult">
+        <result property="id"    column="id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="userName"    column="user_name"    />
+        <result property="queryText"    column="query_text"    />
+        <result property="groupCodes"    column="group_codes"    />
+        <result property="scopeCodes"    column="scope_codes"    />
+        <result property="metadataFilter"    column="metadata_filter"    />
+        <result property="allowAccess"    column="allow_access"    />
+        <result property="denyReasons"    column="deny_reasons"    />
+        <result property="costTime"    column="cost_time"    />
+        <result property="createTime"    column="create_time"    />
+    </resultMap>
+
+    <sql id="selectSysRagAuditLogVo">
+        select id, user_id, user_name, query_text, group_codes, scope_codes, metadata_filter, allow_access, deny_reasons, cost_time, create_time from sys_rag_audit_log
+    </sql>
+
+    <select id="selectSysRagAuditLogList" parameterType="SysRagAuditLog" resultMap="SysRagAuditLogResult">
+        <include refid="selectSysRagAuditLogVo"/>
+        <where>  
+            <if test="userId != null "> and user_id = #{userId}</if>
+            <if test="userName != null  and userName != ''"> and user_name like concat('%', #{userName}, '%')</if>
+            <if test="queryText != null  and queryText != ''"> and query_text like concat('%', #{queryText}, '%')</if>
+            <if test="groupCodes != null  and groupCodes != ''"> and group_codes = #{groupCodes}</if>
+            <if test="scopeCodes != null  and scopeCodes != ''"> and scope_codes like concat('%', #{scopeCodes}, '%')</if>
+            <if test="allowAccess != null  and allowAccess != ''"> and allow_access = #{allowAccess}</if>
+            <if test="params.beginCreateTime != null and params.beginCreateTime != '' and params.endCreateTime != null and params.endCreateTime != ''"> and create_time between #{params.beginCreateTime} and #{params.endCreateTime}</if>
+        </where>
+        order by create_time desc, id desc
+    </select>
+    
+    <select id="selectSysRagAuditLogById" parameterType="Long" resultMap="SysRagAuditLogResult">
+        <include refid="selectSysRagAuditLogVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSysRagAuditLog" parameterType="SysRagAuditLog" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_rag_audit_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="userName != null">user_name,</if>
+            <if test="queryText != null">query_text,</if>
+            <if test="groupCodes != null">group_codes,</if>
+            <if test="scopeCodes != null">scope_codes,</if>
+            <if test="metadataFilter != null">metadata_filter,</if>
+            <if test="allowAccess != null">allow_access,</if>
+            <if test="denyReasons != null">deny_reasons,</if>
+            <if test="costTime != null">cost_time,</if>
+            <if test="createTime != null">create_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="userName != null">#{userName},</if>
+            <if test="queryText != null">#{queryText},</if>
+            <if test="groupCodes != null">#{groupCodes},</if>
+            <if test="scopeCodes != null">#{scopeCodes},</if>
+            <if test="metadataFilter != null">#{metadataFilter},</if>
+            <if test="allowAccess != null">#{allowAccess},</if>
+            <if test="denyReasons != null">#{denyReasons},</if>
+            <if test="costTime != null">#{costTime},</if>
+            <if test="createTime != null">#{createTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateSysRagAuditLog" parameterType="SysRagAuditLog">
+        update sys_rag_audit_log
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="userName != null">user_name = #{userName},</if>
+            <if test="queryText != null">query_text = #{queryText},</if>
+            <if test="groupCodes != null">group_codes = #{groupCodes},</if>
+            <if test="scopeCodes != null">scope_codes = #{scopeCodes},</if>
+            <if test="metadataFilter != null">metadata_filter = #{metadataFilter},</if>
+            <if test="allowAccess != null">allow_access = #{allowAccess},</if>
+            <if test="denyReasons != null">deny_reasons = #{denyReasons},</if>
+            <if test="costTime != null">cost_time = #{costTime},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSysRagAuditLogById" parameterType="Long">
+        delete from sys_rag_audit_log where id = #{id}
+    </delete>
+
+    <delete id="deleteSysRagAuditLogByIds" parameterType="String">
+        delete from sys_rag_audit_log where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
