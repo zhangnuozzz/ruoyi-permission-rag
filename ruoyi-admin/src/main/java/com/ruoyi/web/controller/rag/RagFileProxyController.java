@@ -7,6 +7,11 @@ import java.util.Map;
 
 import com.ruoyi.system.domain.SysRagDoc;
 import com.ruoyi.system.service.ISysRagDocService;
+import com.ruoyi.system.service.ISysAccessLogService;
+import com.ruoyi.system.domain.SysAccessLog;
+import com.ruoyi.common.utils.ip.IpUtils;
+import com.ruoyi.common.utils.DateUtils;
+import javax.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -45,6 +50,9 @@ public class RagFileProxyController
     @Autowired
     private ISysRagDocService sysRagDocService;
 
+    @Autowired
+    private ISysAccessLogService sysAccessLogService;
+
     /**
      * 代理上传文件到 fufu RAG Server
      */
@@ -52,7 +60,8 @@ public class RagFileProxyController
     @PostMapping("/upload")
     public AjaxResult upload(@RequestParam("file") MultipartFile file,
                              @RequestParam("securityLevel") String securityLevel,
-                             @RequestParam("scopeCode") String scopeCode) throws IOException
+                             @RequestParam("scopeCode") String scopeCode,
+                             HttpServletRequest request) throws IOException
     {
         String url = ragServerUrl + "/rag/file/upload";
 
@@ -92,13 +101,95 @@ public class RagFileProxyController
 
         try
         {
+            long startTime = System.currentTimeMillis();
             ResponseEntity<Object> response = restTemplate.postForEntity(url, requestEntity, Object.class);
-            syncRagDoc(response.getBody());
-            return AjaxResult.success(response.getBody());
+            Object responseBody = response.getBody();
+            syncRagDoc(responseBody);
+            recordRagUploadAudit(request, file.getOriginalFilename(), securityLevel, scopeCode, responseBody, null, System.currentTimeMillis() - startTime);
+            return AjaxResult.success(responseBody);
         }
         catch (Exception e)
         {
+            recordRagUploadAudit(request, file.getOriginalFilename(), securityLevel, scopeCode, null, e, 0L);
             return AjaxResult.error("调用RAG文件服务失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * RAG 文件入库业务审计。
+     *
+     * 普通访问日志会记录一次 /rag/file/upload；
+     * 这里额外记录一条 /rag/file/upload#audit，用于突出 RAG 入库业务行为。
+     */
+    @SuppressWarnings("unchecked")
+    private void recordRagUploadAudit(HttpServletRequest request, String fileName, String securityLevel, String scopeCode,
+                                      Object responseBody, Exception exception, Long costTime)
+    {
+        try
+        {
+            SysAccessLog log = new SysAccessLog();
+
+            try
+            {
+                log.setUserId(SecurityUtils.getLoginUser().getUser().getUserId());
+                log.setUserName(SecurityUtils.getUsername());
+            }
+            catch (Exception e)
+            {
+                log.setUserId(0L);
+                log.setUserName("anonymous");
+            }
+
+            log.setIpaddr(IpUtils.getIpAddr(request));
+            log.setRequestUri("/rag/file/upload#audit");
+            log.setRequestMethod("POST");
+            log.setCostTime(costTime == null ? 0L : costTime);
+            log.setCreateTime(DateUtils.getNowDate());
+
+            if (exception == null)
+            {
+                log.setStatus("0");
+
+                String fileId = "";
+                String minioObjectName = "";
+                String chunkCount = "";
+
+                if (responseBody instanceof Map)
+                {
+                    Map<String, Object> outer = (Map<String, Object>) responseBody;
+                    Object dataObj = outer.get("data");
+                    if (dataObj instanceof Map)
+                    {
+                        Map<String, Object> data = (Map<String, Object>) dataObj;
+                        fileId = getString(data, "fileId");
+                        minioObjectName = getString(data, "minioObjectName");
+                        chunkCount = getString(data, "chunkCount");
+                    }
+                }
+
+                log.setErrorMsg("RAG_FILE_UPLOAD_SUCCESS"
+                        + "；fileName=" + fileName
+                        + "；fileId=" + fileId
+                        + "；securityLevel=" + securityLevel
+                        + "；scopeCode=" + scopeCode
+                        + "；minioObjectName=" + minioObjectName
+                        + "；chunkCount=" + chunkCount);
+            }
+            else
+            {
+                log.setStatus("1");
+                log.setErrorMsg("RAG_FILE_UPLOAD_FAIL"
+                        + "；fileName=" + fileName
+                        + "；securityLevel=" + securityLevel
+                        + "；scopeCode=" + scopeCode
+                        + "；error=" + exception.getMessage());
+            }
+
+            sysAccessLogService.insertSysAccessLog(log);
+        }
+        catch (Exception e)
+        {
+            // 审计失败不影响上传主流程
         }
     }
 
