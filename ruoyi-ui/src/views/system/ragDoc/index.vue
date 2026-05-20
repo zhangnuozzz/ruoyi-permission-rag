@@ -93,26 +93,76 @@
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="ragDocList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
-      <el-table-column label="文档ID" align="center" prop="docId" />
-      <el-table-column label="文档名称" align="center" prop="docName" />
-      <el-table-column label="知悉范围编码" align="center" prop="scopeCode" />
-      <el-table-column label="文档密级" align="center" prop="securityLevel" />
-      <el-table-column label="所属用户组编码" align="center" prop="ownerGroupCode" />
-      <el-table-column label="状态" align="center" prop="status" />
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+    <div class="rag-doc-header">
+      <div>
+        <div class="rag-doc-title">文档权限标签</div>
+        <div class="rag-doc-desc">
+          用于维护 RAG 文档的知悉范围、密级与所属用户组。通过“RAG 文件入库”上传成功的文件，会自动回写到本表，为后续权限过滤和安全检索提供基础数据。
+        </div>
+      </div>
+    </div>
+
+    <el-table
+      v-loading="loading"
+      :data="ragDocList"
+      border
+      stripe
+      class="rag-doc-table"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="50" align="center" fixed="left" />
+      <el-table-column label="主键ID" align="center" prop="id" width="80" fixed="left" />
+
+      <el-table-column label="文档ID" align="center" prop="docId" width="230" show-overflow-tooltip>
+        <template slot-scope="scope">
+          <span class="mono-text">{{ scope.row.docId }}</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="文档名称" align="center" prop="docName" min-width="180" show-overflow-tooltip />
+
+      <el-table-column label="知悉范围" align="center" prop="scopeCode" width="140" show-overflow-tooltip>
+        <template slot-scope="scope">
+          <el-tag size="mini" type="info">{{ scope.row.scopeCode }}</el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="文档密级" align="center" prop="securityLevel" width="120">
+        <template slot-scope="scope">
+          <el-tag
+            size="mini"
+            :type="scope.row.securityLevel === 'SECRET' ? 'danger' : scope.row.securityLevel === 'INTERNAL' ? 'warning' : 'success'"
+          >
+            {{ scope.row.securityLevel }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="所属用户组" align="center" prop="ownerGroupCode" width="160" show-overflow-tooltip />
+
+      <el-table-column label="状态" align="center" prop="status" width="90">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'danger'">
+            {{ scope.row.status === '0' ? '正常' : '停用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="备注 / 来源说明" align="left" prop="remark" min-width="320" show-overflow-tooltip />
+
+      <el-table-column label="创建时间" align="center" prop="createTime" width="120">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
+
+      <el-table-column label="更新时间" align="center" prop="updateTime" width="120">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d}') }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+
+      <el-table-column label="操作" align="center" width="140" fixed="right" class-name="small-padding fixed-width">
         <template slot-scope="scope">
           <el-button
             size="mini"
@@ -350,3 +400,39 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.rag-doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+
+.rag-doc-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 6px;
+}
+
+.rag-doc-desc {
+  font-size: 13px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.rag-doc-table {
+  width: 100%;
+}
+
+.mono-text {
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+</style>
+
