@@ -1,9 +1,13 @@
 package com.ruoyi.web.controller.rag;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.ruoyi.system.domain.SysRagDoc;
+import com.ruoyi.system.service.ISysRagDocService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +41,9 @@ public class RagFileProxyController
     private String ragServerUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @Autowired
+    private ISysRagDocService sysRagDocService;
 
     /**
      * 代理上传文件到 fufu RAG Server
@@ -86,12 +93,83 @@ public class RagFileProxyController
         try
         {
             ResponseEntity<Object> response = restTemplate.postForEntity(url, requestEntity, Object.class);
+            syncRagDoc(response.getBody());
             return AjaxResult.success(response.getBody());
         }
         catch (Exception e)
         {
             return AjaxResult.error("调用RAG文件服务失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 上传成功后，将 fufu RAG Server 返回的文件元数据同步写入本平台 sys_rag_doc。
+     *
+     * 这样文档入库、权限标签、后续检索过滤可以形成平台侧闭环。
+     */
+    @SuppressWarnings("unchecked")
+    private void syncRagDoc(Object responseBody)
+    {
+        try
+        {
+            if (!(responseBody instanceof Map))
+            {
+                return;
+            }
+
+            Map<String, Object> outer = (Map<String, Object>) responseBody;
+            Object dataObj = outer.get("data");
+            if (!(dataObj instanceof Map))
+            {
+                return;
+            }
+
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+
+            String fileId = getString(data, "fileId");
+            String fileName = getString(data, "fileName");
+            String securityLevel = getString(data, "securityLevel");
+            String scopeCode = getString(data, "scopeCode");
+            String groupId = getString(data, "groupId");
+            String minioObjectName = getString(data, "minioObjectName");
+            String chunkCount = getString(data, "chunkCount");
+
+            if (fileId == null || fileId.length() == 0 || fileName == null || fileName.length() == 0)
+            {
+                return;
+            }
+
+            SysRagDoc query = new SysRagDoc();
+            query.setDocId(fileId);
+            List<SysRagDoc> exists = sysRagDocService.selectSysRagDocList(query);
+            if (exists != null && !exists.isEmpty())
+            {
+                return;
+            }
+
+            SysRagDoc doc = new SysRagDoc();
+            doc.setDocId(fileId);
+            doc.setDocName(fileName);
+            doc.setScopeCode(scopeCode == null || scopeCode.length() == 0 ? "INTERNAL" : scopeCode);
+            doc.setSecurityLevel(securityLevel == null || securityLevel.length() == 0 ? "INTERNAL" : securityLevel);
+            doc.setOwnerGroupCode(groupId == null || groupId.length() == 0 ? "default" : groupId);
+            doc.setStatus("0");
+            doc.setDelFlag("0");
+            doc.setCreateBy(SecurityUtils.getUsername());
+            doc.setRemark("RAG文件入库自动生成；MinIO对象：" + minioObjectName + "；切块数：" + chunkCount);
+
+            sysRagDocService.insertSysRagDoc(doc);
+        }
+        catch (Exception e)
+        {
+            // 回写平台侧文档标签失败时，不影响 fufu RAG Server 文件入库主链路
+        }
+    }
+
+    private String getString(Map<String, Object> map, String key)
+    {
+        Object value = map.get(key);
+        return value == null ? null : String.valueOf(value);
     }
 
     /**
