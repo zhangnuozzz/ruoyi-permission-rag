@@ -110,8 +110,11 @@
             <el-tag size="small" effect="plain">{{ scope.row.ipaddr || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="请求路径" prop="requestUri" min-width="220">
+        <el-table-column label="请求路径" prop="requestUri" min-width="250" show-overflow-tooltip>
           <template slot-scope="scope">
+            <el-tag v-if="isRagAudit(scope.row)" size="small" type="warning" effect="plain" class="mr5">
+              RAG入库审计
+            </el-tag>
             <span class="uri-text">{{ scope.row.requestUri }}</span>
           </template>
         </el-table-column>
@@ -142,9 +145,40 @@
             <span>{{ parseTime(scope.row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="错误信息" prop="errorMsg" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="100">
+        <el-table-column label="错误信息 / 审计说明" prop="errorMsg" min-width="360" show-overflow-tooltip>
           <template slot-scope="scope">
+            <template v-if="scope.row.errorMsg">
+              <el-tag
+                v-if="scope.row.errorMsg.indexOf('RAG_FILE_UPLOAD_SUCCESS') !== -1"
+                size="small"
+                type="success"
+                effect="plain"
+                class="mr5"
+              >
+                入库成功
+              </el-tag>
+              <el-tag
+                v-else-if="scope.row.errorMsg.indexOf('RAG_FILE_UPLOAD_FAIL') !== -1"
+                size="small"
+                type="danger"
+                effect="plain"
+                class="mr5"
+              >
+                入库失败
+              </el-tag>
+              <span class="error-text">{{ scope.row.errorMsg }}</span>
+            </template>
+            <span v-else class="empty-text">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150" fixed="right">
+          <template slot-scope="scope">
+            <el-button
+              size="mini"
+              type="text"
+              icon="el-icon-view"
+              @click="handleView(scope.row)"
+            >详情</el-button>
             <el-button
               size="mini"
               type="text"
@@ -163,6 +197,28 @@
         :limit.sync="queryParams.pageSize"
         @pagination="getList"
       />
+
+      <el-dialog title="访问日志详情" :visible.sync="detailOpen" width="760px" append-to-body>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="日志ID">{{ detail.accessId }}</el-descriptions-item>
+          <el-descriptions-item label="用户">{{ detail.userName }}（{{ detail.userId }}）</el-descriptions-item>
+          <el-descriptions-item label="访问IP">{{ detail.ipaddr }}</el-descriptions-item>
+          <el-descriptions-item label="请求方式">{{ detail.requestMethod }}</el-descriptions-item>
+          <el-descriptions-item label="请求路径" :span="2">
+            <span class="uri-text">{{ detail.requestUri }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="访问状态">
+            <el-tag :type="detail.status === '0' || detail.status === 0 ? 'success' : 'danger'" size="small">
+              {{ detail.status === '0' || detail.status === 0 ? '成功' : '失败' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="耗时">{{ detail.costTime }} ms</el-descriptions-item>
+          <el-descriptions-item label="访问时间" :span="2">{{ parseTime(detail.createTime) }}</el-descriptions-item>
+          <el-descriptions-item label="错误信息 / 审计说明" :span="2">
+            <pre class="detail-box">{{ detail.errorMsg || '-' }}</pre>
+          </el-descriptions-item>
+        </el-descriptions>
+      </el-dialog>
     </el-card>
   </div>
 </template>
@@ -181,6 +237,8 @@ export default {
       total: 0,
       accessLogList: [],
       daterangeCreateTime: [],
+      detailOpen: false,
+      detail: {},
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -256,6 +314,13 @@ export default {
         return 'danger'
       }
       return 'info'
+    },
+    isRagAudit(row) {
+      return row && row.requestUri && row.requestUri.indexOf('/rag/file/upload#audit') !== -1
+    },
+    handleView(row) {
+      this.detail = row || {}
+      this.detailOpen = true
     }
   }
 }
@@ -297,5 +362,37 @@ export default {
 .slow-time {
   color: #e6a23c;
   font-weight: 600;
+}
+
+.error-text {
+  color: #606266;
+  font-size: 13px;
+}
+
+.empty-text {
+  color: #c0c4cc;
+}
+
+.mr5 {
+  margin-right: 5px;
+}
+
+.detail-box {
+  margin: 0;
+  padding: 10px 12px;
+  min-height: 60px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #f5f7fa;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+::v-deep .el-table .cell {
+  white-space: nowrap;
 }
 </style>
