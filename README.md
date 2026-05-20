@@ -1,81 +1,270 @@
-## 平台简介
+# 权限控制 RAG / 大模型向量库平台
 
-* 前端采用Vue、Element UI。
-* 后端采用Spring Boot、Spring Security、Redis & Jwt。
-* 权限认证使用Jwt，支持多终端认证系统。
-* 支持加载动态权限菜单，多方式轻松权限控制。
-* 高效率开发，使用代码生成器可以一键生成前后端代码。
-* 提供了一个Oracle版本[RuoYi-Vue-Oracle](https://github.com/yangzongzhuan/RuoYi-Vue-Oracle)，保持同步更新。
-* 不分离版本，请移步[RuoYi](https://gitee.com/y_project/RuoYi)，微服务版本，请移步[RuoYi-Cloud](https://gitee.com/y_project/RuoYi-Cloud)
-* 感谢[Vue-Element-Admin](https://github.com/PanJiaChen/vue-element-admin)，[eladmin-web](https://gitee.com/elunez/eladmin-web?_from=gitee_search)。
-* 阿里云优惠券：[点我进入](https://www.aliyun.com/minisite/goods?userCode=brki8iof&share_source=copy_link)，腾讯云优惠券：[点我领取](https://cloud.tencent.com/redirect.php?redirect=1025&cps_key=198c8df2ed259157187173bc7f4f32fd&from=console)&nbsp;&nbsp;
+## 一、项目简介
 
-## 内置功能
+本项目基于 RuoYi-Vue 3.2.0 二次开发，面向大模型向量库场景，重点建设“权限治理 + RAG 文件入库 + 安全审计”能力。
 
-1.  用户管理：用户是系统操作者，该功能主要完成系统用户配置。
-2.  部门管理：配置系统组织机构（公司、部门、小组），树结构展现支持数据权限。
-3.  岗位管理：配置系统用户所属担任职务。
-4.  菜单管理：配置系统菜单，操作权限，按钮权限标识等。
-5.  角色管理：角色菜单权限分配、设置角色按机构进行数据范围权限划分。
-6.  字典管理：对系统中经常使用的一些较为固定的数据进行维护。
-7.  参数管理：对系统动态配置常用参数。
-8.  通知公告：系统通知公告信息发布维护。
-9.  操作日志：系统正常操作日志记录和查询；系统异常信息日志记录和查询。
-10. 登录日志：系统登录日志记录查询包含登录异常。
-11. 在线用户：当前系统中活跃用户状态监控。
-12. 定时任务：在线（添加、修改、删除)任务调度包含执行结果日志。
-13. 代码生成：前后端代码的生成（java、html、xml、sql）支持CRUD下载 。
-14. 系统接口：根据业务代码自动生成相关的api接口文档。
-15. 服务监控：监视当前系统CPU、内存、磁盘、堆栈等相关信息。
-16. 在线构建器：拖动表单元素生成相应的HTML代码。
-17. 连接池监视：监视当前系统数据库连接池状态，可进行分析SQL找出系统性能瓶颈。
+平台侧主要负责用户组、权限策略、文档权限标签、访问监控、安全规则、IP 黑名单以及 RAG 文件入库代理能力；RAG Server 侧由 fufu 模块提供文件处理、原文件备份、文本切块与向量写入能力。
 
-## 在线体验
+当前已完成 RAG 文件入库第一阶段对接：用户可在若依平台上传带权限标签的文件，系统通过后端代理调用 fufu RAG Server，完成 MariaDB 元数据、MinIO 原文件、Milvus 向量切块三段式存储，并自动回写平台侧文档权限标签和入库审计日志。
 
-- admin/admin123  
-- 陆陆续续收到一些打赏，为了更好的体验已用于演示服务器升级。谢谢各位小伙伴。
+## 二、技术栈
 
-演示地址：http://vue.ruoyi.vip  
-文档地址：http://doc.ruoyi.vip
+### 平台侧
 
-## 演示图
+- RuoYi-Vue 3.2.0
+- Spring Boot 2.3.12.RELEASE
+- Spring Security
+- MyBatis
+- MariaDB
+- Redis
+- Vue 2.6.10
+- Element UI
+- Java 8
+- Node.js 16
 
-<table>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/cd1f90be5f2684f4560c9519c0f2a232ee8.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/1cbcf0e6f257c7d3a063c0e3f2ff989e4b3.jpg"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-8074972883b5ba0622e13246738ebba237a.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-9f88719cdfca9af2e58b352a20e23d43b12.png"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-39bf2584ec3a529b0d5a3b70d15c9b37646.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-936ec82d1f4872e1bc980927654b6007307.png"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-b2d62ceb95d2dd9b3fbe157bb70d26001e9.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-d67451d308b7a79ad6819723396f7c3d77a.png"/></td>
-    </tr>	 
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/5e8c387724954459291aafd5eb52b456f53.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/644e78da53c2e92a95dfda4f76e6d117c4b.jpg"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-8370a0d02977eebf6dbf854c8450293c937.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-49003ed83f60f633e7153609a53a2b644f7.png"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-d4fe726319ece268d4746602c39cffc0621.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-c195234bbcd30be6927f037a6755e6ab69c.png"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/b6115bc8c31de52951982e509930b20684a.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-6d73c2140ce694e3de4c05035fdc1868d4c.png"/></td>
-    </tr>
-</table>
+### RAG Server 侧
 
+- Spring Boot
+- Java 17
+- MariaDB
+- MinIO
+- Milvus
+- LangChain4j
 
-## 若依前后端分离交流群
+## 三、已完成功能
 
-QQ群： [![加入QQ群](https://img.shields.io/badge/已满-937441-blue.svg)](https://jq.qq.com/?_wv=1027&k=5bVB1og) [![加入QQ群](https://img.shields.io/badge/已满-887144332-blue.svg)](https://jq.qq.com/?_wv=1027&k=5eiA4DH) [![加入QQ群](https://img.shields.io/badge/已满-180251782-blue.svg)](https://jq.qq.com/?_wv=1027&k=5AxMKlC) [![加入QQ群](https://img.shields.io/badge/104180207-blue.svg)](https://jq.qq.com/?_wv=1027&k=51G72yr) 点击按钮入群。
+### 1. 权限治理基础模块
+
+- 用户组管理
+- 用户与用户组关系维护
+- 权限策略管理
+- 策略绑定管理
+- 文档权限标签管理
+- RAG 审计日志基础页面
+- RAG 检索测试页面基础能力
+
+### 2. 安全中心
+
+- 访问监控
+- 静态安全规则拦截
+- 危险路径拦截
+- 危险参数拦截
+- IP 黑名单管理
+- IP 黑名单启用 / 停用
+- 黑名单请求拦截
+- 安全访问日志记录
+
+### 3. RAG 文件入库对接
+
+当前已完成平台侧与 fufu RAG Server 的文件入库链路对接。
+
+链路如下：
+
+若依前端 1024
+→ 若依后端 8080
+→ fufu RAG Server 8081
+→ MariaDB sys_rag_file
+→ MinIO rag-files bucket
+→ Milvus rag_file_chunks
+→ 若依平台 sys_rag_doc 文档权限标签回写
+→ sys_access_log 入库审计日志
+
+已验证能力：
+
+- 若依前端上传文件
+- 选择文件密级
+- 选择权限标签
+- 若依后端代理转发至 fufu RAG Server
+- fufu RAG Server 写入 MariaDB 元数据
+- fufu RAG Server 备份原文件到 MinIO
+- fufu RAG Server 写入 Milvus 向量切块
+- 平台侧自动回写 sys_rag_doc
+- 平台侧记录 sys_access_log 入库审计
+- 前端页面展示 MariaDB / MinIO / Milvus 三端结果
+- 访问监控页面展示 RAG 入库审计详情
+
+## 四、核心页面
+
+### RAG 文件入库
+
+- 文件上传
+- 文件密级选择
+- 权限标签选择
+- 上传结果结构化展示
+- MariaDB 文件元数据展示
+- Milvus 切块内容展示
+- MinIO 原始文件对象展示
+- 入库链路状态展示
+
+### 文档权限标签
+
+- 查看文档权限标签
+- 展示自动入库回写的文档记录
+- 展示文档 ID、文档名称、知悉范围、密级、所属用户组、来源说明
+- 支持新增、修改、删除、查询
+
+### 安全中心 / 访问监控
+
+- 展示后台访问日志
+- 展示 RAG 入库业务审计
+- 支持查看 RAG_FILE_UPLOAD_SUCCESS / RAG_FILE_UPLOAD_FAIL 详情
+- 展示访问 IP、请求路径、请求方式、状态、耗时、审计说明
+
+### 安全中心 / IP 黑名单
+
+- 新增黑名单 IP
+- 修改黑名单 IP
+- 删除黑名单 IP
+- 启用 / 停用黑名单
+- 黑名单请求拦截
+- 本地开发环境保护
+
+## 五、本地启动方式
+
+本项目本地联调需要启动四类服务：
+
+- Docker 依赖环境：MinIO / Milvus / etcd
+- fufu RAG Server：8081
+- 若依后端：8080
+- 若依前端：1024
+
+### 1. 启动 Docker 依赖环境
+
+需要先打开 Docker Desktop。
+
+start-rag-env
+
+或者进入 fufu 项目根目录执行：
+
+docker compose -f docker-compose.rag.yml up -d
+
+### 2. 启动 fufu RAG Server
+
+start-rag
+
+默认端口：8081。
+
+### 3. 启动若依后端
+
+start-ruoyi
+
+默认端口：8080。
+
+### 4. 启动若依前端
+
+start-ui
+
+默认端口：1024。
+
+访问地址：
+
+http://localhost:1024
+
+## 六、环境检查
+
+项目提供环境检查脚本：
+
+./scripts/check-env.sh
+
+检查内容包括：
+
+- 若依前端 1024
+- 若依后端 8080
+- fufu RAG Server 8081
+- MinIO 9000
+- Milvus 19530
+- Docker 容器状态
+- MinIO 健康检查
+- fufu RAG MariaDB 接口
+
+## 七、演示流程
+
+### 1. 打开若依后台
+
+访问：
+
+http://localhost:1024
+
+### 2. 进入 RAG 文件入库页面
+
+选择测试文件，例如：
+
+username.txt
+
+选择：
+
+- 文件密级：INTERNAL
+- 权限标签：INTERNAL
+
+点击上传入库。
+
+### 3. 查看三端存储
+
+上传成功后，在当前页面查看：
+
+- MariaDB 文件元数据
+- Milvus 切块内容
+- MinIO 原始文件对象
+
+### 4. 查看文档权限标签回写
+
+进入“文档权限标签”，确认上传文件已自动生成权限标签记录。
+
+### 5. 查看入库审计
+
+进入“安全中心 → 访问监控”，确认存在：
+
+/rag/file/upload#audit
+
+RAG_FILE_UPLOAD_SUCCESS
+
+点击详情，可查看：
+
+- fileName
+- fileId
+- securityLevel
+- scopeCode
+- minioObjectName
+- chunkCount
+
+## 八、当前阶段成果
+
+当前已完成 RAG 文件入库平台侧闭环：
+
+文件上传
+→ 三段式存储
+→ 权限标签回写
+→ 入库审计记录
+→ 访问监控展示
+→ 运维检查脚本
+→ 演示说明文档
+
+该能力为后续安全检索、权限过滤、用户组授权和审计追踪提供基础。
+
+## 九、后续计划
+
+fufu 检索链路完成后，平台侧将继续推进：
+
+- 对接真实 RAG 检索接口
+- 将当前模拟检索替换为远程 RAG Server 检索
+- 请求中携带用户身份、用户组、权限标签上下文
+- 基于 scopeCode、securityLevel、groupId 进行检索过滤
+- 保留平台侧二次权限过滤能力
+- 增强 RAG 检索审计
+- 完善权限拒绝原因展示
+- 完成项目部署文档和阶段汇报材料
+
+## 十、注意事项
+
+- 不要将真实数据库密码提交到公开仓库。
+- 本地启动脚本中的密码仅用于个人开发环境。
+- 如果 Docker 未启动，start-rag-env 会失败，需要先打开 Docker Desktop。
+- 如果 Milvus 未启动，RAG 文件上传会在向量写入阶段超时。
+- 如果 MinIO bucket 不存在，需要确认 rag-files bucket 是否已创建。
+
+## 十一、原始项目说明
+
+本项目基于 RuoYi-Vue 3.2.0 二次开发。原始若依 README 已备份为：
+
+README_RuoYi_Original.md
