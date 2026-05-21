@@ -11,10 +11,11 @@ import java.util.List;
 /**
  * RAG 检索结果二次过滤 Service 实现
  *
- * 当前版本只基于 scopeCode 做最小过滤：
- * 1. 用户拥有该 scopeCode，则结果保留；
- * 2. 用户不拥有该 scopeCode，则结果丢弃；
- * 3. 后续可扩展密级 level、策略优先级、时间条件等规则。
+ * 当前版本基于 scopeCode 做权限过滤：
+ * 1. PUBLIC 公开文档默认允许所有已登录用户访问；
+ * 2. 用户拥有该 scopeCode，则结果保留；
+ * 3. 用户不拥有该 scopeCode，则结果丢弃；
+ * 4. 后续可扩展密级 level、策略优先级、时间条件等规则。
  */
 @Service
 public class RagSecondFilterServiceImpl implements IRagSecondFilterService
@@ -30,9 +31,9 @@ public class RagSecondFilterServiceImpl implements IRagSecondFilterService
         }
 
         List<String> allowedScopes = context.getScopeCodes();
-        if (allowedScopes == null || allowedScopes.isEmpty())
+        if (allowedScopes == null)
         {
-            return filtered;
+            allowedScopes = new ArrayList<String>();
         }
 
         for (RagSearchResult result : results)
@@ -42,7 +43,13 @@ public class RagSecondFilterServiceImpl implements IRagSecondFilterService
                 continue;
             }
 
-            if (allowedScopes.contains(result.getScopeCode()))
+            if (isPublicResource(result))
+            {
+                result.setPassed(true);
+                result.setFilterReason("二次过滤通过：PUBLIC 公开文档默认允许登录用户访问");
+                filtered.add(result);
+            }
+            else if (allowedScopes.contains(result.getScopeCode()))
             {
                 result.setPassed(true);
                 result.setFilterReason("二次过滤通过：用户具备该知悉范围");
@@ -56,5 +63,24 @@ public class RagSecondFilterServiceImpl implements IRagSecondFilterService
         }
 
         return filtered;
+    }
+
+    /**
+     * 判断是否为公开资源。
+     *
+     * 只要文档 scopeCode 或密级 level 为 PUBLIC，
+     * 即认为该文档属于公开资料，允许所有已登录用户访问。
+     */
+    private boolean isPublicResource(RagSearchResult result)
+    {
+        if (result == null)
+        {
+            return false;
+        }
+
+        String scopeCode = result.getScopeCode();
+        String level = result.getLevel();
+        return "PUBLIC".equalsIgnoreCase(scopeCode)
+                || "PUBLIC".equalsIgnoreCase(level);
     }
 }
