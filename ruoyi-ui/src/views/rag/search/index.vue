@@ -5,10 +5,19 @@
         <div>
           <div class="page-title">RAG 安全检索测试</div>
           <div class="page-subtitle">
-            基于当前登录用户生成权限上下文，完成策略决策、Metadata Filter 生成、二次过滤与审计留痕。
+            当前阶段使用 sys_rag_doc 模拟候选检索结果，重点验证“权限上下文 → Metadata Filter → 二次过滤 → 审计留痕”的平台侧安全检索链路。
           </div>
         </div>
+        <el-tag type="warning" effect="plain">模拟检索模式</el-tag>
       </div>
+
+      <el-alert
+        title="链路定位：用户问题 → 当前登录用户权限上下文 → 策略决策 → Metadata Filter → 候选结果二次过滤 → RAG 检索审计"
+        type="info"
+        :closable="false"
+        show-icon
+        class="tips-alert"
+      />
 
       <el-form :model="form" label-width="90px" class="search-form">
         <el-form-item label="检索问题">
@@ -16,7 +25,7 @@
             v-model="form.query"
             type="textarea"
             :rows="4"
-            placeholder="请输入要检索的问题，例如：测试从文档权限标签表读取候选结果"
+            placeholder="请输入要检索的问题，例如：查询内部研发制度"
           />
         </el-form-item>
 
@@ -33,73 +42,89 @@
 
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
-        <span class="section-title">权限决策结果</span>
+        <span class="section-title">本次检索权限上下文</span>
         <el-tag :type="result.allowAccess ? 'success' : 'danger'" effect="plain">
           {{ result.allowAccess ? '策略放行' : '策略拒绝' }}
         </el-tag>
       </div>
 
-      <div class="summary-grid">
-        <div class="summary-item">
-          <div class="summary-label">用户ID</div>
-          <div class="summary-value">{{ result.userId }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">用户名</div>
-          <div class="summary-value">{{ result.userName }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">管理员</div>
-          <div class="summary-value">
-            <el-tag :type="result.admin ? 'success' : 'info'" size="small">
-              {{ result.admin ? '是' : '否' }}
-            </el-tag>
+      <el-row :gutter="12" class="context-row">
+        <el-col :span="6">
+          <div class="context-card">
+            <div class="context-label">当前用户</div>
+            <div class="context-value">{{ result.userName || '-' }}</div>
+            <div class="context-extra">用户ID：{{ result.userId || '-' }}</div>
           </div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">耗时</div>
-          <div class="summary-value">{{ result.costTime }} ms</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">候选结果数</div>
-          <div class="summary-value">{{ result.rawResultCount }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">过滤后结果数</div>
-          <div class="summary-value">{{ result.filteredResultCount }}</div>
-        </div>
-      </div>
+        </el-col>
 
-      <div class="detail-block">
-        <div class="detail-label">用户组</div>
-        <div class="tag-list">
-          <el-tag
-            v-for="item in normalizeArray(result.groupCodes)"
-            :key="item"
-            size="small"
-            type="info"
-            effect="plain"
-          >
-            {{ item }}
-          </el-tag>
-          <span v-if="normalizeArray(result.groupCodes).length === 0" class="empty-text">-</span>
-        </div>
-      </div>
+        <el-col :span="6">
+          <div class="context-card">
+            <div class="context-label">管理员身份</div>
+            <div class="context-value">
+              <el-tag :type="result.admin ? 'success' : 'info'" size="small">
+                {{ result.admin ? '管理员' : '普通用户' }}
+              </el-tag>
+            </div>
+            <div class="context-extra">admin = {{ result.admin }}</div>
+          </div>
+        </el-col>
 
-      <div class="detail-block">
-        <div class="detail-label">知悉范围</div>
-        <div class="tag-list">
-          <el-tag
-            v-for="item in normalizeArray(result.scopeCodes)"
-            :key="item"
-            size="small"
-            effect="plain"
-          >
-            {{ item }}
-          </el-tag>
-          <span v-if="normalizeArray(result.scopeCodes).length === 0" class="empty-text">-</span>
-        </div>
-      </div>
+        <el-col :span="6">
+          <div class="context-card">
+            <div class="context-label">候选结果</div>
+            <div class="context-value">{{ result.rawResultCount || 0 }} 条</div>
+            <div class="context-extra">来自 sys_rag_doc 模拟候选集</div>
+          </div>
+        </el-col>
+
+        <el-col :span="6">
+          <div class="context-card">
+            <div class="context-label">过滤后结果</div>
+            <div class="context-value">{{ result.filteredResultCount || 0 }} 条</div>
+            <div class="context-extra">耗时：{{ result.costTime || 0 }} ms</div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <el-divider />
+
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <div class="detail-block compact">
+            <div class="detail-label">用户组编码</div>
+            <div class="tag-list">
+              <el-tag
+                v-for="item in normalizeArray(result.groupCodes)"
+                :key="item"
+                size="small"
+                type="info"
+                effect="plain"
+              >
+                {{ item }}
+              </el-tag>
+              <span v-if="normalizeArray(result.groupCodes).length === 0" class="empty-text">-</span>
+            </div>
+          </div>
+        </el-col>
+
+        <el-col :span="12">
+          <div class="detail-block compact">
+            <div class="detail-label">可访问标签</div>
+            <div class="tag-list">
+              <el-tag
+                v-for="item in normalizeArray(result.scopeCodes)"
+                :key="item"
+                size="small"
+                type="success"
+                effect="plain"
+              >
+                {{ item }}
+              </el-tag>
+              <span v-if="normalizeArray(result.scopeCodes).length === 0" class="empty-text">-</span>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
 
       <div class="detail-block">
         <div class="detail-label">Metadata Filter</div>
@@ -129,6 +154,33 @@
       </div>
     </el-card>
 
+    <el-row v-if="result" :gutter="16">
+      <el-col :span="12">
+        <el-card class="box-card" shadow="never">
+          <div slot="header" class="section-header">
+            <span class="section-title">后续传给 fufu 的检索请求 JSON</span>
+            <el-button size="mini" type="primary" plain @click="copyRequestJson">复制</el-button>
+          </div>
+          <pre class="json-box">{{ formatJson(buildFufuRequest()) }}</pre>
+        </el-card>
+      </el-col>
+
+      <el-col :span="12">
+        <el-card class="box-card" shadow="never">
+          <div slot="header" class="section-header">
+            <span class="section-title">当前阶段说明</span>
+            <el-tag size="mini" type="info">平台侧预对接</el-tag>
+          </div>
+          <div class="explain-box">
+            <p>当前页面暂不直接调用 fufu 的真实检索接口。</p>
+            <p>后端先从 <span class="mono-text">sys_rag_doc</span> 读取候选文档，模拟向量检索返回结果。</p>
+            <p>等 fufu 提供真实 <span class="mono-text">/rag/search</span> 接口后，可将候选结果来源替换为远程 RAG Server。</p>
+            <p>平台侧会继续保留权限上下文、metadataFilter、二次过滤与审计能力。</p>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
         <span class="section-title">过滤后文档结果</span>
@@ -141,20 +193,30 @@
         stripe
         class="result-table"
       >
-        <el-table-column label="文档ID" prop="docId" width="110" align="center" />
-        <el-table-column label="标题" prop="title" min-width="170" />
-        <el-table-column label="知悉范围" prop="scopeCode" width="140" align="center">
+        <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip>
           <template slot-scope="scope">
-            <el-tag size="small" effect="plain">
+            <span class="mono-text">{{ scope.row.docId }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
+
+        <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center">
+          <template slot-scope="scope">
+            <el-tag size="small" type="success" effect="plain">
               {{ scope.row.scopeCode }}
             </el-tag>
           </template>
         </el-table-column>
+
         <el-table-column label="密级" width="120" align="center">
           <template slot-scope="scope">
-            {{ scope.row.level || scope.row.securityLevel || '-' }}
+            <el-tag size="small" :type="levelTagType(scope.row.level || scope.row.securityLevel)" effect="plain">
+              {{ scope.row.level || scope.row.securityLevel || '-' }}
+            </el-tag>
           </template>
         </el-table-column>
+
         <el-table-column label="过滤状态" width="120" align="center">
           <template slot-scope="scope">
             <el-tag :type="isPassed(scope.row) ? 'success' : 'danger'" size="small" effect="plain">
@@ -162,14 +224,16 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="过滤说明" prop="filterReason" min-width="260">
+
+        <el-table-column label="过滤说明" prop="filterReason" min-width="260" show-overflow-tooltip>
           <template slot-scope="scope">
             <span class="doc-reason">{{ scope.row.filterReason || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="内容摘要" prop="content" min-width="360">
+
+        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip>
           <template slot-scope="scope">
-            <div class="doc-content">{{ scope.row.content }}</div>
+            <span class="doc-content">{{ scope.row.content }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -178,6 +242,14 @@
         v-if="!result.filteredResults || result.filteredResults.length === 0"
         description="暂无可返回文档"
       />
+    </el-card>
+
+    <el-card v-if="result" class="box-card" shadow="never">
+      <div slot="header" class="section-header">
+        <span class="section-title">完整后端返回 JSON</span>
+        <el-button size="mini" type="primary" plain @click="copyResultJson">复制</el-button>
+      </div>
+      <pre class="json-box large">{{ formatJson(result) }}</pre>
     </el-card>
   </div>
 </template>
@@ -191,7 +263,7 @@ export default {
     return {
       loading: false,
       form: {
-        query: '测试从文档权限标签表读取候选结果'
+        query: '查询内部研发制度'
       },
       result: null
     }
@@ -206,7 +278,7 @@ export default {
       this.loading = true
       ragSearch(this.form).then(response => {
         this.result = response.data
-        this.$modal.msgSuccess('检索完成')
+        this.$modal.msgSuccess('检索完成，已生成权限上下文与过滤结果')
       }).finally(() => {
         this.loading = false
       })
@@ -238,6 +310,58 @@ export default {
         return row.allowed
       }
       return true
+    },
+    levelTagType(value) {
+      if (value === 'SECRET') {
+        return 'danger'
+      }
+      if (value === 'INTERNAL') {
+        return 'warning'
+      }
+      if (value === 'PUBLIC') {
+        return 'success'
+      }
+      return 'info'
+    },
+    buildFufuRequest() {
+      if (!this.result) {
+        return {}
+      }
+      return {
+        query: this.result.query || this.form.query,
+        topK: 5,
+        userContext: {
+          userId: this.result.userId,
+          userName: this.result.userName,
+          admin: this.result.admin,
+          groupCodes: this.normalizeArray(this.result.groupCodes),
+          scopeCodes: this.normalizeArray(this.result.scopeCodes)
+        },
+        metadataFilter: this.result.metadataFilter || '',
+        platformFilterMode: 'metadata_filter_and_second_filter'
+      }
+    },
+    formatJson(value) {
+      try {
+        return JSON.stringify(value || {}, null, 2)
+      } catch (e) {
+        return String(value)
+      }
+    },
+    copyRequestJson() {
+      this.copyText(this.formatJson(this.buildFufuRequest()), '检索请求 JSON 已复制')
+    },
+    copyResultJson() {
+      this.copyText(this.formatJson(this.result), '后端返回 JSON 已复制')
+    },
+    copyText(text, successMsg) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          this.$modal.msgSuccess(successMsg)
+        })
+      } else {
+        this.$modal.msgWarning('当前浏览器不支持自动复制，请手动复制')
+      }
     }
   }
 }
@@ -253,7 +377,8 @@ export default {
   border-radius: 6px;
 }
 
-.card-header {
+.card-header,
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -272,14 +397,12 @@ export default {
   color: #909399;
 }
 
-.search-form {
-  padding: 4px 6px 0 0;
+.tips-alert {
+  margin-bottom: 16px;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.search-form {
+  padding: 4px 6px 0 0;
 }
 
 .section-title {
@@ -294,31 +417,34 @@ export default {
   margin-left: 12px;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+.context-row {
+  margin-bottom: 12px;
 }
 
-.summary-item {
+.context-card {
   padding: 14px 16px;
   background: #f8fafc;
   border: 1px solid #ebeef5;
   border-radius: 6px;
 }
 
-.summary-label {
+.context-label {
   font-size: 13px;
   color: #909399;
   margin-bottom: 8px;
 }
 
-.summary-value {
-  font-size: 16px;
+.context-value {
+  font-size: 17px;
   color: #303133;
-  font-weight: 500;
+  font-weight: 600;
+  margin-bottom: 8px;
   word-break: break-all;
+}
+
+.context-extra {
+  font-size: 12px;
+  color: #909399;
 }
 
 .detail-block {
@@ -326,6 +452,11 @@ export default {
   align-items: flex-start;
   padding: 12px 0;
   border-top: 1px solid #ebeef5;
+}
+
+.detail-block.compact {
+  border-top: none;
+  padding-top: 4px;
 }
 
 .detail-label {
@@ -382,21 +513,52 @@ export default {
 .doc-content {
   color: #606266;
   line-height: 1.6;
-  white-space: normal;
+}
+
+.json-box {
+  margin: 0;
+  padding: 12px;
+  max-height: 280px;
+  overflow: auto;
+  background: #f5f7fa;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
   word-break: break-all;
 }
 
+.json-box.large {
+  max-height: 420px;
+}
+
+.explain-box {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.explain-box p {
+  margin: 0 0 8px 0;
+}
+
+.mono-text {
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+::v-deep .el-table .cell {
+  white-space: nowrap;
+}
+
 @media screen and (max-width: 1200px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  .context-row .el-col {
+    margin-bottom: 12px;
   }
 }
 
 @media screen and (max-width: 768px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .detail-block {
     display: block;
   }
