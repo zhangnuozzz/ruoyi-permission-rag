@@ -79,9 +79,9 @@
 
         <el-col :span="6">
           <div class="context-card">
-            <div class="context-label">过滤后结果</div>
-            <div class="context-value">{{ result.filteredResultCount || 0 }} 条</div>
-            <div class="context-extra">耗时：{{ result.costTime || 0 }} ms</div>
+            <div class="context-label">过滤统计</div>
+            <div class="context-value">{{ result.filteredResultCount || 0 }} / {{ result.rejectedResultCount || 0 }}</div>
+            <div class="context-extra">允许 / 拦截，耗时：{{ result.costTime || 0 }} ms</div>
           </div>
         </el-col>
       </el-row>
@@ -241,6 +241,68 @@
       <el-empty
         v-if="!result.filteredResults || result.filteredResults.length === 0"
         description="暂无可返回文档"
+      />
+    </el-card>
+
+
+    <el-card v-if="result" class="box-card" shadow="never">
+      <div slot="header" class="section-header">
+        <span class="section-title">被权限过滤拦截的候选结果</span>
+        <span class="section-desc">展示模拟候选结果中命中但不允许返回给当前用户的文档。</span>
+      </div>
+
+      <el-table
+        :data="result.rejectedResults || []"
+        border
+        stripe
+        class="result-table"
+      >
+        <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="mono-text">{{ scope.row.docId }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
+
+        <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center">
+          <template slot-scope="scope">
+            <el-tag size="small" type="danger" effect="plain">
+              {{ scope.row.scopeCode }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="密级" width="120" align="center">
+          <template slot-scope="scope">
+            <el-tag size="small" :type="levelTagType(scope.row.level || scope.row.securityLevel)" effect="plain">
+              {{ scope.row.level || scope.row.securityLevel || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="过滤状态" width="120" align="center">
+          <template>
+            <el-tag type="danger" size="small" effect="plain">已拦截</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="拦截说明" prop="filterReason" min-width="300" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="doc-reason">{{ scope.row.filterReason || '当前用户无该文档 scopeCode 访问权限' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="doc-content">{{ scope.row.content }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-empty
+        v-if="!result.rejectedResults || result.rejectedResults.length === 0"
+        description="暂无被拦截候选结果"
       />
     </el-card>
 

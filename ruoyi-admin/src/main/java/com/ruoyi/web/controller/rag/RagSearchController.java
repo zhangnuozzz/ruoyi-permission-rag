@@ -15,6 +15,7 @@ import com.ruoyi.system.service.IRagSecondFilterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +69,7 @@ public class RagSearchController
 
         List<RagSearchResult> rawResults = ragDocMockSearchService.search(request.getQuery());
         List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
+        List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
 
         long costTime = System.currentTimeMillis() - startTime;
 
@@ -89,7 +91,10 @@ public class RagSearchController
 
         result.put("rawResultCount", rawResults == null ? 0 : rawResults.size());
         result.put("filteredResultCount", filteredResults == null ? 0 : filteredResults.size());
+        result.put("rejectedResultCount", rejectedResults == null ? 0 : rejectedResults.size());
+        result.put("rawResults", rawResults);
         result.put("filteredResults", filteredResults);
+        result.put("rejectedResults", rejectedResults);
         result.put("costTime", costTime);
 
         if (Boolean.FALSE.equals(decision.getAllowAccess()))
@@ -101,6 +106,53 @@ public class RagSearchController
 
         result.put("message", "请求已通过策略决策，并基于 sys_rag_doc 完成模拟检索结果二次过滤与审计留痕");
         return (AjaxResult) AjaxResult.success(result);
+    }
+
+    /**
+     * 根据原始候选结果和过滤后结果，计算被二次过滤拦截的文档。
+     *
+     * 该结果主要用于前端演示和审计解释：
+     * 1. rawResults 表示模拟向量检索命中的候选文档；
+     * 2. filteredResults 表示权限过滤后允许返回给用户的文档；
+     * 3. rejectedResults 表示命中但因权限不匹配被过滤的文档。
+     */
+    private List<RagSearchResult> buildRejectedResults(List<RagSearchResult> rawResults, List<RagSearchResult> filteredResults)
+    {
+        List<RagSearchResult> rejectedResults = new ArrayList<RagSearchResult>();
+
+        if (rawResults == null || rawResults.isEmpty())
+        {
+            return rejectedResults;
+        }
+
+        for (RagSearchResult raw : rawResults)
+        {
+            boolean passed = false;
+
+            if (filteredResults != null)
+            {
+                for (RagSearchResult filtered : filteredResults)
+                {
+                    if (raw.getDocId() != null && raw.getDocId().equals(filtered.getDocId()))
+                    {
+                        passed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!passed)
+            {
+                raw.setPassed(false);
+                if (raw.getFilterReason() == null || raw.getFilterReason().length() == 0)
+                {
+                    raw.setFilterReason("文档 scopeCode 不在当前用户可访问范围内，已被二次权限过滤拦截");
+                }
+                rejectedResults.add(raw);
+            }
+        }
+
+        return rejectedResults;
     }
 
     /**
