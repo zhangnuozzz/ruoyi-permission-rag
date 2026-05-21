@@ -2,15 +2,15 @@
 
 ## 一、功能目标
 
-本功能用于验证权限治理平台与 fufu RAG Server 的第一阶段对接能力。
+本功能用于验证权限治理平台与 RAG Server 的第一阶段对接能力。
 
-用户在若依平台上传带权限标签的文件后，系统会通过若依后端代理调用 fufu RAG Server，完成文件入库、原文件备份、文本切块、向量写入、权限标签回写与审计记录。
+用户在若依平台上传带权限标签的文件后，系统会通过若依后端代理调用 RAG Server，完成文件入库、原文件备份、文本切块、向量写入、权限标签回写与审计记录。
 
 ## 二、当前已完成链路
 
 若依前端 1024
 → 若依后端 8080
-→ fufu RAG Server 8081
+→ RAG Server 8081
 → MariaDB sys_rag_file
 → MinIO rag-files bucket
 → Milvus rag_file_chunks
@@ -23,7 +23,7 @@
 
 start-rag-env
 
-2. 启动 fufu RAG Server：
+2. 启动 RAG Server：
 
 start-rag
 
@@ -45,7 +45,7 @@ start-ui
 
 - 1024：若依前端
 - 8080：若依后端
-- 8081：fufu RAG Server
+- 8081：RAG Server
 - 9000：MinIO
 - 19530：Milvus
 
@@ -92,7 +92,7 @@ RAG 权限上下文
 - 命中策略
 - allowAccess
 - denyReasons
-- 后续传给 fufu 的权限上下文 JSON
+- 后续传给 RAG Server 的权限上下文 JSON
 
 ### 2. 执行 RAG 安全检索测试
 
@@ -116,10 +116,10 @@ RAG 检索测试
 - Metadata Filter
 - 候选结果数量
 - 二次过滤后结果数量
-- 后续传给 fufu 的检索请求 JSON
+- 后续传给 RAG Server 的检索请求 JSON
 - 完整后端返回 JSON
 
-当前阶段暂不调用 fufu 真实检索接口，而是从 sys_rag_doc 中读取候选文档，模拟向量检索返回结果，用于验证平台侧权限过滤链路。
+当前阶段暂不调用 RAG Server 真实检索接口，而是从 sys_rag_doc 中读取候选文档，模拟向量检索返回结果，用于验证平台侧权限过滤链路。
 
 ### 3. 查看 RAG 检索审计日志
 
@@ -153,4 +153,4 @@ RAG 检索审计日志
 → RAG 检索审计
 → 审计页面展示
 
-该链路将在 fufu 真实检索接口完成后，作为真实 RAG 检索请求的权限输入与平台侧二次过滤依据。
+该链路将在 RAG Server 真实检索接口完成后，作为真实 RAG 检索请求的权限输入与平台侧二次过滤依据。

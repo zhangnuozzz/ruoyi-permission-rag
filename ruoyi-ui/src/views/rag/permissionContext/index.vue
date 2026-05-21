@@ -14,7 +14,7 @@
       </div>
 
       <el-alert
-        title="链路定位：当前用户 → 用户组关系 → 策略绑定 → 权限上下文 → 后续传入 fufu RAG 检索接口"
+        title="链路定位：当前用户 → 用户组关系 → 策略绑定 → 权限上下文 → 后续传入 RAG Server 检索接口"
         type="info"
         :closable="false"
         show-icon
@@ -190,7 +190,7 @@
 
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
-        <span>后续传给 fufu RAG 检索接口的上下文 JSON</span>
+        <span>后续传给 RAG Server 检索接口的上下文 JSON</span>
         <el-button size="mini" type="primary" plain @click="copyJson">复制 JSON</el-button>
       </div>
 

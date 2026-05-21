@@ -118,7 +118,7 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
-# fufu RAG Server 对接配置
+# RAG Server 对接配置
 rag:
   server:
     url: http://localhost:8081

@@ -36,7 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
  * RAG文件服务代理控制器
  *
  * 若依平台侧负责权限、登录用户上下文和前端入口；
- * fufu RAG Server负责文件切分、MariaDB元数据、MinIO原文件、Milvus向量存储。
+ * RAG Server负责文件切分、MariaDB元数据、MinIO原文件、Milvus向量存储。
  */
 @RestController
 @RequestMapping("/rag/file")
@@ -54,7 +54,7 @@ public class RagFileProxyController
     private ISysAccessLogService sysAccessLogService;
 
     /**
-     * 代理上传文件到 fufu RAG Server
+     * 代理上传文件到 RAG Server
      */
     @PreAuthorize("@ss.hasPermi('rag:file:upload')")
     @PostMapping("/upload")
@@ -194,7 +194,7 @@ public class RagFileProxyController
     }
 
     /**
-     * 上传成功后，将 fufu RAG Server 返回的文件元数据同步写入本平台 sys_rag_doc。
+     * 上传成功后，将 RAG Server 返回的文件元数据同步写入本平台 sys_rag_doc。
      *
      * 这样文档入库、权限标签、后续检索过滤可以形成平台侧闭环。
      */
@@ -253,7 +253,7 @@ public class RagFileProxyController
         }
         catch (Exception e)
         {
-            // 回写平台侧文档标签失败时，不影响 fufu RAG Server 文件入库主链路
+            // 回写平台侧文档标签失败时，不影响 RAG Server 文件入库主链路
         }
     }
 
@@ -264,7 +264,7 @@ public class RagFileProxyController
     }
 
     /**
-     * 查询 fufu RAG Server 中 MariaDB 文件元数据
+     * 查询 RAG Server 中 MariaDB 文件元数据
      */
     @PreAuthorize("@ss.hasPermi('rag:file:list')")
     @GetMapping("/mariadb/list")
@@ -274,7 +274,7 @@ public class RagFileProxyController
     }
 
     /**
-     * 查询 fufu RAG Server 中 Milvus 切块内容
+     * 查询 RAG Server 中 Milvus 切块内容
      */
     @PreAuthorize("@ss.hasPermi('rag:file:list')")
     @GetMapping("/milvus/list")
@@ -284,7 +284,7 @@ public class RagFileProxyController
     }
 
     /**
-     * 查询 fufu RAG Server 中 MinIO 原始文件对象
+     * 查询 RAG Server 中 MinIO 原始文件对象
      */
     @PreAuthorize("@ss.hasPermi('rag:file:list')")
     @GetMapping("/minio/list")

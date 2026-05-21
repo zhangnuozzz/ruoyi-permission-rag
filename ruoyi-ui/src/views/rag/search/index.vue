@@ -158,10 +158,10 @@
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">后续传给 fufu 的检索请求 JSON</span>
+            <span class="section-title">后续传给 RAG Server 的检索请求 JSON</span>
             <el-button size="mini" type="primary" plain @click="copyRequestJson">复制</el-button>
           </div>
-          <pre class="json-box">{{ formatJson(buildFufuRequest()) }}</pre>
+          <pre class="json-box">{{ formatJson(buildRagServerRequest()) }}</pre>
         </el-card>
       </el-col>
 
@@ -172,9 +172,9 @@
             <el-tag size="mini" type="info">平台侧预对接</el-tag>
           </div>
           <div class="explain-box">
-            <p>当前页面暂不直接调用 fufu 的真实检索接口。</p>
+            <p>当前页面暂不直接调用 RAG Server 的真实检索接口。</p>
             <p>后端先从 <span class="mono-text">sys_rag_doc</span> 读取候选文档，模拟向量检索返回结果。</p>
-            <p>等 fufu 提供真实 <span class="mono-text">/rag/search</span> 接口后，可将候选结果来源替换为远程 RAG Server。</p>
+            <p>等 RAG Server 提供真实 <span class="mono-text">/rag/search</span> 接口后，可将候选结果来源替换为远程 RAG Server。</p>
             <p>平台侧会继续保留权限上下文、metadataFilter、二次过滤与审计能力。</p>
           </div>
         </el-card>
@@ -323,7 +323,7 @@ export default {
       }
       return 'info'
     },
-    buildFufuRequest() {
+    buildRagServerRequest() {
       if (!this.result) {
         return {}
       }
@@ -349,7 +349,7 @@ export default {
       }
     },
     copyRequestJson() {
-      this.copyText(this.formatJson(this.buildFufuRequest()), '检索请求 JSON 已复制')
+      this.copyText(this.formatJson(this.buildRagServerRequest()), '检索请求 JSON 已复制')
     },
     copyResultJson() {
       this.copyText(this.formatJson(this.result), '后端返回 JSON 已复制')

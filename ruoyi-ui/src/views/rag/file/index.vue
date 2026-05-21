@@ -4,12 +4,12 @@
       <div slot="header">
         <div class="page-title">RAG 文件入库</div>
         <div class="page-subtitle">
-          通过若依平台上传带权限标签的文件，由后端代理转发至 fufu RAG Server，完成 MariaDB / MinIO / Milvus 三段式存储，并自动回写文档权限标签。
+          通过若依平台上传带权限标签的文件，由后端代理转发至 RAG Server，完成 MariaDB / MinIO / Milvus 三段式存储，并自动回写文档权限标签。
         </div>
       </div>
 
       <el-alert
-        title="对接链路：若依前端 → 若依后端 8080 → fufu RAG Server 8081 → MariaDB / MinIO / Milvus → sys_rag_doc 权限标签回写"
+        title="对接链路：若依前端 → 若依后端 8080 → RAG Server 8081 → MariaDB / MinIO / Milvus → sys_rag_doc 权限标签回写"
         type="info"
         :closable="false"
         show-icon
@@ -34,7 +34,7 @@
         <el-col :span="6">
           <div class="status-card">
             <div class="status-label">RAG 服务</div>
-            <div class="status-value">fufu Server 8081</div>
+            <div class="status-value">RAG Server 8081</div>
             <el-tag size="mini" type="success">已对接</el-tag>
           </div>
         </el-col>
@@ -60,7 +60,7 @@
           >
             <el-button size="mini" type="primary">选择文件</el-button>
             <div slot="tip" class="el-upload__tip">
-              请选择需要入库的文档文件。当前版本由 fufu RAG Server 完成原文件备份、文本切分与向量写入。
+              请选择需要入库的文档文件。当前版本由 RAG Server 完成原文件备份、文本切分与向量写入。
             </div>
           </el-upload>
         </el-form-item>

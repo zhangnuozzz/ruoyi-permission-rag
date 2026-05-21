@@ -4,9 +4,9 @@
 
 本项目基于 RuoYi-Vue 3.2.0 二次开发，面向大模型向量库场景，重点建设“权限治理 + RAG 文件入库 + 安全审计”能力。
 
-平台侧主要负责用户组、权限策略、文档权限标签、访问监控、安全规则、IP 黑名单以及 RAG 文件入库代理能力；RAG Server 侧由 fufu 模块提供文件处理、原文件备份、文本切块与向量写入能力。
+平台侧主要负责用户组、权限策略、文档权限标签、访问监控、安全规则、IP 黑名单以及 RAG 文件入库代理能力；RAG Server 侧由 RAG Server 模块提供文件处理、原文件备份、文本切块与向量写入能力。
 
-当前已完成 RAG 文件入库第一阶段对接：用户可在若依平台上传带权限标签的文件，系统通过后端代理调用 fufu RAG Server，完成 MariaDB 元数据、MinIO 原文件、Milvus 向量切块三段式存储，并自动回写平台侧文档权限标签和入库审计日志。
+当前已完成 RAG 文件入库第一阶段对接：用户可在若依平台上传带权限标签的文件，系统通过后端代理调用 RAG Server，完成 MariaDB 元数据、MinIO 原文件、Milvus 向量切块三段式存储，并自动回写平台侧文档权限标签和入库审计日志。
 
 ## 二、技术栈
 
@@ -57,13 +57,13 @@
 
 ### 3. RAG 文件入库对接
 
-当前已完成平台侧与 fufu RAG Server 的文件入库链路对接。
+当前已完成平台侧与 RAG Server 的文件入库链路对接。
 
 链路如下：
 
 若依前端 1024
 → 若依后端 8080
-→ fufu RAG Server 8081
+→ RAG Server 8081
 → MariaDB sys_rag_file
 → MinIO rag-files bucket
 → Milvus rag_file_chunks
@@ -75,10 +75,10 @@
 - 若依前端上传文件
 - 选择文件密级
 - 选择权限标签
-- 若依后端代理转发至 fufu RAG Server
-- fufu RAG Server 写入 MariaDB 元数据
-- fufu RAG Server 备份原文件到 MinIO
-- fufu RAG Server 写入 Milvus 向量切块
+- 若依后端代理转发至 RAG Server
+- RAG Server 写入 MariaDB 元数据
+- RAG Server 备份原文件到 MinIO
+- RAG Server 写入 Milvus 向量切块
 - 平台侧自动回写 sys_rag_doc
 - 平台侧记录 sys_access_log 入库审计
 - 前端页面展示 MariaDB / MinIO / Milvus 三端结果
@@ -86,7 +86,7 @@
 
 ### 4. RAG 安全检索预对接
 
-当前 fufu 真实检索接口尚未完成，平台侧已先完成安全检索预对接链路。
+当前 RAG Server 真实检索接口尚未完成，平台侧已先完成安全检索预对接链路。
 
 已验证能力：
 
@@ -98,7 +98,7 @@
 - 使用 sys_rag_doc 模拟候选检索结果
 - 执行平台侧二次权限过滤
 - 记录 RAG 检索审计日志
-- 前端展示本次检索权限上下文、过滤表达式、过滤结果和后续传给 fufu 的检索请求 JSON
+- 前端展示本次检索权限上下文、过滤表达式、过滤结果和后续传给 RAG Server 的检索请求 JSON
 
 安全检索预对接链路如下：
 
@@ -156,7 +156,7 @@
 - 展示可访问 scopeCode
 - 展示命中策略
 - 展示 allowAccess 与 denyReasons
-- 展示后续传给 fufu 检索接口的权限上下文 JSON
+- 展示后续传给 RAG Server 检索接口的权限上下文 JSON
 
 ### RAG 安全检索测试
 
@@ -165,7 +165,7 @@
 - 自动生成 Metadata Filter
 - 使用 sys_rag_doc 模拟候选检索结果
 - 展示二次过滤后结果
-- 展示后续传给 fufu 的检索请求 JSON
+- 展示后续传给 RAG Server 的检索请求 JSON
 - 写入 RAG 检索审计日志
 
 ### RAG 检索审计日志
@@ -183,7 +183,7 @@
 本项目本地联调需要启动四类服务：
 
 - Docker 依赖环境：MinIO / Milvus / etcd
-- fufu RAG Server：8081
+- RAG Server：8081
 - 若依后端：8080
 - 若依前端：1024
 
@@ -193,11 +193,11 @@
 
 start-rag-env
 
-或者进入 fufu 项目根目录执行：
+或者进入 RAG Server 项目根目录执行：
 
 docker compose -f docker-compose.rag.yml up -d
 
-### 2. 启动 fufu RAG Server
+### 2. 启动 RAG Server
 
 start-rag
 
@@ -229,12 +229,12 @@ http://localhost:1024
 
 - 若依前端 1024
 - 若依后端 8080
-- fufu RAG Server 8081
+- RAG Server 8081
 - MinIO 9000
 - Milvus 19530
 - Docker 容器状态
 - MinIO 健康检查
-- fufu RAG MariaDB 接口
+- RAG Server MariaDB 接口
 
 ## 七、演示流程
 
@@ -308,7 +308,7 @@ RAG_FILE_UPLOAD_SUCCESS
 
 ## 九、后续计划
 
-fufu 检索链路完成后，平台侧将继续推进：
+RAG Server 检索链路完成后，平台侧将继续推进：
 
 - 对接真实 RAG 检索接口
 - 将当前模拟检索替换为远程 RAG Server 检索
