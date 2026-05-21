@@ -1,207 +1,304 @@
 <template>
-  <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="用户ID" prop="userId">
-        <el-input
-          v-model="queryParams.userId"
-          placeholder="请输入用户ID"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="用户名" prop="userName">
-        <el-input
-          v-model="queryParams.userName"
-          placeholder="请输入用户名"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="是否放行" prop="allowAccess">
-        <el-input
-          v-model="queryParams.allowAccess"
-          placeholder="请输入是否放行"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="创建时间">
-        <el-date-picker
-          v-model="daterangeCreateTime"
-          style="width: 240px"
-          value-format="yyyy-MM-dd"
-          type="daterange"
-          range-separator="-"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-        ></el-date-picker>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+  <div class="app-container rag-audit-page">
+    <el-card shadow="never" class="box-card">
+      <div slot="header" class="card-header">
+        <div>
+          <div class="page-title">RAG 检索审计日志</div>
+          <div class="page-subtitle">
+            记录每一次 RAG 安全检索请求的用户身份、用户组、权限标签、Metadata Filter、访问决策、拒绝原因和耗时，用于后续安全审计与权限追踪。
+          </div>
+        </div>
+        <el-tag type="info" effect="plain">sys_rag_audit_log</el-tag>
+      </div>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          icon="el-icon-plus"
-          size="mini"
-          @click="handleAdd"
-          v-hasPermi="['system:log:add']"
-        >新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['system:log:edit']"
-        >修改</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['system:log:remove']"
-        >删除</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="el-icon-download"
-          size="mini"
-          @click="handleExport"
-          v-hasPermi="['system:log:export']"
-        >导出</el-button>
-      </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
-    </el-row>
+      <el-alert
+        title="审计链路：检索问题 → 权限上下文 → 策略决策 → Metadata Filter → 二次过滤 → 审计留痕"
+        type="info"
+        :closable="false"
+        show-icon
+        class="tips-alert"
+      />
 
-    <el-table v-loading="loading" :data="logList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
-      <el-table-column label="用户ID" align="center" prop="userId" />
-      <el-table-column label="用户名" align="center" prop="userName" />
-      <el-table-column label="原始查询内容" align="center" prop="queryText" />
-      <el-table-column label="用户组编码集合" align="center" prop="groupCodes" />
-      <el-table-column label="知悉范围编码集合" align="center" prop="scopeCodes" />
-      <el-table-column label="元数据过滤条件" align="center" prop="metadataFilter" />
-      <el-table-column label="是否放行" align="center" prop="allowAccess">
-  <template slot-scope="scope">
-    <el-tag v-if="scope.row.allowAccess === '0' || scope.row.allowAccess === 0" type="success">
-      放行
-    </el-tag>
-    <el-tag v-else-if="scope.row.allowAccess === '1' || scope.row.allowAccess === 1" type="danger">
-      拒绝
-    </el-tag>
-    <el-tag v-else type="info">
-      未知
-    </el-tag>
-  </template>
-</el-table-column>
-      <el-table-column label="拒绝原因" align="center" prop="denyReasons" />
-      <el-table-column label="耗时，单位毫秒" align="center" prop="costTime" />
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
-        <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+      <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="82px">
+        <el-form-item label="用户名" prop="userName">
+          <el-input
+            v-model="queryParams.userName"
+            placeholder="请输入用户名"
+            clearable
+            style="width: 180px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+
+        <el-form-item label="查询内容" prop="queryText">
+          <el-input
+            v-model="queryParams.queryText"
+            placeholder="请输入检索内容"
+            clearable
+            style="width: 220px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+
+        <el-form-item label="用户组" prop="groupCodes">
+          <el-input
+            v-model="queryParams.groupCodes"
+            placeholder="请输入用户组编码"
+            clearable
+            style="width: 180px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+
+        <el-form-item label="权限标签" prop="scopeCodes">
+          <el-input
+            v-model="queryParams.scopeCodes"
+            placeholder="请输入 scopeCode"
+            clearable
+            style="width: 180px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+
+        <el-form-item label="访问决策" prop="allowAccess">
+          <el-select v-model="queryParams.allowAccess" placeholder="访问决策" clearable style="width: 120px">
+            <el-option label="放行" value="0" />
+            <el-option label="拒绝" value="1" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="审计时间">
+          <el-date-picker
+            v-model="daterangeCreateTime"
+            style="width: 240px"
+            value-format="yyyy-MM-dd"
+            type="daterange"
+            range-separator="-"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+          />
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
+          <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-row :gutter="10" class="mb8">
+        <el-col :span="1.5">
           <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['system:log:edit']"
-          >修改</el-button>
-          <el-button
-            size="mini"
-            type="text"
+            type="danger"
+            plain
             icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
+            size="mini"
+            :disabled="multiple"
+            @click="handleDelete"
             v-hasPermi="['system:log:remove']"
           >删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    
-    <pagination
-      v-show="total>0"
-      :total="total"
-      :page.sync="queryParams.pageNum"
-      :limit.sync="queryParams.pageSize"
-      @pagination="getList"
-    />
+        </el-col>
+        <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+      </el-row>
 
-    <!-- 添加或修改RAG检索审计日志对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
-        <el-row>
-        </el-row>
-      </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
-      </div>
-    </el-dialog>
+      <el-table
+        v-loading="loading"
+        :data="logList"
+        border
+        stripe
+        class="audit-table"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="50" align="center" fixed="left" />
+        <el-table-column label="ID" prop="id" width="80" align="center" fixed="left" />
+
+        <el-table-column label="用户" min-width="150" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <div>{{ scope.row.userName || '-' }}</div>
+            <div class="sub-text">ID：{{ scope.row.userId || '-' }}</div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="检索内容" prop="queryText" min-width="220" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="query-text">{{ scope.row.queryText || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="用户组上下文" prop="groupCodes" min-width="220" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <el-tag
+              v-for="item in splitCodes(scope.row.groupCodes)"
+              :key="item"
+              size="mini"
+              type="info"
+              effect="plain"
+              class="tag-item"
+            >
+              {{ item }}
+            </el-tag>
+            <span v-if="splitCodes(scope.row.groupCodes).length === 0" class="empty-text">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="可访问标签" prop="scopeCodes" min-width="190" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <el-tag
+              v-for="item in splitCodes(scope.row.scopeCodes)"
+              :key="item"
+              size="mini"
+              type="success"
+              effect="plain"
+              class="tag-item"
+            >
+              {{ item }}
+            </el-tag>
+            <span v-if="splitCodes(scope.row.scopeCodes).length === 0" class="empty-text">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="Metadata Filter" prop="metadataFilter" min-width="300" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="mono-text">{{ scope.row.metadataFilter || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="访问决策" prop="allowAccess" width="110" align="center">
+          <template slot-scope="scope">
+            <el-tag :type="scope.row.allowAccess === '0' ? 'success' : 'danger'" size="small" effect="plain">
+              {{ scope.row.allowAccess === '0' ? '放行' : '拒绝' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="拒绝原因" prop="denyReasons" min-width="180" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span v-if="scope.row.denyReasons" class="deny-text">{{ scope.row.denyReasons }}</span>
+            <span v-else class="empty-text">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="耗时" prop="costTime" width="100" align="center">
+          <template slot-scope="scope">
+            <span :class="scope.row.costTime > 1000 ? 'slow-time' : ''">{{ scope.row.costTime || 0 }} ms</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="审计时间" prop="createTime" width="170" align="center">
+          <template slot-scope="scope">
+            <span>{{ parseTime(scope.row.createTime) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" align="center" width="150" fixed="right">
+          <template slot-scope="scope">
+            <el-button
+              size="mini"
+              type="text"
+              icon="el-icon-view"
+              @click="handleView(scope.row)"
+            >详情</el-button>
+            <el-button
+              size="mini"
+              type="text"
+              icon="el-icon-delete"
+              @click="handleDelete(scope.row)"
+              v-hasPermi="['system:log:remove']"
+            >删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <pagination
+        v-show="total > 0"
+        :total="total"
+        :page.sync="queryParams.pageNum"
+        :limit.sync="queryParams.pageSize"
+        @pagination="getList"
+      />
+
+      <el-dialog title="RAG 检索审计详情" :visible.sync="detailOpen" width="860px" append-to-body>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="审计ID">{{ detail.id }}</el-descriptions-item>
+          <el-descriptions-item label="用户">{{ detail.userName }}（{{ detail.userId }}）</el-descriptions-item>
+
+          <el-descriptions-item label="访问决策">
+            <el-tag :type="detail.allowAccess === '0' ? 'success' : 'danger'" size="small">
+              {{ detail.allowAccess === '0' ? '放行' : '拒绝' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="耗时">{{ detail.costTime || 0 }} ms</el-descriptions-item>
+
+          <el-descriptions-item label="检索内容" :span="2">
+            <pre class="detail-box">{{ detail.queryText || '-' }}</pre>
+          </el-descriptions-item>
+
+          <el-descriptions-item label="用户组上下文" :span="2">
+            <el-tag
+              v-for="item in splitCodes(detail.groupCodes)"
+              :key="item"
+              size="small"
+              type="info"
+              effect="plain"
+              class="tag-item"
+            >
+              {{ item }}
+            </el-tag>
+            <span v-if="splitCodes(detail.groupCodes).length === 0" class="empty-text">-</span>
+          </el-descriptions-item>
+
+          <el-descriptions-item label="可访问标签" :span="2">
+            <el-tag
+              v-for="item in splitCodes(detail.scopeCodes)"
+              :key="item"
+              size="small"
+              type="success"
+              effect="plain"
+              class="tag-item"
+            >
+              {{ item }}
+            </el-tag>
+            <span v-if="splitCodes(detail.scopeCodes).length === 0" class="empty-text">-</span>
+          </el-descriptions-item>
+
+          <el-descriptions-item label="Metadata Filter" :span="2">
+            <pre class="detail-box">{{ detail.metadataFilter || '-' }}</pre>
+          </el-descriptions-item>
+
+          <el-descriptions-item label="拒绝原因" :span="2">
+            <pre class="detail-box">{{ detail.denyReasons || '-' }}</pre>
+          </el-descriptions-item>
+
+          <el-descriptions-item label="审计时间" :span="2">{{ parseTime(detail.createTime) }}</el-descriptions-item>
+        </el-descriptions>
+      </el-dialog>
+    </el-card>
   </div>
 </template>
 
 <script>
-import { listLog, getLog, delLog, addLog, updateLog } from "@/api/system/log"
+import { listLog, getLog, delLog } from '@/api/system/log'
 
 export default {
-  name: "Log",
+  name: 'RagAuditLog',
   data() {
     return {
-      // 遮罩层
       loading: true,
-      // 选中数组
       ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
       multiple: true,
-      // 显示搜索条件
       showSearch: true,
-      // 总条数
       total: 0,
-      // RAG检索审计日志表格数据
       logList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
-      // 创建时间时间范围
       daterangeCreateTime: [],
-      // 查询参数
+      detailOpen: false,
+      detail: {},
       queryParams: {
         pageNum: 1,
         pageSize: 10,
-        userId: null,
         userName: null,
         queryText: null,
         groupCodes: null,
         scopeCodes: null,
-        allowAccess: null,
-        createTime: null
-      },
-      // 表单参数
-      form: {},
-      // 表单校验
-      rules: {
+        allowAccess: null
       }
     }
   },
@@ -209,108 +306,141 @@ export default {
     this.getList()
   },
   methods: {
-    /** 查询RAG检索审计日志列表 */
     getList() {
       this.loading = true
       listLog(this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')).then(response => {
-        this.logList = response.rows.sort((a, b) => {
-  return Number(b.id) - Number(a.id)
-});
+        this.logList = response.rows
         this.total = response.total
         this.loading = false
       })
     },
-    // 取消按钮
-    cancel() {
-      this.open = false
-      this.reset()
-    },
-    // 表单重置
-    reset() {
-      this.form = {
-        id: null,
-        userId: null,
-        userName: null,
-        queryText: null,
-        groupCodes: null,
-        scopeCodes: null,
-        metadataFilter: null,
-        allowAccess: null,
-        denyReasons: null,
-        costTime: null,
-        createTime: null
-      }
-      this.resetForm("form")
-    },
-    /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1
       this.getList()
     },
-    /** 重置按钮操作 */
     resetQuery() {
       this.daterangeCreateTime = []
-      this.resetForm("queryForm")
+      this.resetForm('queryForm')
       this.handleQuery()
     },
-    // 多选框选中数据
     handleSelectionChange(selection) {
       this.ids = selection.map(item => item.id)
-      this.single = selection.length !== 1
       this.multiple = !selection.length
     },
-    /** 新增按钮操作 */
-    handleAdd() {
-      this.reset()
-      this.open = true
-      this.title = "添加RAG检索审计日志"
-    },
-    /** 修改按钮操作 */
-    handleUpdate(row) {
-      this.reset()
-      const id = row.id || this.ids
-      getLog(id).then(response => {
-        this.form = response.data
-        this.open = true
-        this.title = "修改RAG检索审计日志"
+    handleView(row) {
+      getLog(row.id).then(response => {
+        this.detail = response.data || row
+        this.detailOpen = true
       })
     },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate(valid => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateLog(this.form).then(response => {
-              this.$modal.msgSuccess("修改成功")
-              this.open = false
-              this.getList()
-            })
-          } else {
-            addLog(this.form).then(response => {
-              this.$modal.msgSuccess("新增成功")
-              this.open = false
-              this.getList()
-            })
-          }
-        }
-      })
-    },
-    /** 删除按钮操作 */
     handleDelete(row) {
       const ids = row.id || this.ids
-      this.$modal.confirm('是否确认删除RAG检索审计日志编号为"' + ids + '"的数据项？').then(function() {
+      this.$confirm('是否确认删除 RAG 检索审计日志编号为 "' + ids + '" 的数据项？', '警告', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(function() {
         return delLog(ids)
       }).then(() => {
         this.getList()
-        this.$modal.msgSuccess("删除成功")
-      }).catch(() => {})
+        this.$modal.msgSuccess('删除成功')
+      })
     },
-    /** 导出按钮操作 */
-    handleExport() {
-      this.download('system/log/export', {
-        ...this.queryParams
-      }, `log_${new Date().getTime()}.xlsx`)
+    splitCodes(value) {
+      if (!value) {
+        return []
+      }
+      return String(value).split(',').map(item => item.trim()).filter(Boolean)
     }
   }
 }
 </script>
+
+<style scoped>
+.rag-audit-page {
+  padding: 20px;
+}
+
+.box-card {
+  border-radius: 6px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 26px;
+}
+
+.page-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #909399;
+}
+
+.tips-alert {
+  margin-bottom: 16px;
+}
+
+.audit-table {
+  width: 100%;
+}
+
+.sub-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.query-text {
+  color: #303133;
+}
+
+.mono-text {
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 12px;
+  color: #606266;
+}
+
+.tag-item {
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+.empty-text {
+  color: #c0c4cc;
+}
+
+.deny-text {
+  color: #f56c6c;
+}
+
+.slow-time {
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.detail-box {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #f5f7fa;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+::v-deep .el-table .cell {
+  white-space: nowrap;
+}
+</style>
