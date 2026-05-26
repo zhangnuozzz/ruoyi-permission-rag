@@ -118,13 +118,10 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
-# RAG Server 对接配置
+# RAG Server 与检索联调配置
 rag:
   server:
     url: http://localhost:8081
-
-# RAG 检索联调配置
-rag:
   search:
     mode: mock
     remote-url: http://localhost:8081/rag/search
