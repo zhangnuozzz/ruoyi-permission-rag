@@ -12,6 +12,7 @@ import com.ruoyi.system.service.IPolicyDecisionService;
 import com.ruoyi.system.service.IRagAuditLogService;
 import com.ruoyi.system.service.IRagDocMockSearchService;
 import com.ruoyi.system.service.IRagSecondFilterService;
+import com.ruoyi.system.service.IRagRemoteSearchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +47,9 @@ public class RagSearchController
     @Autowired
     private IRagDocMockSearchService ragDocMockSearchService;
 
+    @Autowired
+    private IRagRemoteSearchService ragRemoteSearchService;
+
     /**
      * RAG 安全检索入口。
      *
@@ -67,7 +71,16 @@ public class RagSearchController
         PermissionContext context = permissionContextService.buildContext(userId, userName, admin);
         PolicyDecisionResult decision = policyDecisionService.decide(context);
 
-        List<RagSearchResult> rawResults = ragDocMockSearchService.search(request.getQuery());
+        List<RagSearchResult> rawResults;
+
+        if (Boolean.TRUE.equals(request.getUseRemote()))
+        {
+            rawResults = ragRemoteSearchService.search(request, context, decision);
+        }
+        else
+        {
+            rawResults = ragDocMockSearchService.search(request.getQuery());
+        }
         List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
         List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
 
@@ -77,6 +90,8 @@ public class RagSearchController
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("query", request.getQuery());
+        result.put("searchMode", Boolean.TRUE.equals(request.getUseRemote()) ? "remote_rag_server" : "mock_sys_rag_doc");
+        result.put("topK", request.getTopK() == null ? 5 : request.getTopK());
         result.put("userId", context.getUserId());
         result.put("userName", context.getUserName());
         result.put("admin", context.getAdmin());
