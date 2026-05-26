@@ -122,3 +122,10 @@ xss:
 rag:
   server:
     url: http://localhost:8081
+
+# RAG 检索联调配置
+rag:
+  search:
+    mode: mock
+    remote-url: http://localhost:8081/rag/search
+    top-k: 5
