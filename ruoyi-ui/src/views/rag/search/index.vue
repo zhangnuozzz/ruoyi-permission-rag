@@ -3,12 +3,12 @@
     <el-card class="box-card" shadow="never">
       <div slot="header" class="card-header">
         <div>
-          <div class="page-title">RAG 安全检索测试</div>
+          <div class="page-title">数据库查询</div>
           <div class="page-subtitle">
-            当前阶段使用 sys_rag_doc 模拟候选检索结果，重点验证“权限上下文 → Metadata Filter → 二次过滤 → 审计留痕”的平台侧安全检索链路。
+            查询会先经过权限上下文与策略决策，再由 RAG Server 执行带 Metadata Filter 的向量检索，最终交给本地文本模型生成回复。
           </div>
         </div>
-        <el-tag type="warning" effect="plain">模拟检索模式</el-tag>
+        <el-tag type="success" effect="plain">安全检索模式</el-tag>
       </div>
 
       <el-alert
@@ -27,6 +27,10 @@
             :rows="4"
             placeholder="请输入要检索的问题，例如：查询内部研发制度"
           />
+        </el-form-item>
+
+        <el-form-item label="Top-K">
+          <el-input-number v-model="form.topK" :min="1" :max="20" />
         </el-form-item>
 
         <el-form-item>
@@ -73,7 +77,7 @@
           <div class="context-card">
             <div class="context-label">候选结果</div>
             <div class="context-value">{{ result.rawResultCount || 0 }} 条</div>
-            <div class="context-extra">来自 sys_rag_doc 模拟候选集</div>
+            <div class="context-extra">{{ result.searchMode || 'remote' }}，Top-K：{{ result.topK || form.topK }}</div>
           </div>
         </el-col>
 
@@ -158,7 +162,7 @@
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">后续传给 RAG Server 的检索请求 JSON</span>
+            <span class="section-title">已转发给 RAG Server 的安全检索请求 JSON</span>
             <el-button size="mini" type="primary" plain @click="copyRequestJson">复制</el-button>
           </div>
           <pre class="json-box">{{ formatJson(buildRagServerRequest()) }}</pre>
@@ -168,14 +172,13 @@
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">当前阶段说明</span>
-            <el-tag size="mini" type="info">平台侧预对接</el-tag>
+            <span class="section-title">模型回复</span>
+            <el-tag size="mini" :type="result.llmEnabled ? 'success' : 'info'">
+              {{ result.llmEnabled ? 'liteLLM' : '未启用' }}
+            </el-tag>
           </div>
-          <div class="explain-box">
-            <p>当前页面暂不直接调用 RAG Server 的真实检索接口。</p>
-            <p>后端先从 <span class="mono-text">sys_rag_doc</span> 读取候选文档，模拟向量检索返回结果。</p>
-            <p>等 RAG Server 提供真实 <span class="mono-text">/rag/search</span> 接口后，可将候选结果来源替换为远程 RAG Server。</p>
-            <p>平台侧会继续保留权限上下文、metadataFilter、二次过滤与审计能力。</p>
+          <div class="answer-box">
+            {{ result.answer || '-' }}
           </div>
         </el-card>
       </el-col>
@@ -200,6 +203,18 @@
         </el-table-column>
 
         <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
+
+        <el-table-column label="切块ID" prop="chunkId" width="220" align="center" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <span class="mono-text">{{ scope.row.chunkId || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="分数" prop="score" width="90" align="center">
+          <template slot-scope="scope">
+            {{ formatScore(scope.row.score) }}
+          </template>
+        </el-table-column>
 
         <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center">
           <template slot-scope="scope">
@@ -325,7 +340,8 @@ export default {
     return {
       loading: false,
       form: {
-        query: '查询内部研发制度'
+        query: '查询内部研发制度',
+        topK: 5
       },
       result: null
     }
@@ -391,7 +407,7 @@ export default {
       }
       return {
         query: this.result.query || this.form.query,
-        topK: 5,
+        topK: this.result.topK || this.form.topK,
         userContext: {
           userId: this.result.userId,
           userName: this.result.userName,
@@ -402,6 +418,13 @@ export default {
         metadataFilter: this.result.metadataFilter || '',
         platformFilterMode: 'metadata_filter_and_second_filter'
       }
+    },
+    formatScore(value) {
+      if (value === null || typeof value === 'undefined' || value === '') {
+        return '-'
+      }
+      const num = Number(value)
+      return isNaN(num) ? String(value) : num.toFixed(4)
     },
     formatJson(value) {
       try {
@@ -595,14 +618,11 @@ export default {
   max-height: 420px;
 }
 
-.explain-box {
+.answer-box {
   color: #606266;
   font-size: 13px;
   line-height: 1.8;
-}
-
-.explain-box p {
-  margin: 0 0 8px 0;
+  white-space: pre-wrap;
 }
 
 .mono-text {

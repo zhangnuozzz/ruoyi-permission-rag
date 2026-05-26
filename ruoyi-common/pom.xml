@@ -95,6 +95,12 @@
             <artifactId>jjwt</artifactId>
         </dependency>
 
+        <!-- Java 9+ compatibility for jjwt 0.9.x token signing/parsing -->
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+        </dependency>
+
         <!-- redis 缓存操作 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -117,6 +117,27 @@ export const constantRoutes = [
         meta: { title: '修改生成配置' }
       }
     ]
+  },
+  {
+    path: '/rag-interface',
+    component: Layout,
+    redirect: '/rag-interface/file',
+    alwaysShow: true,
+    meta: { title: 'RAG接口', icon: 'documentation' },
+    children: [
+      {
+        path: 'file',
+        component: (resolve) => require(['@/views/rag/file/index'], resolve),
+        name: 'RagFileUpload',
+        meta: { title: '文档上传', icon: 'upload' }
+      },
+      {
+        path: 'search',
+        component: (resolve) => require(['@/views/rag/search/index'], resolve),
+        name: 'RagDatabaseQuery',
+        meta: { title: '数据库查询', icon: 'search' }
+      }
+    ]
   }
 ]
 

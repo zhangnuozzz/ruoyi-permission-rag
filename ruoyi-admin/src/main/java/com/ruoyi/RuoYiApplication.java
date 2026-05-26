@@ -3,6 +3,7 @@ package com.ruoyi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.context.annotation.PropertySource;
 
 /**
  * 启动程序
@@ -10,6 +11,8 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
  * @author ruoyi
  */
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
+@PropertySource(value = { "file:./model-config.properties", "file:../model-config.properties" },
+        ignoreResourceNotFound = true, encoding = "UTF-8")
 public class RuoYiApplication
 {
     public static void main(String[] args)

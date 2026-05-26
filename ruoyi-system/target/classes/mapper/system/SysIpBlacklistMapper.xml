@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ruoyi.system.mapper.SysIpBlacklistMapper">
+
+    <resultMap type="SysIpBlacklist" id="SysIpBlacklistResult">
+        <id     property="blacklistId" column="blacklist_id" />
+        <result property="ipaddr"      column="ipaddr" />
+        <result property="reason"      column="reason" />
+        <result property="status"      column="status" />
+        <result property="createBy"    column="create_by" />
+        <result property="createTime"  column="create_time" />
+        <result property="updateBy"    column="update_by" />
+        <result property="updateTime"  column="update_time" />
+        <result property="remark"      column="remark" />
+    </resultMap>
+
+    <sql id="selectSysIpBlacklistVo">
+        select blacklist_id, ipaddr, reason, status, create_by, create_time, update_by, update_time, remark
+        from sys_ip_blacklist
+    </sql>
+
+    <select id="selectSysIpBlacklistById" parameterType="Long" resultMap="SysIpBlacklistResult">
+        <include refid="selectSysIpBlacklistVo"/>
+        where blacklist_id = #{blacklistId}
+    </select>
+
+    <select id="selectEnabledByIpaddr" parameterType="String" resultMap="SysIpBlacklistResult">
+        <include refid="selectSysIpBlacklistVo"/>
+        where ipaddr = #{ipaddr}
+          and status = '0'
+        limit 1
+    </select>
+
+    <select id="selectSysIpBlacklistList" parameterType="SysIpBlacklist" resultMap="SysIpBlacklistResult">
+        <include refid="selectSysIpBlacklistVo"/>
+        <where>
+            <if test="ipaddr != null and ipaddr != ''"> and ipaddr like concat('%', #{ipaddr}, '%')</if>
+            <if test="reason != null and reason != ''"> and reason like concat('%', #{reason}, '%')</if>
+            <if test="status != null and status != ''"> and status = #{status}</if>
+        </where>
+        order by blacklist_id desc
+    </select>
+
+    <insert id="insertSysIpBlacklist" parameterType="SysIpBlacklist" useGeneratedKeys="true" keyProperty="blacklistId">
+        insert into sys_ip_blacklist
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="ipaddr != null">ipaddr,</if>
+            <if test="reason != null">reason,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time,
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="ipaddr != null">#{ipaddr},</if>
+            <if test="reason != null">#{reason},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate(),
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateSysIpBlacklist" parameterType="SysIpBlacklist">
+        update sys_ip_blacklist
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="ipaddr != null">ipaddr = #{ipaddr},</if>
+            <if test="reason != null">reason = #{reason},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate(),
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where blacklist_id = #{blacklistId}
+    </update>
+
+    <delete id="deleteSysIpBlacklistById" parameterType="Long">
+        delete from sys_ip_blacklist where blacklist_id = #{blacklistId}
+    </delete>
+
+    <delete id="deleteSysIpBlacklistByIds" parameterType="Long">
+        delete from sys_ip_blacklist where blacklist_id in
+        <foreach item="blacklistId" collection="array" open="(" separator="," close=")">
+            #{blacklistId}
+        </foreach>
+    </delete>
+
+</mapper>

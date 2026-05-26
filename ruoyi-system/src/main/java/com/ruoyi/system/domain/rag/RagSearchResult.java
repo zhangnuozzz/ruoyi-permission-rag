@@ -15,11 +15,17 @@ public class RagSearchResult implements Serializable
     /** 文档ID */
     private String docId;
 
+    /** 切块ID */
+    private String chunkId;
+
     /** 文档标题 */
     private String title;
 
     /** 文档片段内容 */
     private String content;
+
+    /** 文档片段摘要 */
+    private String summary;
 
     /** 知悉范围编码 */
     private String scopeCode;
@@ -33,6 +39,9 @@ public class RagSearchResult implements Serializable
     /** 过滤说明 */
     private String filterReason;
 
+    /** 向量相似度分数 */
+    private Float score;
+
     public String getDocId()
     {
         return docId;
@@ -41,6 +50,16 @@ public class RagSearchResult implements Serializable
     public void setDocId(String docId)
     {
         this.docId = docId;
+    }
+
+    public String getChunkId()
+    {
+        return chunkId;
+    }
+
+    public void setChunkId(String chunkId)
+    {
+        this.chunkId = chunkId;
     }
 
     public String getTitle()
@@ -61,6 +80,16 @@ public class RagSearchResult implements Serializable
     public void setContent(String content)
     {
         this.content = content;
+    }
+
+    public String getSummary()
+    {
+        return summary;
+    }
+
+    public void setSummary(String summary)
+    {
+        this.summary = summary;
     }
 
     public String getScopeCode()
@@ -101,5 +130,15 @@ public class RagSearchResult implements Serializable
     public void setFilterReason(String filterReason)
     {
         this.filterReason = filterReason;
+    }
+
+    public Float getScore()
+    {
+        return score;
+    }
+
+    public void setScore(Float score)
+    {
+        this.score = score;
     }
 }

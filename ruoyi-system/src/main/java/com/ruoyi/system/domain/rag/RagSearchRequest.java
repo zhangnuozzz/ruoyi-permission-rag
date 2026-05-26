@@ -15,6 +15,9 @@ public class RagSearchRequest implements Serializable
     /** 用户原始查询内容 */
     private String query;
 
+    /** 返回候选片段数量 */
+    private Integer topK;
+
     public String getQuery()
     {
         return query;
@@ -23,5 +26,15 @@ public class RagSearchRequest implements Serializable
     public void setQuery(String query)
     {
         this.query = query;
+    }
+
+    public Integer getTopK()
+    {
+        return topK;
+    }
+
+    public void setTopK(Integer topK)
+    {
+        this.topK = topK;
     }
 }

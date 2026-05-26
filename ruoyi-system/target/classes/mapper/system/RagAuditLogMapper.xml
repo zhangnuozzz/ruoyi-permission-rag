@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ruoyi.system.mapper.RagAuditLogMapper">
+
+    <insert id="insertRagAuditLog" parameterType="com.ruoyi.system.domain.rag.RagAuditLog">
+        insert into sys_rag_audit_log
+        (
+            user_id,
+            user_name,
+            query_text,
+            group_codes,
+            scope_codes,
+            metadata_filter,
+            allow_access,
+            deny_reasons,
+            cost_time,
+            create_time
+        )
+        values
+        (
+            #{userId},
+            #{userName},
+            #{queryText},
+            #{groupCodes},
+            #{scopeCodes},
+            #{metadataFilter},
+            #{allowAccess},
+            #{denyReasons},
+            #{costTime},
+            sysdate()
+        )
+    </insert>
+
+</mapper>

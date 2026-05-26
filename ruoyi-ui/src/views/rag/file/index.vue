@@ -2,7 +2,7 @@
   <div class="app-container rag-file-page">
     <el-card shadow="never" class="box-card">
       <div slot="header">
-        <div class="page-title">RAG 文件入库</div>
+        <div class="page-title">文档上传</div>
         <div class="page-subtitle">
           通过若依平台上传带权限标签的文件，由后端代理转发至 RAG Server，完成 MariaDB / MinIO / Milvus 三段式存储，并自动回写文档权限标签。
         </div>

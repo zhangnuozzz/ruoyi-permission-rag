@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysRagDocMapper">
+    
+    <resultMap type="SysRagDoc" id="SysRagDocResult">
+        <result property="id"    column="id"    />
+        <result property="docId"    column="doc_id"    />
+        <result property="docName"    column="doc_name"    />
+        <result property="scopeCode"    column="scope_code"    />
+        <result property="securityLevel"    column="security_level"    />
+        <result property="ownerGroupCode"    column="owner_group_code"    />
+        <result property="status"    column="status"    />
+        <result property="remark"    column="remark"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="delFlag"    column="del_flag"    />
+    </resultMap>
+
+    <sql id="selectSysRagDocVo">
+        select id, doc_id, doc_name, scope_code, security_level, owner_group_code, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_rag_doc
+    </sql>
+
+    <select id="selectSysRagDocList" parameterType="SysRagDoc" resultMap="SysRagDocResult">
+        <include refid="selectSysRagDocVo"/>
+        <where>  
+            <if test="docId != null  and docId != ''"> and doc_id like concat('%', #{docId}, '%')</if>
+            <if test="docName != null  and docName != ''"> and doc_name like concat('%', #{docName}, '%')</if>
+            <if test="scopeCode != null  and scopeCode != ''"> and scope_code = #{scopeCode}</if>
+            <if test="securityLevel != null  and securityLevel != ''"> and security_level = #{securityLevel}</if>
+            <if test="ownerGroupCode != null  and ownerGroupCode != ''"> and owner_group_code like concat('%', #{ownerGroupCode}, '%')</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+        </where>
+    </select>
+    
+    <select id="selectSysRagDocById" parameterType="Long" resultMap="SysRagDocResult">
+        <include refid="selectSysRagDocVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSysRagDoc" parameterType="SysRagDoc" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_rag_doc
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="docId != null and docId != ''">doc_id,</if>
+            <if test="docName != null and docName != ''">doc_name,</if>
+            <if test="scopeCode != null and scopeCode != ''">scope_code,</if>
+            <if test="securityLevel != null and securityLevel != ''">security_level,</if>
+            <if test="ownerGroupCode != null">owner_group_code,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="remark != null">remark,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="delFlag != null">del_flag,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="docId != null and docId != ''">#{docId},</if>
+            <if test="docName != null and docName != ''">#{docName},</if>
+            <if test="scopeCode != null and scopeCode != ''">#{scopeCode},</if>
+            <if test="securityLevel != null and securityLevel != ''">#{securityLevel},</if>
+            <if test="ownerGroupCode != null">#{ownerGroupCode},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="remark != null">#{remark},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="delFlag != null">#{delFlag},</if>
+         </trim>
+    </insert>
+
+    <update id="updateSysRagDoc" parameterType="SysRagDoc">
+        update sys_rag_doc
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="docId != null and docId != ''">doc_id = #{docId},</if>
+            <if test="docName != null and docName != ''">doc_name = #{docName},</if>
+            <if test="scopeCode != null and scopeCode != ''">scope_code = #{scopeCode},</if>
+            <if test="securityLevel != null and securityLevel != ''">security_level = #{securityLevel},</if>
+            <if test="ownerGroupCode != null">owner_group_code = #{ownerGroupCode},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="delFlag != null">del_flag = #{delFlag},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSysRagDocById" parameterType="Long">
+        delete from sys_rag_doc where id = #{id}
+    </delete>
+
+    <delete id="deleteSysRagDocByIds" parameterType="String">
+        delete from sys_rag_doc where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
