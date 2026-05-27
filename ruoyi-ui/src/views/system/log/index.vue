@@ -62,8 +62,8 @@
 
         <el-form-item label="访问决策" prop="allowAccess">
           <el-select v-model="queryParams.allowAccess" placeholder="访问决策" clearable style="width: 120px">
-            <el-option label="放行" value="0" />
-            <el-option label="拒绝" value="1" />
+            <el-option label="放行" value="1" />
+            <el-option label="拒绝" value="0" />
           </el-select>
         </el-form-item>
 
@@ -164,8 +164,8 @@
 
         <el-table-column label="访问决策" prop="allowAccess" width="110" align="center">
           <template slot-scope="scope">
-            <el-tag :type="scope.row.allowAccess === '0' ? 'success' : 'danger'" size="small" effect="plain">
-              {{ scope.row.allowAccess === '0' ? '放行' : '拒绝' }}
+            <el-tag :type="scope.row.allowAccess === '1' ? 'success' : 'danger'" size="small" effect="plain">
+              {{ scope.row.allowAccess === '1' ? '放行' : '拒绝' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -222,8 +222,8 @@
           <el-descriptions-item label="用户">{{ detail.userName }}（{{ detail.userId }}）</el-descriptions-item>
 
           <el-descriptions-item label="访问决策">
-            <el-tag :type="detail.allowAccess === '0' ? 'success' : 'danger'" size="small">
-              {{ detail.allowAccess === '0' ? '放行' : '拒绝' }}
+            <el-tag :type="detail.allowAccess === '1' ? 'success' : 'danger'" size="small">
+              {{ detail.allowAccess === '1' ? '放行' : '拒绝' }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="耗时">{{ detail.costTime || 0 }} ms</el-descriptions-item>
