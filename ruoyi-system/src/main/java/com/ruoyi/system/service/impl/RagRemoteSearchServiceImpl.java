@@ -15,12 +15,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RAG Server 远程真实检索 Service 实现
+ * RAG Server 远程真实检索 Service 实现。
  *
- * 当前按照 docs/RAG检索联调接口约定.md 调用 RAG Server：
- * POST {rag.server.url}/rag/search
- *
- * 注意：fufu_week3 当前尚未实现该接口，本类用于平台侧提前完成适配层。
+ * 兼容两类 RAG Server 返回格式：
+ * 1. data 直接是结果数组：fufu_week4 当前格式；
+ * 2. data.results 是结果数组：接口约定文档中的扩展格式。
  */
 @Service
 public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
@@ -40,14 +39,19 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
         body.put("query", request == null ? null : request.getQuery());
         body.put("topK", request == null || request.getTopK() == null ? 5 : request.getTopK());
 
-        Map<String, Object> userContext = new LinkedHashMap<String, Object>();
-        userContext.put("userId", context.getUserId());
-        userContext.put("userName", context.getUserName());
-        userContext.put("admin", context.getAdmin());
-        userContext.put("groupCodes", context.getGroupCodes());
-        userContext.put("scopeCodes", context.getScopeCodes());
+        if (context != null)
+        {
+            body.put("scopeCodes", context.getScopeCodes());
 
-        body.put("userContext", userContext);
+            Map<String, Object> userContext = new LinkedHashMap<String, Object>();
+            userContext.put("userId", context.getUserId());
+            userContext.put("userName", context.getUserName());
+            userContext.put("admin", context.getAdmin());
+            userContext.put("groupCodes", context.getGroupCodes());
+            userContext.put("scopeCodes", context.getScopeCodes());
+            body.put("userContext", userContext);
+        }
+
         body.put("metadataFilter", decision == null ? null : decision.getMetadataFilter());
         body.put("platformFilterMode", "metadata_filter_and_second_filter");
 
@@ -61,13 +65,28 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
         Map<String, Object> outer = (Map<String, Object>) response;
         Object dataObj = outer.get("data");
 
-        if (!(dataObj instanceof Map))
-        {
-            return results;
-        }
+        Object listObj = null;
 
-        Map<String, Object> data = (Map<String, Object>) dataObj;
-        Object listObj = data.get("results");
+        if (dataObj instanceof List)
+        {
+            listObj = dataObj;
+        }
+        else if (dataObj instanceof Map)
+        {
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+            if (data.get("results") instanceof List)
+            {
+                listObj = data.get("results");
+            }
+            else if (data.get("filteredResults") instanceof List)
+            {
+                listObj = data.get("filteredResults");
+            }
+        }
+        else if (outer.get("results") instanceof List)
+        {
+            listObj = outer.get("results");
+        }
 
         if (!(listObj instanceof List))
         {
@@ -88,7 +107,7 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             RagSearchResult result = new RagSearchResult();
             result.setDocId(firstNotEmpty(item, "docId", "doc_id", "fileId", "file_id"));
             result.setTitle(firstNotEmpty(item, "title", "fileName", "file_name"));
-            result.setContent(firstNotEmpty(item, "content", "text", "chunkContent", "chunk_content"));
+            result.setContent(firstNotEmpty(item, "content", "summary", "text", "chunkContent", "chunk_content"));
             result.setScopeCode(firstNotEmpty(item, "scopeCode", "scope_code"));
             result.setLevel(firstNotEmpty(item, "level", "securityLevel", "security_level"));
             result.setPassed(false);
