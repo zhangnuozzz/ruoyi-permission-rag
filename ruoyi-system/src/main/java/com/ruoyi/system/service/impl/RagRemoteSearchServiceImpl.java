@@ -15,11 +15,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RAG Server 远程真实检索 Service 实现。
+ * RAG Server 远程真实检索 Service 实现
  *
- * 兼容两类 RAG Server 返回格式：
- * 1. data 直接是结果数组：fufu_week4 当前格式；
- * 2. data.results 是结果数组：接口约定文档中的扩展格式。
+ * 负责将平台侧权限上下文、metadataFilter 转发给 RAG Server，
+ * 并兼容 RAG Server 返回的两类结果格式：
+ *
+ * 1. data: [ ... ]
+ * 2. data: { results: [ ... ] }
  */
 @Service
 public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
@@ -41,8 +43,6 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 
         if (context != null)
         {
-            body.put("scopeCodes", context.getScopeCodes());
-
             Map<String, Object> userContext = new LinkedHashMap<String, Object>();
             userContext.put("userId", context.getUserId());
             userContext.put("userName", context.getUserName());
@@ -50,6 +50,9 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             userContext.put("groupCodes", context.getGroupCodes());
             userContext.put("scopeCodes", context.getScopeCodes());
             body.put("userContext", userContext);
+
+            // 为兼容 fufu RAG Server 当前接口，也将 scopeCodes 平铺传一份。
+            body.put("scopeCodes", context.getScopeCodes());
         }
 
         body.put("metadataFilter", decision == null ? null : decision.getMetadataFilter());
@@ -67,25 +70,17 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 
         Object listObj = null;
 
+        // 兼容格式一：{"data": [ ... ]}
         if (dataObj instanceof List)
         {
             listObj = dataObj;
         }
-        else if (dataObj instanceof Map)
+
+        // 兼容格式二：{"data": {"results": [ ... ]}}
+        if (dataObj instanceof Map)
         {
             Map<String, Object> data = (Map<String, Object>) dataObj;
-            if (data.get("results") instanceof List)
-            {
-                listObj = data.get("results");
-            }
-            else if (data.get("filteredResults") instanceof List)
-            {
-                listObj = data.get("filteredResults");
-            }
-        }
-        else if (outer.get("results") instanceof List)
-        {
-            listObj = outer.get("results");
+            listObj = data.get("results");
         }
 
         if (!(listObj instanceof List))
@@ -110,6 +105,8 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             result.setContent(firstNotEmpty(item, "content", "summary", "text", "chunkContent", "chunk_content"));
             result.setScopeCode(firstNotEmpty(item, "scopeCode", "scope_code"));
             result.setLevel(firstNotEmpty(item, "level", "securityLevel", "security_level"));
+
+            // 这里先标记 false，最终是否通过由平台侧二次过滤服务统一判定。
             result.setPassed(false);
             result.setFilterReason("");
 
