@@ -184,7 +184,7 @@ public class RagSearchController
         auditLog.setGroupCodes(joinList(context.getGroupCodes()));
         auditLog.setScopeCodes(joinList(context.getScopeCodes()));
         auditLog.setMetadataFilter(decision.getMetadataFilter());
-        auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "0" : "1");
+        auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "1" : "0");
         auditLog.setDenyReasons(joinList(decision.getDenyReasons()));
         auditLog.setCostTime(costTime);
 
