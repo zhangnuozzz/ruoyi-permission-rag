@@ -13,6 +13,7 @@ import com.ruoyi.system.service.IRagAuditLogService;
 import com.ruoyi.system.service.IRagDocMockSearchService;
 import com.ruoyi.system.service.IRagSecondFilterService;
 import com.ruoyi.system.service.IRagRemoteSearchService;
+import com.ruoyi.system.service.IRagAnswerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,6 +51,9 @@ public class RagSearchController
     @Autowired
     private IRagRemoteSearchService ragRemoteSearchService;
 
+    @Autowired
+    private IRagAnswerService ragAnswerService;
+
     /**
      * RAG 安全检索入口。
      *
@@ -84,6 +88,18 @@ public class RagSearchController
         List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
         List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
 
+        String answer = "";
+        String answerModel = "";
+        long answerCostTime = 0L;
+
+        if (Boolean.TRUE.equals(decision.getAllowAccess()))
+        {
+            long answerStartTime = System.currentTimeMillis();
+            answerModel = ragAnswerService.getModelName();
+            answer = ragAnswerService.generateAnswer(request.getQuery(), filteredResults);
+            answerCostTime = System.currentTimeMillis() - answerStartTime;
+        }
+
         long costTime = System.currentTimeMillis() - startTime;
 
         recordAuditLog(request, context, decision, costTime);
@@ -111,6 +127,10 @@ public class RagSearchController
         result.put("filteredResults", filteredResults);
         result.put("rejectedResults", rejectedResults);
         result.put("costTime", costTime);
+        result.put("answer", answer);
+        result.put("answerModel", answerModel);
+        result.put("answerCostTime", answerCostTime);
+        result.put("answerEnabled", ragAnswerService.isEnabled());
 
         if (Boolean.FALSE.equals(decision.getAllowAccess()))
         {
@@ -119,7 +139,9 @@ public class RagSearchController
             return ajax;
         }
 
-        result.put("message", "请求已通过策略决策，并基于 sys_rag_doc 完成模拟检索结果二次过滤与审计留痕");
+        result.put("message", Boolean.TRUE.equals(request.getUseRemote())
+                ? "请求已通过策略决策，完成 RAG Server 真实检索、二次过滤、审计留痕与外部模型回答生成"
+                : "请求已通过策略决策，完成平台 Mock 检索、二次过滤、审计留痕与外部模型回答生成");
         return (AjaxResult) AjaxResult.success(result);
     }
 

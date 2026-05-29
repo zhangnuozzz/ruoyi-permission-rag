@@ -172,6 +172,27 @@
       </el-col>
     </el-row>
 
+
+    <el-card v-if="result" class="box-card" shadow="never">
+      <div slot="header" class="section-header">
+        <span class="section-title">AI 生成回答</span>
+        <el-tag size="mini" :type="result.answerEnabled ? 'success' : 'info'">
+          {{ result.answerEnabled ? '外部模型已启用' : '外部模型未启用' }}
+        </el-tag>
+      </div>
+
+      <div class="answer-box">
+        <div class="answer-meta">
+          <span>模型：{{ result.answerModel || '-' }}</span>
+          <span>生成耗时：{{ result.answerCostTime || 0 }} ms</span>
+          <span>授权片段：{{ result.filteredResultCount || 0 }} 条</span>
+        </div>
+        <div class="answer-content">
+          {{ result.answer || '暂无回答' }}
+        </div>
+      </div>
+    </el-card>
+
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
         <span class="section-title">过滤后文档结果</span>
@@ -474,4 +495,27 @@ export default {
 .result-table {
   width: 100%;
 }
+
+.answer-box {
+  line-height: 1.8;
+}
+
+.answer-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.answer-content {
+  white-space: pre-wrap;
+  color: #303133;
+  background: #f8f9fb;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
 </style>
