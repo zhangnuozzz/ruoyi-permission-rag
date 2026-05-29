@@ -1,31 +1,47 @@
 <template>
   <div class="app-container rag-search-page">
-    <el-card class="box-card" shadow="never">
+    <el-card shadow="never" class="box-card">
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">RAG 安全检索测试</div>
           <div class="page-subtitle">
-            当前阶段使用 sys_rag_doc 模拟候选检索结果，重点验证“权限上下文 → Metadata Filter → 二次过滤 → 审计留痕”的平台侧安全检索链路。
+            支持平台侧 mock 检索与 RAG Server 真实检索联调，验证“权限上下文 → Metadata Filter → 远程检索 → 二次过滤 → 审计留痕”完整链路。
           </div>
         </div>
-        <el-tag type="warning" effect="plain">模拟检索模式</el-tag>
+        <el-tag :type="form.useRemote ? 'success' : 'warning'" effect="plain">
+          {{ form.useRemote ? '真实 RAG Server 检索' : '平台 Mock 检索' }}
+        </el-tag>
       </div>
 
       <el-alert
-        title="链路定位：用户问题 → 当前登录用户权限上下文 → 策略决策 → Metadata Filter → 候选结果二次过滤 → RAG 检索审计"
+        title="链路定位：用户问题 → 当前登录用户权限上下文 → 策略决策 → Metadata Filter → 候选结果 → 平台侧二次过滤 → RAG 检索审计"
         type="info"
         :closable="false"
         show-icon
         class="tips-alert"
       />
 
-      <el-form :model="form" label-width="90px" class="search-form">
+      <el-form :model="form" label-width="100px" class="search-form">
+        <el-form-item label="检索模式">
+          <el-radio-group v-model="form.useRemote">
+            <el-radio-button :label="false">平台 Mock 检索</el-radio-button>
+            <el-radio-button :label="true">RAG Server 真实检索</el-radio-button>
+          </el-radio-group>
+          <span class="mode-tip">
+            {{ form.useRemote ? '调用 localhost:8081/rag/search' : '读取 sys_rag_doc 模拟候选集' }}
+          </span>
+        </el-form-item>
+
+        <el-form-item label="TopK">
+          <el-input-number v-model="form.topK" :min="1" :max="20" />
+        </el-form-item>
+
         <el-form-item label="检索问题">
           <el-input
             v-model="form.query"
             type="textarea"
             :rows="4"
-            placeholder="请输入要检索的问题，例如：查询内部研发制度"
+            placeholder="请输入检索问题，例如：username"
           />
         </el-form-item>
 
@@ -40,12 +56,17 @@
       </el-form>
     </el-card>
 
-    <el-card v-if="result" class="box-card" shadow="never">
+    <el-card v-if="result" shadow="never" class="box-card">
       <div slot="header" class="section-header">
         <span class="section-title">本次检索权限上下文</span>
-        <el-tag :type="result.allowAccess ? 'success' : 'danger'" effect="plain">
-          {{ result.allowAccess ? '策略放行' : '策略拒绝' }}
-        </el-tag>
+        <div>
+          <el-tag :type="result.searchMode === 'remote_rag_server' ? 'success' : 'warning'" effect="plain">
+            {{ result.searchMode === 'remote_rag_server' ? 'remote_rag_server' : 'mock_sys_rag_doc' }}
+          </el-tag>
+          <el-tag :type="result.allowAccess ? 'success' : 'danger'" effect="plain" style="margin-left: 8px;">
+            {{ result.allowAccess ? '策略放行' : '策略拒绝' }}
+          </el-tag>
+        </div>
       </div>
 
       <el-row :gutter="12" class="context-row">
@@ -73,7 +94,9 @@
           <div class="context-card">
             <div class="context-label">候选结果</div>
             <div class="context-value">{{ result.rawResultCount || 0 }} 条</div>
-            <div class="context-extra">来自 sys_rag_doc 模拟候选集</div>
+            <div class="context-extra">
+              {{ result.searchMode === 'remote_rag_server' ? '来自 RAG Server /rag/search' : '来自 sys_rag_doc 模拟候选集' }}
+            </div>
           </div>
         </el-col>
 
@@ -93,13 +116,7 @@
           <div class="detail-block compact">
             <div class="detail-label">用户组编码</div>
             <div class="tag-list">
-              <el-tag
-                v-for="item in normalizeArray(result.groupCodes)"
-                :key="item"
-                size="small"
-                type="info"
-                effect="plain"
-              >
+              <el-tag v-for="item in normalizeArray(result.groupCodes)" :key="item" size="small" type="info" effect="plain">
                 {{ item }}
               </el-tag>
               <span v-if="normalizeArray(result.groupCodes).length === 0" class="empty-text">-</span>
@@ -111,13 +128,7 @@
           <div class="detail-block compact">
             <div class="detail-label">可访问标签</div>
             <div class="tag-list">
-              <el-tag
-                v-for="item in normalizeArray(result.scopeCodes)"
-                :key="item"
-                size="small"
-                type="success"
-                effect="plain"
-              >
+              <el-tag v-for="item in normalizeArray(result.scopeCodes)" :key="item" size="small" type="success" effect="plain">
                 {{ item }}
               </el-tag>
               <span v-if="normalizeArray(result.scopeCodes).length === 0" class="empty-text">-</span>
@@ -137,78 +148,69 @@
           {{ result.decisionMessage || result.message || '-' }}
         </div>
       </div>
-
-      <div v-if="result.denyReasons && result.denyReasons.length" class="detail-block">
-        <div class="detail-label">拒绝原因</div>
-        <div class="tag-list">
-          <el-tag
-            v-for="item in result.denyReasons"
-            :key="item"
-            type="danger"
-            size="small"
-            effect="plain"
-          >
-            {{ item }}
-          </el-tag>
-        </div>
-      </div>
     </el-card>
 
     <el-row v-if="result" :gutter="16">
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">后续传给 RAG Server 的检索请求 JSON</span>
-            <el-button size="mini" type="primary" plain @click="copyRequestJson">复制</el-button>
+            <span class="section-title">平台后端收到的检索请求 JSON</span>
+            <el-button size="mini" type="primary" plain @click="copyText(formatJson(form), '平台请求 JSON 已复制')">复制</el-button>
           </div>
-          <pre class="json-box">{{ formatJson(buildRagServerRequest()) }}</pre>
+          <pre class="json-box">{{ formatJson(form) }}</pre>
         </el-card>
       </el-col>
 
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">当前阶段说明</span>
-            <el-tag size="mini" type="info">平台侧预对接</el-tag>
+            <span class="section-title">后端传给 RAG Server 的检索请求 JSON</span>
+            <el-button size="mini" type="primary" plain @click="copyText(formatJson(buildRagServerRequest()), 'RAG Server 请求 JSON 已复制')">复制</el-button>
           </div>
-          <div class="explain-box">
-            <p>当前页面暂不直接调用 RAG Server 的真实检索接口。</p>
-            <p>后端先从 <span class="mono-text">sys_rag_doc</span> 读取候选文档，模拟向量检索返回结果。</p>
-            <p>等 RAG Server 提供真实 <span class="mono-text">/rag/search</span> 接口后，可将候选结果来源替换为远程 RAG Server。</p>
-            <p>平台侧会继续保留权限上下文、metadataFilter、二次过滤与审计能力。</p>
-          </div>
+          <pre class="json-box">{{ formatJson(buildRagServerRequest()) }}</pre>
         </el-card>
       </el-col>
     </el-row>
 
+
+    <el-card v-if="result" class="box-card" shadow="never">
+      <div slot="header" class="section-header">
+        <span class="section-title">AI 生成回答</span>
+        <el-tag size="mini" :type="result.answerEnabled ? 'success' : 'info'">
+          {{ result.answerEnabled ? '外部模型已启用' : '外部模型未启用' }}
+        </el-tag>
+      </div>
+
+      <div class="answer-box">
+        <div class="answer-meta">
+          <span>模型：{{ result.answerModel || '-' }}</span>
+          <span>生成耗时：{{ result.answerCostTime || 0 }} ms</span>
+          <span>授权片段：{{ result.filteredResultCount || 0 }} 条</span>
+        </div>
+        <div class="answer-content">
+          {{ result.answer || '暂无回答' }}
+        </div>
+      </div>
+    </el-card>
+
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
         <span class="section-title">过滤后文档结果</span>
-        <span class="section-desc">展示经过权限二次过滤后允许返回给当前用户的文档。</span>
+        <span class="section-desc">展示经过平台侧二次权限过滤后允许返回给当前用户的文档。</span>
       </div>
 
-      <el-table
-        :data="result.filteredResults || []"
-        border
-        stripe
-        class="result-table"
-      >
+      <el-table :data="result.filteredResults || []" border stripe class="result-table">
         <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip>
           <template slot-scope="scope">
             <span class="mono-text">{{ scope.row.docId }}</span>
           </template>
         </el-table-column>
-
         <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
-
         <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center">
           <template slot-scope="scope">
-            <el-tag size="small" type="success" effect="plain">
-              {{ scope.row.scopeCode }}
-            </el-tag>
+            <el-tag size="small" type="success" effect="plain">{{ scope.row.scopeCode || '-' }}</el-tag>
           </template>
         </el-table-column>
-
         <el-table-column label="密级" width="120" align="center">
           <template slot-scope="scope">
             <el-tag size="small" :type="levelTagType(scope.row.level || scope.row.securityLevel)" effect="plain">
@@ -216,7 +218,6 @@
             </el-tag>
           </template>
         </el-table-column>
-
         <el-table-column label="过滤状态" width="120" align="center">
           <template slot-scope="scope">
             <el-tag :type="isPassed(scope.row) ? 'success' : 'danger'" size="small" effect="plain">
@@ -224,55 +225,27 @@
             </el-tag>
           </template>
         </el-table-column>
-
-        <el-table-column label="过滤说明" prop="filterReason" min-width="260" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="doc-reason">{{ scope.row.filterReason || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="doc-content">{{ scope.row.content }}</span>
-          </template>
-        </el-table-column>
+        <el-table-column label="过滤说明" prop="filterReason" min-width="260" show-overflow-tooltip />
+        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip />
       </el-table>
 
-      <el-empty
-        v-if="!result.filteredResults || result.filteredResults.length === 0"
-        description="暂无可返回文档"
-      />
+      <el-empty v-if="!result.filteredResults || result.filteredResults.length === 0" description="暂无可返回文档" />
     </el-card>
-
 
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
         <span class="section-title">被权限过滤拦截的候选结果</span>
-        <span class="section-desc">展示模拟候选结果中命中但不允许返回给当前用户的文档。</span>
+        <span class="section-desc">展示命中但不允许返回给当前用户的文档。</span>
       </div>
 
-      <el-table
-        :data="result.rejectedResults || []"
-        border
-        stripe
-        class="result-table"
-      >
-        <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="mono-text">{{ scope.row.docId }}</span>
-          </template>
-        </el-table-column>
-
+      <el-table :data="result.rejectedResults || []" border stripe class="result-table">
+        <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip />
         <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
-
         <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center">
           <template slot-scope="scope">
-            <el-tag size="small" type="danger" effect="plain">
-              {{ scope.row.scopeCode }}
-            </el-tag>
+            <el-tag size="small" type="warning" effect="plain">{{ scope.row.scopeCode || '-' }}</el-tag>
           </template>
         </el-table-column>
-
         <el-table-column label="密级" width="120" align="center">
           <template slot-scope="scope">
             <el-tag size="small" :type="levelTagType(scope.row.level || scope.row.securityLevel)" effect="plain">
@@ -280,38 +253,26 @@
             </el-tag>
           </template>
         </el-table-column>
-
-        <el-table-column label="过滤状态" width="120" align="center">
-          <template>
-            <el-tag type="danger" size="small" effect="plain">已拦截</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="拦截说明" prop="filterReason" min-width="300" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="doc-reason">{{ scope.row.filterReason || '当前用户无该文档 scopeCode 访问权限' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="doc-content">{{ scope.row.content }}</span>
-          </template>
-        </el-table-column>
+        <el-table-column label="过滤说明" prop="filterReason" min-width="300" show-overflow-tooltip />
+        <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip />
       </el-table>
 
-      <el-empty
-        v-if="!result.rejectedResults || result.rejectedResults.length === 0"
-        description="暂无被拦截候选结果"
-      />
+      <el-empty v-if="!result.rejectedResults || result.rejectedResults.length === 0" description="暂无被拦截候选结果" />
     </el-card>
 
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
-        <span class="section-title">完整后端返回 JSON</span>
-        <el-button size="mini" type="primary" plain @click="copyResultJson">复制</el-button>
+        <span class="section-title">原始候选结果</span>
+        <span class="section-desc">用于对比 RAG Server 或 mock 候选集返回内容。</span>
       </div>
-      <pre class="json-box large">{{ formatJson(result) }}</pre>
+
+      <el-table :data="result.rawResults || []" border stripe class="result-table">
+        <el-table-column label="文档ID" prop="docId" width="220" align="center" show-overflow-tooltip />
+        <el-table-column label="标题" prop="title" min-width="180" show-overflow-tooltip />
+        <el-table-column label="知悉范围" prop="scopeCode" width="130" align="center" />
+        <el-table-column label="密级" prop="level" width="120" align="center" />
+        <el-table-column label="内容摘要" prop="content" min-width="500" show-overflow-tooltip />
+      </el-table>
     </el-card>
   </div>
 </template>
@@ -324,31 +285,69 @@ export default {
   data() {
     return {
       loading: false,
+      result: null,
       form: {
-        query: '查询内部研发制度'
-      },
-      result: null
+        query: 'username',
+        topK: 5,
+        useRemote: true
+      }
     }
   },
   methods: {
     handleSearch() {
-      if (!this.form.query) {
-        this.$modal.msgWarning('请输入检索问题')
+      if (!this.form.query || this.form.query.trim().length === 0) {
+        this.$message.warning('请输入检索问题')
         return
       }
 
       this.loading = true
-      ragSearch(this.form).then(response => {
-        this.result = response.data
-        this.$modal.msgSuccess('检索完成，已生成权限上下文与过滤结果')
+      const payload = {
+        query: this.form.query,
+        topK: this.form.topK,
+        useRemote: this.form.useRemote
+      }
+
+      ragSearch(payload).then(response => {
+        const data = response && response.data ? response.data : response
+        this.result = data
+        if (response && response.code && response.code !== 200) {
+          this.$message.warning(response.msg || '检索请求返回异常')
+        } else {
+          this.$message.success(this.form.useRemote ? '真实 RAG Server 检索完成' : '平台 Mock 检索完成')
+        }
+      }).catch(error => {
+        console.error(error)
+        this.$message.error('检索失败，请检查后端 8080 与 RAG Server 8081 是否正常运行')
       }).finally(() => {
         this.loading = false
       })
     },
+
     reset() {
-      this.form.query = ''
+      this.form = {
+        query: 'username',
+        topK: 5,
+        useRemote: true
+      }
       this.result = null
     },
+
+    buildRagServerRequest() {
+      return {
+        query: this.form.query,
+        topK: this.form.topK,
+        userContext: {
+          userId: this.result ? this.result.userId : null,
+          userName: this.result ? this.result.userName : null,
+          admin: this.result ? this.result.admin : null,
+          groupCodes: this.result ? this.result.groupCodes : [],
+          scopeCodes: this.result ? this.result.scopeCodes : []
+        },
+        metadataFilter: this.result ? this.result.metadataFilter : null,
+        platformFilterMode: 'metadata_filter_and_second_filter'
+      }
+    },
+
     normalizeArray(value) {
       if (!value) {
         return []
@@ -356,74 +355,38 @@ export default {
       if (Array.isArray(value)) {
         return value
       }
-      return String(value).split(',').map(item => item.trim()).filter(Boolean)
+      return String(value).split(',').map(item => item.trim()).filter(item => item.length > 0)
     },
+
+    formatJson(value) {
+      return JSON.stringify(value || {}, null, 2)
+    },
+
+    copyText(text, message) {
+      const input = document.createElement('textarea')
+      input.value = text
+      document.body.appendChild(input)
+      input.select()
+      document.execCommand('copy')
+      document.body.removeChild(input)
+      this.$message.success(message || '已复制')
+    },
+
     isPassed(row) {
-      if (!row) {
-        return false
-      }
-      if (typeof row.passed !== 'undefined') {
-        return row.passed
-      }
-      if (typeof row.allowAccess !== 'undefined') {
-        return row.allowAccess
-      }
-      if (typeof row.allowed !== 'undefined') {
-        return row.allowed
-      }
-      return true
+      return row && row.passed !== false
     },
-    levelTagType(value) {
-      if (value === 'SECRET') {
+
+    levelTagType(level) {
+      if (level === 'SECRET' || level === 'HIGH') {
         return 'danger'
       }
-      if (value === 'INTERNAL') {
+      if (level === 'INTERNAL' || level === 'MEDIUM') {
         return 'warning'
       }
-      if (value === 'PUBLIC') {
+      if (level === 'PUBLIC' || level === 'LOW') {
         return 'success'
       }
       return 'info'
-    },
-    buildRagServerRequest() {
-      if (!this.result) {
-        return {}
-      }
-      return {
-        query: this.result.query || this.form.query,
-        topK: 5,
-        userContext: {
-          userId: this.result.userId,
-          userName: this.result.userName,
-          admin: this.result.admin,
-          groupCodes: this.normalizeArray(this.result.groupCodes),
-          scopeCodes: this.normalizeArray(this.result.scopeCodes)
-        },
-        metadataFilter: this.result.metadataFilter || '',
-        platformFilterMode: 'metadata_filter_and_second_filter'
-      }
-    },
-    formatJson(value) {
-      try {
-        return JSON.stringify(value || {}, null, 2)
-      } catch (e) {
-        return String(value)
-      }
-    },
-    copyRequestJson() {
-      this.copyText(this.formatJson(this.buildRagServerRequest()), '检索请求 JSON 已复制')
-    },
-    copyResultJson() {
-      this.copyText(this.formatJson(this.result), '后端返回 JSON 已复制')
-    },
-    copyText(text, successMsg) {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-          this.$modal.msgSuccess(successMsg)
-        })
-      } else {
-        this.$modal.msgWarning('当前浏览器不支持自动复制，请手动复制')
-      }
     }
   }
 }
@@ -431,107 +394,73 @@ export default {
 
 <style scoped>
 .rag-search-page {
-  padding: 20px;
+  background: #f5f7fa;
+  min-height: calc(100vh - 84px);
 }
 
 .box-card {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   border-radius: 6px;
 }
 
 .card-header,
 .section-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
 }
 
 .page-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #303133;
-  line-height: 26px;
-}
-
-.page-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #909399;
-}
-
-.tips-alert {
-  margin-bottom: 16px;
-}
-
-.search-form {
-  padding: 4px 6px 0 0;
-}
-
-.section-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: #303133;
 }
 
-.section-desc {
+.page-subtitle,
+.section-desc,
+.context-extra,
+.mode-tip {
+  margin-top: 6px;
   font-size: 13px;
   color: #909399;
+}
+
+.mode-tip {
   margin-left: 12px;
 }
 
-.context-row {
-  margin-bottom: 12px;
+.tips-alert,
+.search-form {
+  margin-top: 16px;
 }
 
 .context-card {
-  padding: 14px 16px;
-  background: #f8fafc;
   border: 1px solid #ebeef5;
   border-radius: 6px;
+  padding: 14px 16px;
+  background: #fafafa;
 }
 
 .context-label {
   font-size: 13px;
   color: #909399;
-  margin-bottom: 8px;
 }
 
 .context-value {
-  font-size: 17px;
-  color: #303133;
+  margin-top: 8px;
+  font-size: 20px;
   font-weight: 600;
-  margin-bottom: 8px;
-  word-break: break-all;
-}
-
-.context-extra {
-  font-size: 12px;
-  color: #909399;
+  color: #303133;
 }
 
 .detail-block {
-  display: flex;
-  align-items: flex-start;
-  padding: 12px 0;
-  border-top: 1px solid #ebeef5;
-}
-
-.detail-block.compact {
-  border-top: none;
-  padding-top: 4px;
+  margin-top: 16px;
 }
 
 .detail-label {
-  width: 130px;
-  flex-shrink: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
   color: #606266;
-  font-weight: 500;
-  line-height: 28px;
-}
-
-.tag-list {
-  flex: 1;
-  line-height: 28px;
 }
 
 .tag-list .el-tag {
@@ -539,95 +468,54 @@ export default {
   margin-bottom: 6px;
 }
 
-.empty-text {
-  color: #909399;
-}
-
-.filter-code {
-  flex: 1;
-  margin: 0;
-  padding: 10px 12px;
-  background: #f4f6f8;
+.filter-code,
+.json-box {
+  padding: 12px;
+  background: #f6f8fa;
   border: 1px solid #ebeef5;
-  border-radius: 4px;
-  color: #606266;
+  border-radius: 6px;
   font-family: Menlo, Monaco, Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.6;
+  color: #606266;
 }
 
 .decision-message {
-  flex: 1;
   color: #606266;
-  line-height: 28px;
+}
+
+.mono-text {
+  font-family: Menlo, Monaco, Consolas, monospace;
+}
+
+.empty-text {
+  color: #c0c4cc;
 }
 
 .result-table {
   width: 100%;
 }
 
-.doc-reason {
-  color: #606266;
-  line-height: 1.6;
-}
-
-.doc-content {
-  color: #606266;
-  line-height: 1.6;
-}
-
-.json-box {
-  margin: 0;
-  padding: 12px;
-  max-height: 280px;
-  overflow: auto;
-  background: #f5f7fa;
-  border-radius: 4px;
-  color: #606266;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.json-box.large {
-  max-height: 420px;
-}
-
-.explain-box {
-  color: #606266;
-  font-size: 13px;
+.answer-box {
   line-height: 1.8;
 }
 
-.explain-box p {
-  margin: 0 0 8px 0;
+.answer-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  color: #909399;
+  font-size: 13px;
 }
 
-.mono-text {
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-size: 12px;
+.answer-content {
+  white-space: pre-wrap;
+  color: #303133;
+  background: #f8f9fb;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 14px 16px;
 }
 
-::v-deep .el-table .cell {
-  white-space: nowrap;
-}
-
-@media screen and (max-width: 1200px) {
-  .context-row .el-col {
-    margin-bottom: 12px;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  .detail-block {
-    display: block;
-  }
-
-  .detail-label {
-    width: auto;
-    margin-bottom: 6px;
-  }
-}
 </style>

@@ -12,6 +12,8 @@ import com.ruoyi.system.service.IPolicyDecisionService;
 import com.ruoyi.system.service.IRagAuditLogService;
 import com.ruoyi.system.service.IRagDocMockSearchService;
 import com.ruoyi.system.service.IRagSecondFilterService;
+import com.ruoyi.system.service.IRagRemoteSearchService;
+import com.ruoyi.system.service.IRagAnswerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +48,12 @@ public class RagSearchController
     @Autowired
     private IRagDocMockSearchService ragDocMockSearchService;
 
+    @Autowired
+    private IRagRemoteSearchService ragRemoteSearchService;
+
+    @Autowired
+    private IRagAnswerService ragAnswerService;
+
     /**
      * RAG 安全检索入口。
      *
@@ -67,9 +75,30 @@ public class RagSearchController
         PermissionContext context = permissionContextService.buildContext(userId, userName, admin);
         PolicyDecisionResult decision = policyDecisionService.decide(context);
 
-        List<RagSearchResult> rawResults = ragDocMockSearchService.search(request.getQuery());
+        List<RagSearchResult> rawResults;
+
+        if (Boolean.TRUE.equals(request.getUseRemote()))
+        {
+            rawResults = ragRemoteSearchService.search(request, context, decision);
+        }
+        else
+        {
+            rawResults = ragDocMockSearchService.search(request.getQuery());
+        }
         List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
         List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
+
+        String answer = "";
+        String answerModel = "";
+        long answerCostTime = 0L;
+
+        if (Boolean.TRUE.equals(decision.getAllowAccess()))
+        {
+            long answerStartTime = System.currentTimeMillis();
+            answerModel = ragAnswerService.getModelName();
+            answer = ragAnswerService.generateAnswer(request.getQuery(), filteredResults);
+            answerCostTime = System.currentTimeMillis() - answerStartTime;
+        }
 
         long costTime = System.currentTimeMillis() - startTime;
 
@@ -77,6 +106,8 @@ public class RagSearchController
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("query", request.getQuery());
+        result.put("searchMode", Boolean.TRUE.equals(request.getUseRemote()) ? "remote_rag_server" : "mock_sys_rag_doc");
+        result.put("topK", request.getTopK() == null ? 5 : request.getTopK());
         result.put("userId", context.getUserId());
         result.put("userName", context.getUserName());
         result.put("admin", context.getAdmin());
@@ -96,6 +127,10 @@ public class RagSearchController
         result.put("filteredResults", filteredResults);
         result.put("rejectedResults", rejectedResults);
         result.put("costTime", costTime);
+        result.put("answer", answer);
+        result.put("answerModel", answerModel);
+        result.put("answerCostTime", answerCostTime);
+        result.put("answerEnabled", ragAnswerService.isEnabled());
 
         if (Boolean.FALSE.equals(decision.getAllowAccess()))
         {
@@ -104,7 +139,9 @@ public class RagSearchController
             return ajax;
         }
 
-        result.put("message", "请求已通过策略决策，并基于 sys_rag_doc 完成模拟检索结果二次过滤与审计留痕");
+        result.put("message", Boolean.TRUE.equals(request.getUseRemote())
+                ? "请求已通过策略决策，完成 RAG Server 真实检索、二次过滤、审计留痕与外部模型回答生成"
+                : "请求已通过策略决策，完成平台 Mock 检索、二次过滤、审计留痕与外部模型回答生成");
         return (AjaxResult) AjaxResult.success(result);
     }
 
@@ -169,7 +206,7 @@ public class RagSearchController
         auditLog.setGroupCodes(joinList(context.getGroupCodes()));
         auditLog.setScopeCodes(joinList(context.getScopeCodes()));
         auditLog.setMetadataFilter(decision.getMetadataFilter());
-        auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "0" : "1");
+        auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "1" : "0");
         auditLog.setDenyReasons(joinList(decision.getDenyReasons()));
         auditLog.setCostTime(costTime);
 
