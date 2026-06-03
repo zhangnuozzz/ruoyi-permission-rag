@@ -147,6 +147,13 @@ echo "若依后端：http://localhost:8080"
 echo "RAG Server：http://localhost:8081"
 echo "MinIO 控制台：http://localhost:9001"
 
+echo "========== 11.1 自动打开若依前端 =========="
+if command -v open >/dev/null 2>&1; then
+  open "http://localhost:1024"
+else
+  echo "当前系统不支持 open 命令，请手动访问：http://localhost:1024"
+fi
+
 echo "========== 12. 日志位置 =========="
 echo "若依后端日志：$LOG_DIR/ruoyi_backend.log"
 echo "若依前端日志：$LOG_DIR/ruoyi_frontend.log"
