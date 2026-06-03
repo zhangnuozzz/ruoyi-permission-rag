@@ -3,18 +3,16 @@
 BASE_DIR="/Users/zhangnuo/Desktop/大模型向量库项目/RuoYi-3.2.0-final/RuoYi-Vue"
 LOG_DIR="$BASE_DIR/logs-local"
 
-mkdir -p "$LOG_DIR"
-
 echo "========== 0. 进入项目目录 =========="
 cd "$BASE_DIR" || exit 1
+mkdir -p "$LOG_DIR"
 
 echo "========== 1. 启动 Docker Desktop =========="
 if ! docker info >/dev/null 2>&1; then
   echo "Docker 没启动，正在打开 Docker Desktop..."
   open -a Docker
 
-  echo "等待 Docker 启动..."
-  for i in {1..90}; do
+  for i in {1..60}; do
     if docker info >/dev/null 2>&1; then
       echo "Docker 已启动"
       break
@@ -26,34 +24,26 @@ else
   echo "Docker 已经启动"
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  echo "Docker 启动失败，请手动打开 Docker Desktop 后重试"
-  exit 1
-fi
-
 echo "========== 2. 启动 MariaDB =========="
-if command -v brew >/dev/null 2>&1; then
-  brew services start mariadb >/dev/null 2>&1 || true
-else
-  echo "未检测到 brew，跳过 MariaDB 自动启动"
-fi
+brew services start mariadb >/dev/null 2>&1 || true
 
 echo "========== 3. 启动 Redis =========="
-if command -v brew >/dev/null 2>&1; then
-  brew services start redis >/dev/null 2>&1 || true
-else
-  echo "未检测到 brew，跳过 Redis 自动启动"
-fi
+brew services start redis >/dev/null 2>&1 || true
 
 echo "========== 4. 启动 Docker 容器 =========="
-echo "当前已有容器："
-docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+if docker info >/dev/null 2>&1; then
+  echo "当前已有容器："
+  docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "rag-|milvus|minio|etcd|attu|NAMES" || true
 
-echo "尝试启动已有的 MinIO / Milvus / Etcd / Attu 等容器..."
-for name in $(docker ps -a --format "{{.Names}}" | grep -Ei "minio|milvus|etcd|attu|standalone|pulsar|mysql|mariadb|redis"); do
-  echo "启动容器：$name"
-  docker start "$name" >/dev/null 2>&1 || true
-done
+  for name in rag-etcd rag-minio rag-milvus rag-attu; do
+    if docker ps -a --format "{{.Names}}" | grep -qx "$name"; then
+      echo "启动容器：$name"
+      docker start "$name" >/dev/null 2>&1 || true
+    fi
+  done
+else
+  echo "Docker 未就绪，跳过容器启动"
+fi
 
 echo "========== 5. 检查关键端口占用 =========="
 echo "8080 若依后端："
@@ -74,7 +64,7 @@ lsof -i:9001 || true
 echo "19530 Milvus："
 lsof -i:19530 || true
 
-echo "========== 6. 启动 RAG Server 8081 =========="
+echo "========== 6. 定位并启动 RAG Server 8081 =========="
 if lsof -i:8081 >/dev/null 2>&1; then
   echo "RAG Server 8081 已经启动，跳过"
 else
@@ -89,17 +79,17 @@ else
   fi
 
   if [ -z "$RAG_SERVER_DIR" ]; then
-    echo "未找到 rag_server 目录，跳过 RAG Server"
-    echo "如果需要 RAG Server，请先确认 fufu_week4 worktree 是否存在"
+    echo "未找到带 pom.xml 的 rag_server，跳过 RAG Server"
   else
     echo "使用 RAG Server 目录：$RAG_SERVER_DIR"
 
-    echo "同步 RAG Server 数据库配置到 ry-vue-320..."
     if [ -f "$RAG_SERVER_DIR/src/main/resources/application.yml" ]; then
+      echo "修正 RAG Server 数据库连接为 ry-vue-320"
       sed -i '' 's#jdbc:mariadb://localhost:3306/ruoyi?#jdbc:mariadb://localhost:3306/ry-vue-320?#g' "$RAG_SERVER_DIR/src/main/resources/application.yml"
+      sed -i '' 's#jdbc:mysql://localhost:3306/ruoyi?#jdbc:mysql://localhost:3306/ry-vue-320?#g' "$RAG_SERVER_DIR/src/main/resources/application.yml"
     fi
 
-    echo "清理 RAG Server target，避免加载旧 application.yml..."
+    echo "删除 RAG Server target，避免读取旧 application.yml"
     rm -rf "$RAG_SERVER_DIR/target"
 
     cd "$RAG_SERVER_DIR" || exit 1
@@ -129,7 +119,7 @@ else
 fi
 
 echo "========== 9. 等待服务启动 =========="
-sleep 8
+sleep 20
 
 echo "========== 10. 最终端口检查 =========="
 echo "8080 若依后端："
@@ -150,6 +140,23 @@ lsof -i:9001 || echo "9001 未启动或未映射"
 echo "19530 Milvus："
 lsof -i:19530 || echo "19530 未启动或未映射"
 
+echo "========== 10.1 检查 RAG Server 运行时数据库配置 =========="
+RAG_SERVER_DIR=""
+
+if [ -f "$BASE_DIR/RuoYi-Vue-ragold-fufu-week4/rag_server/target/classes/application.yml" ]; then
+  RAG_SERVER_DIR="$BASE_DIR/RuoYi-Vue-ragold-fufu-week4/rag_server"
+elif [ -f "$BASE_DIR/RuoYi-Vue-fufu-week4/rag_server/target/classes/application.yml" ]; then
+  RAG_SERVER_DIR="$BASE_DIR/RuoYi-Vue-fufu-week4/rag_server"
+elif [ -f "$BASE_DIR/rag_server/target/classes/application.yml" ]; then
+  RAG_SERVER_DIR="$BASE_DIR/rag_server"
+fi
+
+if [ -n "$RAG_SERVER_DIR" ]; then
+  grep -n "jdbc:mariadb\|jdbc:mysql" "$RAG_SERVER_DIR/target/classes/application.yml" || true
+else
+  echo "暂未生成 RAG Server target/classes/application.yml"
+fi
+
 echo "========== 11. 访问地址 =========="
 echo "若依前端：http://localhost:1024"
 echo "若依后端：http://localhost:8080"
@@ -157,10 +164,8 @@ echo "RAG Server：http://localhost:8081"
 echo "MinIO 控制台：http://localhost:9001"
 
 echo "========== 11.1 自动打开若依前端 =========="
-if command -v open >/dev/null 2>&1; then
+if lsof -i:1024 >/dev/null 2>&1; then
   open "http://localhost:1024"
-else
-  echo "当前系统不支持 open 命令，请手动访问：http://localhost:1024"
 fi
 
 echo "========== 12. 日志位置 =========="
