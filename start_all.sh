@@ -93,6 +93,15 @@ else
     echo "如果需要 RAG Server，请先确认 fufu_week4 worktree 是否存在"
   else
     echo "使用 RAG Server 目录：$RAG_SERVER_DIR"
+
+    echo "同步 RAG Server 数据库配置到 ry-vue-320..."
+    if [ -f "$RAG_SERVER_DIR/src/main/resources/application.yml" ]; then
+      sed -i '' 's#jdbc:mariadb://localhost:3306/ruoyi?#jdbc:mariadb://localhost:3306/ry-vue-320?#g' "$RAG_SERVER_DIR/src/main/resources/application.yml"
+    fi
+
+    echo "清理 RAG Server target，避免加载旧 application.yml..."
+    rm -rf "$RAG_SERVER_DIR/target"
+
     cd "$RAG_SERVER_DIR" || exit 1
     nohup mvn spring-boot:run > "$LOG_DIR/rag_server.log" 2>&1 &
     echo "RAG Server 启动命令已执行，日志：$LOG_DIR/rag_server.log"
