@@ -1,31 +1,64 @@
-#!/bin/zsh
-set -u
+#!/bin/bash
 
-PROJECT_DIR="/Users/zhangnuo/Desktop/大模型向量库项目/RuoYi-3.2.0-final/RuoYi-Vue"
-RAG_DIR="$PROJECT_DIR/RuoYi-Vue-ragold-fufu-week4/rag_server"
-LOG_DIR="$PROJECT_DIR/logs-local"
+BASE_DIR="/Users/zhangnuo/Desktop/大模型向量库项目/RuoYi-3.2.0-final/RuoYi-Vue"
+LOG_DIR="$BASE_DIR/logs-local"
+RAG_SERVER_DIR="$BASE_DIR/RuoYi-Vue-ragold-fufu-week4/rag_server"
 
-RUOYI_JAVA_HOME=$(/usr/libexec/java_home -v 1.8 2>/dev/null || true)
-RAG_JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null || true)
+RUOYI_JAVA_HOME="/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home"
+RAG_JAVA_HOME="/opt/homebrew/Cellar/openjdk@17/17.0.15/libexec/openjdk.jdk/Contents/Home"
 
 mkdir -p "$LOG_DIR"
 
+is_listen() {
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+show_listen() {
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN || echo "$1 没有 LISTEN"
+}
+
+wait_port() {
+  local port="$1"
+  local name="$2"
+  local max="${3:-60}"
+
+  for i in $(seq 1 "$max"); do
+    if is_listen "$port"; then
+      echo "$name $port 已监听"
+      return 0
+    fi
+    echo "等待 $name $port 启动中... $i"
+    sleep 2
+  done
+
+  echo "$name $port 启动超时"
+  return 1
+}
+
+wait_http() {
+  local url="$1"
+  local name="$2"
+  local max="${3:-60}"
+
+  for i in $(seq 1 "$max"); do
+    if curl -s --connect-timeout 2 "$url" >/dev/null 2>&1; then
+      echo "$name 可访问：$url"
+      return 0
+    fi
+    echo "等待 $name 可访问中... $i"
+    sleep 2
+  done
+
+  echo "$name 访问超时：$url"
+  return 1
+}
+
 echo "========== 0. 进入项目目录 =========="
-cd "$PROJECT_DIR" || exit 1
+cd "$BASE_DIR" || exit 1
 
-if [ -z "$RUOYI_JAVA_HOME" ]; then
-  echo "错误：未找到 Java 8。若依后端必须使用 Java 8。"
-  echo "请先安装 Java 8，或确认 /usr/libexec/java_home -v 1.8 能正常输出。"
-  exit 1
-fi
-
-echo "若依后端固定 Java 8：$RUOYI_JAVA_HOME"
-
-if [ -n "$RAG_JAVA_HOME" ]; then
-  echo "RAG Server 优先使用 Java 17：$RAG_JAVA_HOME"
-else
-  echo "提示：未检测到 Java 17。若 RAG Server 后续重启失败，请安装 Java 17。"
-fi
+echo "========== Java 环境 =========="
+echo "若依后端 Java 8：$RUOYI_JAVA_HOME"
+echo "RAG Server Java 17：$RAG_JAVA_HOME"
 
 echo "========== 1. 启动 Docker Desktop =========="
 if ! docker info >/dev/null 2>&1; then
@@ -43,11 +76,6 @@ else
   echo "Docker 已经启动"
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  echo "错误：Docker 仍未启动，请手动打开 Docker Desktop 后重试。"
-  exit 1
-fi
-
 echo "========== 2. 启动 MariaDB =========="
 brew services start mariadb >/dev/null 2>&1 || true
 
@@ -55,127 +83,107 @@ echo "========== 3. 启动 Redis =========="
 brew services start redis >/dev/null 2>&1 || true
 
 echo "========== 4. 启动 Docker 容器 =========="
-echo "当前已有容器："
-docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "rag-|NAMES" || true
-
-for c in rag-etcd rag-minio rag-milvus; do
-  if docker ps -a --format '{{.Names}}' | grep -qx "$c"; then
-    if docker ps --format '{{.Names}}' | grep -qx "$c"; then
-      echo "$c 已经运行"
-    else
-      echo "启动容器：$c"
-      docker start "$c" >/dev/null
+if docker info >/dev/null 2>&1; then
+  docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "rag-|milvus|minio|etcd|attu|NAMES" || true
+  for name in rag-etcd rag-minio rag-milvus rag-attu; do
+    if docker ps -a --format "{{.Names}}" | grep -qx "$name"; then
+      echo "启动容器：$name"
+      docker start "$name" >/dev/null 2>&1 || true
     fi
-  else
-    echo "警告：容器 $c 不存在，跳过"
-  fi
-done
+  done
+fi
 
-echo "========== 5. 检查关键端口占用 =========="
-for port in 8080 8081 1024 9000 9001 19530; do
-  echo "$port："
-  lsof -i :"$port" || true
-done
-
-echo "========== 6. 定位并启动 RAG Server 8081 =========="
-if lsof -i :8081 >/dev/null 2>&1; then
+echo "========== 5. 启动 RAG Server 8081 =========="
+if is_listen 8081; then
   echo "RAG Server 8081 已经启动，跳过"
 else
-  if [ -d "$RAG_DIR" ]; then
-    echo "使用 RAG Server 目录：$RAG_DIR"
-    cd "$RAG_DIR" || exit 1
+  if [ ! -f "$RAG_SERVER_DIR/pom.xml" ]; then
+    echo "未找到 RAG Server：$RAG_SERVER_DIR"
+  else
+    echo "使用 RAG Server：$RAG_SERVER_DIR"
 
-    echo "修正 RAG Server 数据库连接为 ry-vue-320"
-    if [ -f "src/main/resources/application.yml" ]; then
-      sed -i '' 's#jdbc:mariadb://localhost:3306/[^?]*#jdbc:mariadb://localhost:3306/ry-vue-320#g' src/main/resources/application.yml 2>/dev/null || true
-      sed -i '' 's#jdbc:mysql://localhost:3306/[^?]*#jdbc:mariadb://localhost:3306/ry-vue-320#g' src/main/resources/application.yml 2>/dev/null || true
+    if [ -f "$RAG_SERVER_DIR/src/main/resources/application.yml" ]; then
+      echo "修正 RAG Server 数据库连接为 ry-vue-320"
+      sed -i '' 's#jdbc:mariadb://localhost:3306/ruoyi?#jdbc:mariadb://localhost:3306/ry-vue-320?#g' "$RAG_SERVER_DIR/src/main/resources/application.yml"
+      sed -i '' 's#jdbc:mysql://localhost:3306/ruoyi?#jdbc:mysql://localhost:3306/ry-vue-320?#g' "$RAG_SERVER_DIR/src/main/resources/application.yml"
     fi
 
     echo "删除 RAG Server target，避免读取旧 application.yml"
-    rm -rf target
+    rm -rf "$RAG_SERVER_DIR/target"
 
-    if [ -n "$RAG_JAVA_HOME" ]; then
-      (
-        export JAVA_HOME="$RAG_JAVA_HOME"
-        export PATH="$JAVA_HOME/bin:$PATH"
-        echo "RAG Server 实际 Java 版本：" > "$LOG_DIR/rag_server.log"
-        java -version >> "$LOG_DIR/rag_server.log" 2>&1
-        nohup mvn spring-boot:run >> "$LOG_DIR/rag_server.log" 2>&1 &
-      )
-    else
-      (
-        echo "RAG Server 实际 Java 版本：" > "$LOG_DIR/rag_server.log"
-        java -version >> "$LOG_DIR/rag_server.log" 2>&1
-        nohup mvn spring-boot:run >> "$LOG_DIR/rag_server.log" 2>&1 &
-      )
-    fi
-
-    echo "RAG Server 启动命令已执行，日志：$LOG_DIR/rag_server.log"
-  else
-    echo "警告：RAG Server 目录不存在，跳过：$RAG_DIR"
+    cd "$RAG_SERVER_DIR" || exit 1
+    JAVA_HOME="$RAG_JAVA_HOME" PATH="$RAG_JAVA_HOME/bin:$PATH" nohup mvn spring-boot:run > "$LOG_DIR/rag_server.log" 2>&1 &
+    cd "$BASE_DIR" || exit 1
   fi
 fi
 
-echo "========== 7. 启动若依后端 8080 =========="
-if lsof -i :8080 >/dev/null 2>&1; then
+wait_port 8081 "RAG Server" 45
+
+echo "========== 6. 启动若依后端 8080 =========="
+if is_listen 8080; then
   echo "若依后端 8080 已经启动，跳过"
 else
-  cd "$PROJECT_DIR" || exit 1
-  (
-    export JAVA_HOME="$RUOYI_JAVA_HOME"
-    export PATH="$JAVA_HOME/bin:$PATH"
-    echo "若依后端实际 Java 版本：" > "$LOG_DIR/ruoyi_backend.log"
-    java -version >> "$LOG_DIR/ruoyi_backend.log" 2>&1
-    nohup mvn -pl ruoyi-admin spring-boot:run >> "$LOG_DIR/ruoyi_backend.log" 2>&1 &
-  )
-  echo "若依后端启动命令已执行，日志：$LOG_DIR/ruoyi_backend.log"
+  cd "$BASE_DIR" || exit 1
+  JAVA_HOME="$RUOYI_JAVA_HOME" PATH="$RUOYI_JAVA_HOME/bin:$PATH" nohup mvn -pl ruoyi-admin spring-boot:run > "$LOG_DIR/ruoyi_backend.log" 2>&1 &
 fi
 
-echo "========== 8. 启动若依前端 1024 =========="
-if lsof -i :1024 >/dev/null 2>&1; then
-  echo "若依前端 1024 已经启动，跳过"
+wait_port 8080 "若依后端" 60
+wait_http "http://localhost:8080/captchaImage" "若依后端 captchaImage" 30
+
+echo "========== 7. 启动若依前端 1024 =========="
+if is_listen 1024 && curl -s --connect-timeout 2 http://localhost:1024 >/dev/null 2>&1; then
+  echo "若依前端 1024 已经启动并可访问，跳过"
 else
-  cd "$PROJECT_DIR/ruoyi-ui" || exit 1
-  nohup npm run dev > "$LOG_DIR/ruoyi_frontend.log" 2>&1 &
-  echo "若依前端启动命令已执行，日志：$LOG_DIR/ruoyi_frontend.log"
-fi
-
-echo "========== 9. 等待服务启动 =========="
-for i in {1..45}; do
-  if lsof -i :8080 >/dev/null 2>&1 && lsof -i :8081 >/dev/null 2>&1 && lsof -i :1024 >/dev/null 2>&1; then
-    echo "关键服务端口已就绪"
-    break
-  fi
-  echo "等待中... $i"
+  echo "若依前端未真正可访问，重新启动前端"
+  pkill -f "vue-cli-service serve" >/dev/null 2>&1 || true
   sleep 2
-done
 
-cd "$PROJECT_DIR" || exit 1
-
-echo "========== 10. 最终端口检查 =========="
-for port in 8080 8081 1024 9000 9001 19530; do
-  echo "$port："
-  lsof -i :"$port" || echo "$port 未启动"
-done
-
-echo "========== 10.1 检查 RAG Server 运行时数据库配置 =========="
-if [ -f "$RAG_DIR/src/main/resources/application.yml" ]; then
-  grep -n "jdbc:.*3306" "$RAG_DIR/src/main/resources/application.yml" || true
+  cd "$BASE_DIR/ruoyi-ui" || exit 1
+  nohup npm run dev > "$LOG_DIR/ruoyi_frontend.log" 2>&1 &
+  cd "$BASE_DIR" || exit 1
 fi
 
-echo "========== 10.2 检查若依后端接口 =========="
-curl -s -i http://localhost:8080/captchaImage | head -n 15 || true
+wait_port 1024 "若依前端" 60
+wait_http "http://localhost:1024" "若依前端页面" 60
 
-echo "========== 11. 访问地址 =========="
+echo "========== 8. 最终端口 LISTEN 检查 =========="
+echo "8080 若依后端："
+show_listen 8080
+
+echo "8081 RAG Server："
+show_listen 8081
+
+echo "1024 若依前端："
+show_listen 1024
+
+echo "9000 MinIO API："
+show_listen 9000
+
+echo "9001 MinIO Console："
+show_listen 9001
+
+echo "19530 Milvus："
+show_listen 19530
+
+echo "========== 9. 检查 RAG Server 运行时数据库配置 =========="
+if [ -f "$RAG_SERVER_DIR/target/classes/application.yml" ]; then
+  grep -n "jdbc:mariadb\|jdbc:mysql" "$RAG_SERVER_DIR/target/classes/application.yml" || true
+else
+  echo "RAG Server target/classes/application.yml 暂未生成"
+fi
+
+echo "========== 10. 访问地址 =========="
 echo "若依前端：http://localhost:1024"
 echo "若依后端：http://localhost:8080"
 echo "RAG Server：http://localhost:8081"
 echo "MinIO 控制台：http://localhost:9001"
 
-echo "========== 12. 日志位置 =========="
+echo "========== 11. 日志位置 =========="
 echo "若依后端日志：$LOG_DIR/ruoyi_backend.log"
 echo "若依前端日志：$LOG_DIR/ruoyi_frontend.log"
 echo "RAG Server 日志：$LOG_DIR/rag_server.log"
 
-echo "========== 启动脚本执行完成 =========="
+echo "========== 12. 自动打开若依前端 =========="
 open "http://localhost:1024" >/dev/null 2>&1 || true
+
+echo "========== 启动完成 =========="
