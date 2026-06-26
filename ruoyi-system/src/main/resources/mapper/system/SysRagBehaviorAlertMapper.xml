@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysRagBehaviorAlertMapper">
+
+    <resultMap type="SysRagBehaviorAlert" id="SysRagBehaviorAlertResult">
+        <result property="id" column="id"/>
+        <result property="sourceLogId" column="source_log_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="userName" column="user_name"/>
+        <result property="alertType" column="alert_type"/>
+        <result property="alertLevel" column="alert_level"/>
+        <result property="alertReason" column="alert_reason"/>
+        <result property="queryText" column="query_text"/>
+        <result property="allowAccess" column="allow_access"/>
+        <result property="costTime" column="cost_time"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectSysRagBehaviorAlertVo">
+        select id, source_log_id, user_id, user_name, alert_type, alert_level,
+               alert_reason, query_text, allow_access, cost_time, status, remark, create_time
+        from sys_rag_behavior_alert
+    </sql>
+
+    <select id="selectSysRagBehaviorAlertList" parameterType="SysRagBehaviorAlert" resultMap="SysRagBehaviorAlertResult">
+        <include refid="selectSysRagBehaviorAlertVo"/>
+        <where>
+            <if test="userName != null and userName != ''"> and user_name like concat('%', #{userName}, '%')</if>
+            <if test="alertType != null and alertType != ''"> and alert_type = #{alertType}</if>
+            <if test="alertLevel != null and alertLevel != ''"> and alert_level = #{alertLevel}</if>
+            <if test="status != null and status != ''"> and status = #{status}</if>
+        </where>
+        order by create_time desc, id desc
+    </select>
+
+    <select id="selectSysRagBehaviorAlertById" parameterType="Long" resultMap="SysRagBehaviorAlertResult">
+        <include refid="selectSysRagBehaviorAlertVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSysRagBehaviorAlert" parameterType="SysRagBehaviorAlert" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_rag_behavior_alert
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="sourceLogId != null">source_log_id,</if>
+            <if test="userId != null">user_id,</if>
+            <if test="userName != null">user_name,</if>
+            <if test="alertType != null">alert_type,</if>
+            <if test="alertLevel != null">alert_level,</if>
+            <if test="alertReason != null">alert_reason,</if>
+            <if test="queryText != null">query_text,</if>
+            <if test="allowAccess != null">allow_access,</if>
+            <if test="costTime != null">cost_time,</if>
+            <if test="status != null">status,</if>
+            <if test="remark != null">remark,</if>
+            create_time,
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="sourceLogId != null">#{sourceLogId},</if>
+            <if test="userId != null">#{userId},</if>
+            <if test="userName != null">#{userName},</if>
+            <if test="alertType != null">#{alertType},</if>
+            <if test="alertLevel != null">#{alertLevel},</if>
+            <if test="alertReason != null">#{alertReason},</if>
+            <if test="queryText != null">#{queryText},</if>
+            <if test="allowAccess != null">#{allowAccess},</if>
+            <if test="costTime != null">#{costTime},</if>
+            <if test="status != null">#{status},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate(),
+        </trim>
+    </insert>
+
+    <update id="updateSysRagBehaviorAlert" parameterType="SysRagBehaviorAlert">
+        update sys_rag_behavior_alert
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="status != null">status = #{status},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSysRagBehaviorAlertById" parameterType="Long">
+        delete from sys_rag_behavior_alert where id = #{id}
+    </delete>
+
+    <delete id="deleteSysRagBehaviorAlertByIds" parameterType="String">
+        delete from sys_rag_behavior_alert where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>
