@@ -1,7 +1,6 @@
 package com.ruoyi.system.controller;
 
 import java.util.List;
-import javax.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +10,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
@@ -51,8 +51,8 @@ public class SysRagAuditLogController extends BaseController
      */
     @PreAuthorize("@ss.hasPermi('system:log:export')")
     @Log(title = "RAG检索审计日志", businessType = BusinessType.EXPORT)
-    @PostMapping("/export")
-    public AjaxResult export(HttpServletResponse response, SysRagAuditLog sysRagAuditLog)
+    @RequestMapping(value = "/export", method = { RequestMethod.GET, RequestMethod.POST })
+    public AjaxResult export(SysRagAuditLog sysRagAuditLog)
     {
         List<SysRagAuditLog> list = sysRagAuditLogService.selectSysRagAuditLogList(sysRagAuditLog);
         ExcelUtil<SysRagAuditLog> util = new ExcelUtil<SysRagAuditLog>(SysRagAuditLog.class);

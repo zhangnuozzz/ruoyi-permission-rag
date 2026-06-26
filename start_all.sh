@@ -107,7 +107,7 @@ cd "$BASE_DIR" || exit 1
 wait_port 8081 "RAG Server" 45
 
 echo "========== 6. 启动若依后端 8080 =========="
-JAVA_HOME="$RUOYI_JAVA_HOME" PATH="$RUOYI_JAVA_HOME/bin:$PATH" nohup mvn -pl ruoyi-admin spring-boot:run > "$LOG_DIR/ruoyi_backend.log" 2>&1 &
+JAVA_HOME="$RUOYI_JAVA_HOME" PATH="$RUOYI_JAVA_HOME/bin:$PATH" nohup java -jar ruoyi-admin/target/ruoyi-admin.jar > "$LOG_DIR/ruoyi_backend.log" 2>&1 &
 
 wait_port 8080 "若依后端" 60
 wait_http "http://localhost:8080/captchaImage" "若依后端 captchaImage" 30

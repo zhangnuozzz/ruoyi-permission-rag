@@ -94,6 +94,7 @@
         <el-form-item>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+          <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
 
@@ -193,7 +194,7 @@
 </template>
 
 <script>
-import { listLog, delLog } from '@/api/system/log'
+import { listLog, delLog, exportLog } from '@/api/system/log'
 
 export default {
   name: 'RagAuditLog',
@@ -242,6 +243,21 @@ export default {
       this.resetForm('queryForm')
       this.handleQuery()
     },
+
+
+    handleExport() {
+      const queryParams = this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')
+      this.$confirm('是否确认导出当前筛选条件下的 RAG 检索审计日志？', '警告', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(function() {
+        return exportLog(queryParams)
+      }).then(response => {
+        this.download(response.msg)
+      })
+    },
+
 
     handleViewJson(row) {
       this.jsonDetail = row || {}
