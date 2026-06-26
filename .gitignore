@@ -43,3 +43,8 @@ nbdist/
 !*/build/*.html
 !*/build/*.xml
 .DS_Store
+
+# local backup files
+*.bak*
+backups/
+logs-local/

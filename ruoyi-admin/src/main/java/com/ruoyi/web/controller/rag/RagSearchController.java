@@ -1,5 +1,7 @@
 package com.ruoyi.web.controller.rag;
 
+import com.alibaba.fastjson.JSON;
+
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.domain.permission.PermissionContext;
@@ -102,7 +104,6 @@ public class RagSearchController
 
         long costTime = System.currentTimeMillis() - startTime;
 
-        recordAuditLog(request, context, decision, costTime);
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("query", request.getQuery());
@@ -136,13 +137,17 @@ public class RagSearchController
         {
             AjaxResult ajax = AjaxResult.error("请求被权限策略拦截");
             ajax.put("data", result);
+            recordAuditLog(request, context, decision, costTime, rawResults, filteredResults, rejectedResults, ajax);
             return ajax;
         }
 
         result.put("message", Boolean.TRUE.equals(request.getUseRemote())
                 ? "请求已通过策略决策，完成 RAG Server 真实检索、二次过滤、审计留痕与外部模型回答生成"
                 : "请求已通过策略决策，完成平台 Mock 检索、二次过滤、审计留痕与外部模型回答生成");
-        return (AjaxResult) AjaxResult.success(result);
+
+        AjaxResult ajax = AjaxResult.success(result);
+        recordAuditLog(request, context, decision, costTime, rawResults, filteredResults, rejectedResults, ajax);
+        return ajax;
     }
 
     /**
@@ -196,7 +201,11 @@ public class RagSearchController
      * 记录 RAG 检索审计日志。
      */
     private void recordAuditLog(RagSearchRequest request, PermissionContext context,
-                                PolicyDecisionResult decision, long costTime)
+                                PolicyDecisionResult decision, long costTime,
+                                List<RagSearchResult> rawResults,
+                                List<RagSearchResult> filteredResults,
+                                List<RagSearchResult> rejectedResults,
+                                Object responseObject)
     {
         RagAuditLog auditLog = new RagAuditLog();
 
@@ -205,7 +214,13 @@ public class RagSearchController
         auditLog.setQueryText(request == null ? null : request.getQuery());
         auditLog.setGroupCodes(joinList(context.getGroupCodes()));
         auditLog.setScopeCodes(joinList(context.getScopeCodes()));
+        auditLog.setUserContextJson(JSON.toJSONString(context));
         auditLog.setMetadataFilter(decision.getMetadataFilter());
+        auditLog.setRequestJson(JSON.toJSONString(request));
+        auditLog.setRawResultsJson(JSON.toJSONString(rawResults));
+        auditLog.setPassedResultsJson(JSON.toJSONString(filteredResults));
+        auditLog.setBlockedResultsJson(JSON.toJSONString(rejectedResults));
+        auditLog.setResponseJson(JSON.toJSONString(responseObject));
         auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "1" : "0");
         auditLog.setDenyReasons(joinList(decision.getDenyReasons()));
         auditLog.setCostTime(costTime);

@@ -38,6 +38,24 @@ public class SysRagAuditLog extends BaseEntity
     @Excel(name = "知悉范围编码集合")
     private String scopeCodes;
 
+    /** 用户权限上下文JSON */
+    private String userContextJson;
+
+    /** 请求JSON */
+    private String requestJson;
+
+    /** RAG Server原始候选结果JSON */
+    private String rawResultsJson;
+
+    /** 二次过滤通过结果JSON */
+    private String passedResultsJson;
+
+    /** 二次过滤拦截结果JSON */
+    private String blockedResultsJson;
+
+    /** 最终返回前端响应JSON */
+    private String responseJson;
+
     /** 元数据过滤条件 */
     @Excel(name = "元数据过滤条件")
     private String metadataFilter;
@@ -114,6 +132,67 @@ public class SysRagAuditLog extends BaseEntity
         return scopeCodes;
     }
 
+
+    public void setUserContextJson(String userContextJson)
+    {
+        this.userContextJson = userContextJson;
+    }
+
+    public String getUserContextJson()
+    {
+        return userContextJson;
+    }
+
+    public void setRequestJson(String requestJson)
+    {
+        this.requestJson = requestJson;
+    }
+
+    public String getRequestJson()
+    {
+        return requestJson;
+    }
+
+    public void setRawResultsJson(String rawResultsJson)
+    {
+        this.rawResultsJson = rawResultsJson;
+    }
+
+    public String getRawResultsJson()
+    {
+        return rawResultsJson;
+    }
+
+    public void setPassedResultsJson(String passedResultsJson)
+    {
+        this.passedResultsJson = passedResultsJson;
+    }
+
+    public String getPassedResultsJson()
+    {
+        return passedResultsJson;
+    }
+
+    public void setBlockedResultsJson(String blockedResultsJson)
+    {
+        this.blockedResultsJson = blockedResultsJson;
+    }
+
+    public String getBlockedResultsJson()
+    {
+        return blockedResultsJson;
+    }
+
+    public void setResponseJson(String responseJson)
+    {
+        this.responseJson = responseJson;
+    }
+
+    public String getResponseJson()
+    {
+        return responseJson;
+    }
+
     public void setMetadataFilter(String metadataFilter) 
     {
         this.metadataFilter = metadataFilter;
@@ -163,7 +242,13 @@ public class SysRagAuditLog extends BaseEntity
             .append("queryText", getQueryText())
             .append("groupCodes", getGroupCodes())
             .append("scopeCodes", getScopeCodes())
+            .append("userContextJson", getUserContextJson())
             .append("metadataFilter", getMetadataFilter())
+            .append("requestJson", getRequestJson())
+            .append("rawResultsJson", getRawResultsJson())
+            .append("passedResultsJson", getPassedResultsJson())
+            .append("blockedResultsJson", getBlockedResultsJson())
+            .append("responseJson", getResponseJson())
             .append("allowAccess", getAllowAccess())
             .append("denyReasons", getDenyReasons())
             .append("costTime", getCostTime())

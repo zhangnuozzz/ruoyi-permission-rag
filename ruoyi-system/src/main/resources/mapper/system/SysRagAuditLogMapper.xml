@@ -11,7 +11,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="queryText"    column="query_text"    />
         <result property="groupCodes"    column="group_codes"    />
         <result property="scopeCodes"    column="scope_codes"    />
+        <result property="userContextJson"    column="user_context_json"    />
         <result property="metadataFilter"    column="metadata_filter"    />
+        <result property="requestJson"    column="request_json"    />
+        <result property="rawResultsJson"    column="raw_results_json"    />
+        <result property="passedResultsJson"    column="passed_results_json"    />
+        <result property="blockedResultsJson"    column="blocked_results_json"    />
+        <result property="responseJson"    column="response_json"    />
         <result property="allowAccess"    column="allow_access"    />
         <result property="denyReasons"    column="deny_reasons"    />
         <result property="costTime"    column="cost_time"    />
@@ -19,7 +25,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSysRagAuditLogVo">
-        select id, user_id, user_name, query_text, group_codes, scope_codes, metadata_filter, allow_access, deny_reasons, cost_time, create_time from sys_rag_audit_log
+        select id, user_id, user_name, query_text, group_codes, scope_codes, user_context_json, metadata_filter, request_json, raw_results_json, passed_results_json, blocked_results_json, response_json, allow_access, deny_reasons, cost_time, create_time from sys_rag_audit_log
     </sql>
 
     <select id="selectSysRagAuditLogList" parameterType="SysRagAuditLog" resultMap="SysRagAuditLogResult">
@@ -49,7 +55,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="queryText != null">query_text,</if>
             <if test="groupCodes != null">group_codes,</if>
             <if test="scopeCodes != null">scope_codes,</if>
+            <if test="userContextJson != null">user_context_json,</if>
             <if test="metadataFilter != null">metadata_filter,</if>
+            <if test="requestJson != null">request_json,</if>
+            <if test="rawResultsJson != null">raw_results_json,</if>
+            <if test="passedResultsJson != null">passed_results_json,</if>
+            <if test="blockedResultsJson != null">blocked_results_json,</if>
+            <if test="responseJson != null">response_json,</if>
             <if test="allowAccess != null">allow_access,</if>
             <if test="denyReasons != null">deny_reasons,</if>
             <if test="costTime != null">cost_time,</if>
@@ -61,7 +73,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="queryText != null">#{queryText},</if>
             <if test="groupCodes != null">#{groupCodes},</if>
             <if test="scopeCodes != null">#{scopeCodes},</if>
+            <if test="userContextJson != null">#{userContextJson},</if>
             <if test="metadataFilter != null">#{metadataFilter},</if>
+            <if test="requestJson != null">#{requestJson},</if>
+            <if test="rawResultsJson != null">#{rawResultsJson},</if>
+            <if test="passedResultsJson != null">#{passedResultsJson},</if>
+            <if test="blockedResultsJson != null">#{blockedResultsJson},</if>
+            <if test="responseJson != null">#{responseJson},</if>
             <if test="allowAccess != null">#{allowAccess},</if>
             <if test="denyReasons != null">#{denyReasons},</if>
             <if test="costTime != null">#{costTime},</if>
@@ -77,7 +95,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="queryText != null">query_text = #{queryText},</if>
             <if test="groupCodes != null">group_codes = #{groupCodes},</if>
             <if test="scopeCodes != null">scope_codes = #{scopeCodes},</if>
+            <if test="userContextJson != null">user_context_json = #{userContextJson},</if>
             <if test="metadataFilter != null">metadata_filter = #{metadataFilter},</if>
+            <if test="requestJson != null">request_json = #{requestJson},</if>
+            <if test="rawResultsJson != null">raw_results_json = #{rawResultsJson},</if>
+            <if test="passedResultsJson != null">passed_results_json = #{passedResultsJson},</if>
+            <if test="blockedResultsJson != null">blocked_results_json = #{blockedResultsJson},</if>
+            <if test="responseJson != null">response_json = #{responseJson},</if>
             <if test="allowAccess != null">allow_access = #{allowAccess},</if>
             <if test="denyReasons != null">deny_reasons = #{denyReasons},</if>
             <if test="costTime != null">cost_time = #{costTime},</if>

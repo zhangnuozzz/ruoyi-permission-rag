@@ -19,7 +19,14 @@
         class="tips-alert"
       />
 
-      <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="82px">
+      <el-form
+        v-show="showSearch"
+        ref="queryForm"
+        :model="queryParams"
+        size="small"
+        :inline="true"
+        label-width="82px"
+      >
         <el-form-item label="用户名" prop="userName">
           <el-input
             v-model="queryParams.userName"
@@ -61,7 +68,12 @@
         </el-form-item>
 
         <el-form-item label="访问决策" prop="allowAccess">
-          <el-select v-model="queryParams.allowAccess" placeholder="访问决策" clearable style="width: 120px">
+          <el-select
+            v-model="queryParams.allowAccess"
+            placeholder="访问决策"
+            clearable
+            style="width: 120px"
+          >
             <el-option label="放行" value="1" />
             <el-option label="拒绝" value="0" />
           </el-select>
@@ -85,124 +97,44 @@
         </el-form-item>
       </el-form>
 
-      <el-row :gutter="10" class="mb8">
-        <el-col :span="1.5">
-          <el-button
-            type="danger"
-            plain
-            icon="el-icon-delete"
-            size="mini"
-            :disabled="multiple"
-            @click="handleDelete"
-            v-hasPermi="['system:log:remove']"
-          >删除</el-button>
-        </el-col>
-        <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
-      </el-row>
+      <el-table v-loading="loading" :data="logList" border>
+        <el-table-column type="selection" width="55" align="center" />
+        <el-table-column label="审计ID" align="center" prop="id" width="80" />
+        <el-table-column label="用户" align="center" prop="userName" width="120" />
+        <el-table-column label="检索内容" align="center" prop="queryText" min-width="180" show-overflow-tooltip />
 
-      <el-table
-        v-loading="loading"
-        :data="logList"
-        border
-        stripe
-        class="audit-table"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="50" align="center" fixed="left" />
-        <el-table-column label="ID" prop="id" width="80" align="center" fixed="left" />
-
-        <el-table-column label="用户" min-width="150" show-overflow-tooltip>
+        <el-table-column label="访问决策" align="center" prop="allowAccess" width="100">
           <template slot-scope="scope">
-            <div>{{ scope.row.userName || '-' }}</div>
-            <div class="sub-text">ID：{{ scope.row.userId || '-' }}</div>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="检索内容" prop="queryText" min-width="220" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="query-text">{{ scope.row.queryText || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="用户组上下文" prop="groupCodes" min-width="220" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <el-tag
-              v-for="item in splitCodes(scope.row.groupCodes)"
-              :key="item"
-              size="mini"
-              type="info"
-              effect="plain"
-              class="tag-item"
-            >
-              {{ item }}
-            </el-tag>
-            <span v-if="splitCodes(scope.row.groupCodes).length === 0" class="empty-text">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="可访问标签" prop="scopeCodes" min-width="190" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <el-tag
-              v-for="item in splitCodes(scope.row.scopeCodes)"
-              :key="item"
-              size="mini"
-              type="success"
-              effect="plain"
-              class="tag-item"
-            >
-              {{ item }}
-            </el-tag>
-            <span v-if="splitCodes(scope.row.scopeCodes).length === 0" class="empty-text">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Metadata Filter" prop="metadataFilter" min-width="300" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span class="mono-text">{{ scope.row.metadataFilter || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="访问决策" prop="allowAccess" width="110" align="center">
-          <template slot-scope="scope">
-            <el-tag :type="scope.row.allowAccess === '1' ? 'success' : 'danger'" size="small" effect="plain">
+            <el-tag :type="scope.row.allowAccess === '1' ? 'success' : 'danger'" size="small">
               {{ scope.row.allowAccess === '1' ? '放行' : '拒绝' }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="拒绝原因" prop="denyReasons" min-width="180" show-overflow-tooltip>
-          <template slot-scope="scope">
-            <span v-if="scope.row.denyReasons" class="deny-text">{{ scope.row.denyReasons }}</span>
-            <span v-else class="empty-text">-</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="耗时" prop="costTime" width="100" align="center">
-          <template slot-scope="scope">
-            <span :class="scope.row.costTime > 1000 ? 'slow-time' : ''">{{ scope.row.costTime || 0 }} ms</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="审计时间" prop="createTime" width="170" align="center">
+        <el-table-column label="用户组" align="center" prop="groupCodes" min-width="180" show-overflow-tooltip />
+        <el-table-column label="权限标签" align="center" prop="scopeCodes" min-width="180" show-overflow-tooltip />
+        <el-table-column label="Metadata Filter" align="center" prop="metadataFilter" min-width="220" show-overflow-tooltip />
+        <el-table-column label="拒绝原因" align="center" prop="denyReasons" min-width="160" show-overflow-tooltip />
+        <el-table-column label="耗时(ms)" align="center" prop="costTime" width="100" />
+        <el-table-column label="审计时间" align="center" prop="createTime" width="170">
           <template slot-scope="scope">
             <span>{{ parseTime(scope.row.createTime) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" align="center" width="150" fixed="right">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160">
           <template slot-scope="scope">
             <el-button
               size="mini"
               type="text"
               icon="el-icon-view"
-              @click="handleView(scope.row)"
+              @click="handleViewJson(scope.row)"
             >详情</el-button>
             <el-button
               size="mini"
               type="text"
               icon="el-icon-delete"
               @click="handleDelete(scope.row)"
-              v-hasPermi="['system:log:remove']"
             >删除</el-button>
           </template>
         </el-table-column>
@@ -215,68 +147,53 @@
         :limit.sync="queryParams.pageSize"
         @pagination="getList"
       />
-
-      <el-dialog title="RAG 检索审计详情" :visible.sync="detailOpen" width="860px" append-to-body>
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="审计ID">{{ detail.id }}</el-descriptions-item>
-          <el-descriptions-item label="用户">{{ detail.userName }}（{{ detail.userId }}）</el-descriptions-item>
-
-          <el-descriptions-item label="访问决策">
-            <el-tag :type="detail.allowAccess === '1' ? 'success' : 'danger'" size="small">
-              {{ detail.allowAccess === '1' ? '放行' : '拒绝' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="耗时">{{ detail.costTime || 0 }} ms</el-descriptions-item>
-
-          <el-descriptions-item label="检索内容" :span="2">
-            <pre class="detail-box">{{ detail.queryText || '-' }}</pre>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="用户组上下文" :span="2">
-            <el-tag
-              v-for="item in splitCodes(detail.groupCodes)"
-              :key="item"
-              size="small"
-              type="info"
-              effect="plain"
-              class="tag-item"
-            >
-              {{ item }}
-            </el-tag>
-            <span v-if="splitCodes(detail.groupCodes).length === 0" class="empty-text">-</span>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="可访问标签" :span="2">
-            <el-tag
-              v-for="item in splitCodes(detail.scopeCodes)"
-              :key="item"
-              size="small"
-              type="success"
-              effect="plain"
-              class="tag-item"
-            >
-              {{ item }}
-            </el-tag>
-            <span v-if="splitCodes(detail.scopeCodes).length === 0" class="empty-text">-</span>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="Metadata Filter" :span="2">
-            <pre class="detail-box">{{ detail.metadataFilter || '-' }}</pre>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="拒绝原因" :span="2">
-            <pre class="detail-box">{{ detail.denyReasons || '-' }}</pre>
-          </el-descriptions-item>
-
-          <el-descriptions-item label="审计时间" :span="2">{{ parseTime(detail.createTime) }}</el-descriptions-item>
-        </el-descriptions>
-      </el-dialog>
     </el-card>
+
+    <el-dialog
+      title="RAG 审计 JSON 详情"
+      :visible.sync="jsonDialogOpen"
+      width="80%"
+      append-to-body
+    >
+      <el-tabs v-model="jsonActiveTab">
+        <el-tab-pane label="用户上下文" name="userContext">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.userContextJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="Metadata Filter" name="metadataFilter">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.metadataFilter) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="请求JSON" name="request">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.requestJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="原始候选" name="raw">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.rawResultsJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="通过结果" name="passed">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.passedResultsJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="拦截结果" name="blocked">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.blockedResultsJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="响应JSON" name="response">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.responseJson) }}</pre>
+        </el-tab-pane>
+      </el-tabs>
+
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="jsonDialogOpen = false">关闭</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { listLog, getLog, delLog } from '@/api/system/log'
+import { listLog, delLog } from '@/api/system/log'
 
 export default {
   name: 'RagAuditLog',
@@ -284,13 +201,13 @@ export default {
     return {
       loading: true,
       ids: [],
-      multiple: true,
       showSearch: true,
       total: 0,
       logList: [],
       daterangeCreateTime: [],
-      detailOpen: false,
-      detail: {},
+      jsonDialogOpen: false,
+      jsonActiveTab: 'userContext',
+      jsonDetail: {},
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -314,25 +231,38 @@ export default {
         this.loading = false
       })
     },
+
     handleQuery() {
       this.queryParams.pageNum = 1
       this.getList()
     },
+
     resetQuery() {
       this.daterangeCreateTime = []
       this.resetForm('queryForm')
       this.handleQuery()
     },
-    handleSelectionChange(selection) {
-      this.ids = selection.map(item => item.id)
-      this.multiple = !selection.length
+
+    handleViewJson(row) {
+      this.jsonDetail = row || {}
+      this.jsonActiveTab = 'userContext'
+      this.jsonDialogOpen = true
     },
-    handleView(row) {
-      getLog(row.id).then(response => {
-        this.detail = response.data || row
-        this.detailOpen = true
-      })
+
+    formatJson(value) {
+      if (value === null || value === undefined || value === '') {
+        return '暂无数据'
+      }
+      try {
+        if (typeof value === 'string') {
+          return JSON.stringify(JSON.parse(value), null, 2)
+        }
+        return JSON.stringify(value, null, 2)
+      } catch (e) {
+        return value
+      }
     },
+
     handleDelete(row) {
       const ids = row.id || this.ids
       this.$confirm('是否确认删除 RAG 检索审计日志编号为 "' + ids + '" 的数据项？', '警告', {
@@ -345,12 +275,6 @@ export default {
         this.getList()
         this.$modal.msgSuccess('删除成功')
       })
-    },
-    splitCodes(value) {
-      if (!value) {
-        return []
-      }
-      return String(value).split(',').map(item => item.trim()).filter(Boolean)
     }
   }
 }
@@ -380,67 +304,25 @@ export default {
 
 .page-subtitle {
   margin-top: 4px;
-  font-size: 13px;
   color: #909399;
+  font-size: 13px;
 }
 
 .tips-alert {
   margin-bottom: 16px;
 }
 
-.audit-table {
-  width: 100%;
-}
-
-.sub-text {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.query-text {
-  color: #303133;
-}
-
-.mono-text {
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-size: 12px;
-  color: #606266;
-}
-
-.tag-item {
-  margin-right: 6px;
-  margin-bottom: 4px;
-}
-
-.empty-text {
-  color: #c0c4cc;
-}
-
-.deny-text {
-  color: #f56c6c;
-}
-
-.slow-time {
-  color: #e6a23c;
-  font-weight: 600;
-}
-
-.detail-box {
-  margin: 0;
-  padding: 10px 12px;
-  max-height: 240px;
+.json-viewer {
+  max-height: 520px;
   overflow: auto;
+  padding: 12px;
+  background: #f6f8fa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
-  background: #f5f7fa;
-  border-radius: 4px;
-  color: #606266;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-::v-deep .el-table .cell {
-  white-space: nowrap;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 </style>
