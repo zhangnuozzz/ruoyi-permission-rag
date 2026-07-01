@@ -4,8 +4,8 @@ BASE_DIR="/Users/zhangnuo/Desktop/大模型向量库项目/RuoYi-3.2.0-final/Ruo
 LOG_DIR="$BASE_DIR/logs-local"
 RAG_SERVER_DIR="$BASE_DIR/RuoYi-Vue-ragold-fufu-week4/rag_server"
 
-RUOYI_JAVA_HOME="/Library/Java/JavaVirtualMachines/zulu-8.jdk/Contents/Home"
-RAG_JAVA_HOME="/opt/homebrew/Cellar/openjdk@17/17.0.15/libexec/openjdk.jdk/Contents/Home"
+RUOYI_JAVA_HOME="$(/usr/libexec/java_home -v 1.8 2>/dev/null || /usr/libexec/java_home -v 8 2>/dev/null)"
+RAG_JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null)"
 
 mkdir -p "$LOG_DIR"
 cd "$BASE_DIR" || exit 1
@@ -85,6 +85,23 @@ if docker info >/dev/null 2>&1; then
       docker start "$name" >/dev/null 2>&1 || true
     fi
   done
+fi
+
+
+echo "========== Java 环境检查 =========="
+echo "若依后端 Java 8：$RUOYI_JAVA_HOME"
+echo "RAG Server Java 17：$RAG_JAVA_HOME"
+
+if [ ! -x "$RUOYI_JAVA_HOME/bin/java" ]; then
+  echo "错误：若依后端 Java 8 路径不可用：$RUOYI_JAVA_HOME"
+  echo "请检查 /usr/libexec/java_home -V 是否能看到 Java 8"
+  exit 1
+fi
+
+if [ ! -x "$RAG_JAVA_HOME/bin/java" ]; then
+  echo "错误：RAG Server Java 17 路径不可用：$RAG_JAVA_HOME"
+  echo "请检查 /usr/libexec/java_home -V 是否能看到 Java 17"
+  exit 1
 fi
 
 echo "========== 5. 启动 RAG Server 8081 =========="
