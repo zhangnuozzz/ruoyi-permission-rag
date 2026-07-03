@@ -25,6 +25,14 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="用户组密级" prop="groupSecretLevel">
+        <el-select v-model="queryParams.groupSecretLevel" placeholder="全部" clearable>
+          <el-option label="公开" value="PUBLIC" />
+          <el-option label="内部" value="INTERNAL" />
+          <el-option label="秘密" value="SECRET" />
+          <el-option label="机密" value="CONFIDENTIAL" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
         <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
@@ -83,6 +91,15 @@
       <el-table-column label="组编码" align="center" prop="groupCode" />
       <el-table-column label="组名称" align="center" prop="groupName" />
       <el-table-column label="知悉范围编码" align="center" prop="scopeCode" />
+      <el-table-column label="用户组密级" align="center" prop="groupSecretLevel" width="110">
+        <template slot-scope="scope">
+          <el-tag v-if="scope.row.groupSecretLevel === 'PUBLIC'" type="success">公开</el-tag>
+          <el-tag v-else-if="scope.row.groupSecretLevel === 'INTERNAL'" type="info">内部</el-tag>
+          <el-tag v-else-if="scope.row.groupSecretLevel === 'SECRET'" type="warning">秘密</el-tag>
+          <el-tag v-else-if="scope.row.groupSecretLevel === 'CONFIDENTIAL'" type="danger">机密</el-tag>
+          <el-tag v-else>{{ scope.row.groupSecretLevel }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" align="center" prop="status" />
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
         <template slot-scope="scope">
@@ -142,6 +159,24 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="用户组密级" prop="groupSecretLevel">
+              <el-select v-model="form.groupSecretLevel" placeholder="请选择用户组密级" style="width: 100%">
+                <el-option label="公开" value="PUBLIC" />
+                <el-option label="内部" value="INTERNAL" />
+                <el-option label="秘密" value="SECRET" />
+                <el-option label="机密" value="CONFIDENTIAL" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="状态" prop="status">
+              <el-radio-group v-model="form.status">
+                <el-radio label="0">正常</el-radio>
+                <el-radio label="1">停用</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
             <el-form-item label="备注" prop="remark">
               <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
             </el-form-item>
@@ -188,6 +223,7 @@ export default {
         groupCode: null,
         groupName: null,
         scopeCode: null,
+        groupSecretLevel: null,
         status: null,
       },
       // 表单参数
@@ -199,6 +235,9 @@ export default {
         ],
         groupName: [
           { required: true, message: "组名称不能为空", trigger: "blur" }
+        ],
+        groupSecretLevel: [
+          { required: true, message: "用户组密级不能为空", trigger: "change" }
         ],
         status: [
           { required: true, message: "状态不能为空", trigger: "change" }
@@ -231,6 +270,7 @@ export default {
         groupCode: null,
         groupName: null,
         scopeCode: null,
+        groupSecretLevel: null,
         status: null,
         remark: null,
         createBy: null,
@@ -279,13 +319,13 @@ export default {
         if (valid) {
           if (this.form.id != null) {
             updateGroup(this.form).then(response => {
-              this.$modal.msgSuccess("修改成功")
+              this.msgSuccess("修改成功")
               this.open = false
               this.getList()
             })
           } else {
             addGroup(this.form).then(response => {
-              this.$modal.msgSuccess("新增成功")
+              this.msgSuccess("新增成功")
               this.open = false
               this.getList()
             })
@@ -300,7 +340,7 @@ export default {
         return delGroup(ids)
       }).then(() => {
         this.getList()
-        this.$modal.msgSuccess("删除成功")
+        this.msgSuccess("删除成功")
       }).catch(() => {})
     },
     /** 导出按钮操作 */

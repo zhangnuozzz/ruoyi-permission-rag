@@ -30,6 +30,10 @@ public class SysGroup extends BaseEntity
     @Excel(name = "知悉范围编码")
     private String scopeCode;
 
+    /** 用户组密级 */
+    @Excel(name = "用户组密级", readConverterExp = "PUBLIC=公开,INTERNAL=内部,SECRET=秘密,CONFIDENTIAL=机密")
+    private String groupSecretLevel;
+
     /** 状态（0正常 1停用） */
     @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
     private String status;
@@ -77,6 +81,16 @@ public class SysGroup extends BaseEntity
         return scopeCode;
     }
 
+    public void setGroupSecretLevel(String groupSecretLevel)
+    {
+        this.groupSecretLevel = groupSecretLevel;
+    }
+
+    public String getGroupSecretLevel()
+    {
+        return groupSecretLevel;
+    }
+
     public void setStatus(String status) 
     {
         this.status = status;
@@ -104,6 +118,7 @@ public class SysGroup extends BaseEntity
             .append("groupCode", getGroupCode())
             .append("groupName", getGroupName())
             .append("scopeCode", getScopeCode())
+            .append("groupSecretLevel", getGroupSecretLevel())
             .append("status", getStatus())
             .append("remark", getRemark())
             .append("createBy", getCreateBy())

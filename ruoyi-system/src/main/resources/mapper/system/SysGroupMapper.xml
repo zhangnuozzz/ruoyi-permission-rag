@@ -9,6 +9,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="groupCode"    column="group_code"    />
         <result property="groupName"    column="group_name"    />
         <result property="scopeCode"    column="scope_code"    />
+        <result property="groupSecretLevel"    column="group_secret_level"    />
         <result property="status"    column="status"    />
         <result property="remark"    column="remark"    />
         <result property="createBy"    column="create_by"    />
@@ -19,7 +20,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSysGroupVo">
-        select id, group_code, group_name, scope_code, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_group
+        select id, group_code, group_name, scope_code, group_secret_level, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_group
     </sql>
 
     <select id="selectSysGroupList" parameterType="SysGroup" resultMap="SysGroupResult">
@@ -28,6 +29,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="groupCode != null  and groupCode != ''"> and group_code = #{groupCode}</if>
             <if test="groupName != null  and groupName != ''"> and group_name like concat('%', #{groupName}, '%')</if>
             <if test="scopeCode != null  and scopeCode != ''"> and scope_code = #{scopeCode}</if>
+            <if test="groupSecretLevel != null  and groupSecretLevel != ''"> and group_secret_level = #{groupSecretLevel}</if>
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
@@ -43,6 +45,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="groupCode != null and groupCode != ''">group_code,</if>
             <if test="groupName != null and groupName != ''">group_name,</if>
             <if test="scopeCode != null">scope_code,</if>
+            <if test="groupSecretLevel != null and groupSecretLevel != ''">group_secret_level,</if>
             <if test="status != null and status != ''">status,</if>
             <if test="remark != null">remark,</if>
             <if test="createBy != null">create_by,</if>
@@ -55,6 +58,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="groupCode != null and groupCode != ''">#{groupCode},</if>
             <if test="groupName != null and groupName != ''">#{groupName},</if>
             <if test="scopeCode != null">#{scopeCode},</if>
+            <if test="groupSecretLevel != null and groupSecretLevel != ''">#{groupSecretLevel},</if>
             <if test="status != null and status != ''">#{status},</if>
             <if test="remark != null">#{remark},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -71,6 +75,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="groupCode != null and groupCode != ''">group_code = #{groupCode},</if>
             <if test="groupName != null and groupName != ''">group_name = #{groupName},</if>
             <if test="scopeCode != null">scope_code = #{scopeCode},</if>
+            <if test="groupSecretLevel != null and groupSecretLevel != ''">group_secret_level = #{groupSecretLevel},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             <if test="remark != null">remark = #{remark},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
