@@ -12,10 +12,18 @@ export function uploadRagFile(data) {
   })
 }
 
-// 查询 MariaDB 文件元数据
+// 查询平台侧增强版 MariaDB 文件元数据
 export function listRagFileMariadb() {
   return request({
-    url: '/rag/file/mariadb/list',
+    url: '/rag/file/platform/mariadb/list',
+    method: 'get'
+  })
+}
+
+// 查询可绑定用户组
+export function listRagUploadGroups() {
+  return request({
+    url: '/rag/file/groups',
     method: 'get'
   })
 }

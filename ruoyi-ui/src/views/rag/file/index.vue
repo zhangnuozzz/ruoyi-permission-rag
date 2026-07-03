@@ -60,7 +60,7 @@
           >
             <el-button size="mini" type="primary">选择文件</el-button>
             <div slot="tip" class="el-upload__tip">
-              请选择需要入库的文档文件。当前版本由 RAG Server 完成原文件备份、文本切分与向量写入。
+              当前真实支持 TXT / MD / CSV / JSON / LOG 纯文本入库；PDF / Word / OFD / 图片 OCR 会被平台侧识别并拒绝，避免二进制内容误写入向量库。
             </div>
           </el-upload>
         </el-form-item>
@@ -70,6 +70,18 @@
             <el-option label="公开 PUBLIC" value="PUBLIC" />
             <el-option label="内部 INTERNAL" value="INTERNAL" />
             <el-option label="秘密 SECRET" value="SECRET" />
+            <el-option label="机密 CONFIDENTIAL" value="CONFIDENTIAL" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="绑定用户组">
+          <el-select v-model="form.groupCode" placeholder="PUBLIC 会自动绑定公开组" style="width: 260px" filterable>
+            <el-option
+              v-for="group in groupOptions"
+              :key="group.groupCode"
+              :label="group.groupName + ' / ' + group.groupCode + ' / ' + group.groupSecretLevel"
+              :value="group.groupCode"
+            />
           </el-select>
         </el-form-item>
 
@@ -107,6 +119,12 @@
         <el-descriptions-item label="切块数">
           <el-tag type="success" size="mini">{{ latestUpload.chunkCount || 0 }}</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="文件类型">
+          <el-tag type="info" size="mini">{{ latestUpload.fileType || '-' }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="解析方式">
+          <el-tag type="info" size="mini">{{ latestUpload.parseMethod || 'UTF8_TEXT' }}</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="文件密级">
           <el-tag :type="tagType(latestUpload.securityLevel)" size="mini">{{ latestUpload.securityLevel || '-' }}</el-tag>
         </el-descriptions-item>
@@ -138,6 +156,12 @@
           </template>
         </el-table-column>
         <el-table-column label="文件名" prop="fileName" min-width="160" show-overflow-tooltip />
+        <el-table-column label="类型" prop="fileType" width="90">
+          <template slot-scope="scope">
+            <el-tag size="mini" type="info">{{ scope.row.fileType || '-' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="解析方式" prop="parseMethod" width="120" />
         <el-table-column label="上传用户" prop="uploadUserName" width="110" />
         <el-table-column label="密级" prop="securityLevel" width="110">
           <template slot-scope="scope">
@@ -150,6 +174,19 @@
           </template>
         </el-table-column>
         <el-table-column label="用户组" prop="groupName" width="120" show-overflow-tooltip />
+        <el-table-column label="切块数" prop="chunkCount" width="90" />
+        <el-table-column label="向量化状态" prop="embeddingStatus" width="120">
+          <template slot-scope="scope">
+            <el-tag size="mini" :type="scope.row.embeddingStatus === 'SUCCESS' ? 'success' : 'warning'">
+              {{ scope.row.embeddingStatus || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="向量索引" prop="vectorIndexType" width="100" />
+        <el-table-column label="元数据索引" prop="metadataIndexStatus" width="120" />
+        <el-table-column label="doc_level" prop="docLevel" width="110" />
+        <el-table-column label="doc_group" prop="docGroup" width="140" />
+        <el-table-column label="doc_status" prop="docStatus" width="110" />
         <el-table-column label="MinIO对象" prop="minioObjectName" min-width="260" show-overflow-tooltip>
           <template slot-scope="scope">
             <span class="mono-text">{{ scope.row.minioObjectName }}</span>
@@ -243,7 +280,7 @@
 </template>
 
 <script>
-import { uploadRagFile, listRagFileMariadb, listRagFileMilvus, listRagFileMinio } from '@/api/rag/file'
+import { uploadRagFile, listRagFileMariadb, listRagFileMilvus, listRagFileMinio, listRagUploadGroups } from '@/api/rag/file'
 
 export default {
   name: 'RagFile',
@@ -255,8 +292,10 @@ export default {
       selectedFile: null,
       form: {
         securityLevel: 'INTERNAL',
-        scopeCode: 'INTERNAL'
+        scopeCode: 'INTERNAL',
+        groupCode: 'GROUP_RD_01'
       },
+      groupOptions: [],
       uploadResult: null,
       mariadbList: [],
       milvusList: [],
@@ -275,6 +314,7 @@ export default {
     }
   },
   created() {
+    this.loadGroups()
     this.refreshAll()
   },
   methods: {
@@ -291,6 +331,7 @@ export default {
       this.selectedFile = null
       this.form.securityLevel = 'INTERNAL'
       this.form.scopeCode = 'INTERNAL'
+      this.form.groupCode = 'GROUP_RD_01'
       this.uploadResult = null
       if (this.$refs.upload) {
         this.$refs.upload.clearFiles()
@@ -305,11 +346,16 @@ export default {
         this.$modal.msgWarning('请选择文件密级和权限标签')
         return
       }
+      if (this.form.securityLevel !== 'PUBLIC' && !this.form.groupCode) {
+        this.$modal.msgWarning('非公开文件必须选择绑定用户组')
+        return
+      }
 
       const data = new FormData()
       data.append('file', this.selectedFile)
       data.append('securityLevel', this.form.securityLevel)
       data.append('scopeCode', this.form.scopeCode)
+      data.append('groupCode', this.form.groupCode || '')
 
       this.uploading = true
       uploadRagFile(data).then(response => {
@@ -318,6 +364,13 @@ export default {
         this.refreshAll()
       }).finally(() => {
         this.uploading = false
+      })
+    },
+    loadGroups() {
+      return listRagUploadGroups().then(response => {
+        this.groupOptions = response.data || []
+      }).catch(() => {
+        this.groupOptions = []
       })
     },
     refreshAll() {
@@ -334,7 +387,13 @@ export default {
       this.loadingMariadb = true
       return listRagFileMariadb().then(response => {
         const result = response.data || response
-        this.mariadbList = result.data || []
+        if (Array.isArray(result)) {
+          this.mariadbList = result
+        } else if (result && Array.isArray(result.data)) {
+          this.mariadbList = result.data
+        } else {
+          this.mariadbList = []
+        }
       }).catch(() => {
         this.mariadbList = []
       }).finally(() => {
