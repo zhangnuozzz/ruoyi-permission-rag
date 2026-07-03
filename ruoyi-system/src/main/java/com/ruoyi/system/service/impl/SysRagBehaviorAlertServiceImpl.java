@@ -132,26 +132,8 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
             return 0;
         }
 
-        SysRagAuditLog query = new SysRagAuditLog();
-        query.setId(auditLogId);
-
-        List<SysRagAuditLog> logs = sysRagAuditLogService.selectSysRagAuditLogList(query);
-        if (logs == null || logs.isEmpty())
-        {
-            SysRagAuditLog one = sysRagAuditLogService.selectSysRagAuditLogById(auditLogId);
-            if (one == null)
-            {
-                return 0;
-            }
-            return analyzeOneLog(one);
-        }
-
-        int count = 0;
-        for (SysRagAuditLog log : logs)
-        {
-            count += analyzeOneLog(log);
-        }
-        return count;
+        SysRagAuditLog log = sysRagAuditLogService.selectSysRagAuditLogById(auditLogId);
+        return analyzeOneLog(log);
     }
 
     private int analyzeOneLog(SysRagAuditLog log)
