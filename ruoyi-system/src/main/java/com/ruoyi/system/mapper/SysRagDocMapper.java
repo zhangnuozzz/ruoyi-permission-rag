@@ -20,6 +20,14 @@ public interface SysRagDocMapper
     public SysRagDoc selectSysRagDocById(Long id);
 
     /**
+     * 根据文档ID查询文档权限标签
+     *
+     * @param docId 文档ID
+     * @return 文档权限标签
+     */
+    public SysRagDoc selectSysRagDocByDocId(String docId);
+
+    /**
      * 查询文档权限标签列表
      * 
      * @param sysRagDoc 文档权限标签

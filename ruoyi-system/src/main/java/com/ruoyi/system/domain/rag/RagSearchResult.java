@@ -27,11 +27,23 @@ public class RagSearchResult implements Serializable
     /** 密级 */
     private String level;
 
+    /** 文档所属用户组编码 */
+    private String ownerGroupCode;
+
+    /** 文档所属用户组名称 */
+    private String ownerGroupName;
+
+    /** 文档元数据状态 */
+    private String metadataStatus;
+
     /** 是否通过二次过滤 */
     private Boolean passed;
 
     /** 过滤说明 */
     private String filterReason;
+
+    /** 拦截原因编码 */
+    private String blockedReason;
 
     public String getDocId()
     {
@@ -83,6 +95,36 @@ public class RagSearchResult implements Serializable
         this.level = level;
     }
 
+    public String getOwnerGroupCode()
+    {
+        return ownerGroupCode;
+    }
+
+    public void setOwnerGroupCode(String ownerGroupCode)
+    {
+        this.ownerGroupCode = ownerGroupCode;
+    }
+
+    public String getOwnerGroupName()
+    {
+        return ownerGroupName;
+    }
+
+    public void setOwnerGroupName(String ownerGroupName)
+    {
+        this.ownerGroupName = ownerGroupName;
+    }
+
+    public String getMetadataStatus()
+    {
+        return metadataStatus;
+    }
+
+    public void setMetadataStatus(String metadataStatus)
+    {
+        this.metadataStatus = metadataStatus;
+    }
+
     public Boolean getPassed()
     {
         return passed;
@@ -101,5 +143,15 @@ public class RagSearchResult implements Serializable
     public void setFilterReason(String filterReason)
     {
         this.filterReason = filterReason;
+    }
+
+    public String getBlockedReason()
+    {
+        return blockedReason;
+    }
+
+    public void setBlockedReason(String blockedReason)
+    {
+        this.blockedReason = blockedReason;
     }
 }

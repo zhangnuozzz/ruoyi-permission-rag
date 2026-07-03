@@ -52,6 +52,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <select id="selectSysRagDocByDocId" parameterType="String" resultMap="SysRagDocResult">
+        <include refid="selectSysRagDocVo"/>
+        where del_flag = '0' and doc_id = #{docId}
+        limit 1
+    </select>
+
     <insert id="insertSysRagDoc" parameterType="SysRagDoc" useGeneratedKeys="true" keyProperty="id">
         insert into sys_rag_doc
         <trim prefix="(" suffix=")" suffixOverrides=",">

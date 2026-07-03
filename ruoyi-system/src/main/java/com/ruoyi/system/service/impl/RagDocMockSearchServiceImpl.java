@@ -44,6 +44,9 @@ public class RagDocMockSearchServiceImpl implements IRagDocMockSearchService
             result.setContent(buildMockContent(query, doc));
             result.setScopeCode(doc.getScopeCode());
             result.setLevel(doc.getSecurityLevel());
+            result.setOwnerGroupCode(doc.getOwnerGroupCode());
+            result.setOwnerGroupName(doc.getOwnerGroupName());
+            result.setMetadataStatus(doc.getMetadataStatus());
             result.setPassed(false);
             result.setFilterReason("");
             results.add(result);

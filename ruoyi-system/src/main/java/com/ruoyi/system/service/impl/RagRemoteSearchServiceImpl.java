@@ -105,6 +105,9 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             result.setContent(firstNotEmpty(item, "content", "summary", "text", "chunkContent", "chunk_content"));
             result.setScopeCode(firstNotEmpty(item, "scopeCode", "scope_code"));
             result.setLevel(firstNotEmpty(item, "level", "securityLevel", "security_level"));
+            result.setOwnerGroupCode(firstNotEmpty(item, "ownerGroupCode", "owner_group_code", "groupId", "group_id"));
+            result.setOwnerGroupName(firstNotEmpty(item, "ownerGroupName", "owner_group_name", "groupName", "group_name"));
+            result.setMetadataStatus(firstNotEmpty(item, "metadataStatus", "metadata_status"));
 
             // 这里先标记 false，最终是否通过由平台侧二次过滤服务统一判定。
             result.setPassed(false);
