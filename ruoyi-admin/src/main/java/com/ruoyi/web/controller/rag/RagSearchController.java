@@ -4,6 +4,8 @@ import com.alibaba.fastjson.JSON;
 
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.common.utils.ServletUtils;
+import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.system.domain.permission.PermissionContext;
 import com.ruoyi.system.domain.permission.PolicyDecisionResult;
 import com.ruoyi.system.domain.rag.RagAuditLog;
@@ -87,12 +89,15 @@ public class RagSearchController
          * 4. 生成统一 metadataFilter；
          * 5. 如果安全上下文不允许查询，则直接拦截。
          */
+        String clientIp = IpUtils.getIpAddr(ServletUtils.getRequest());
+
         SecureQueryContext secureQueryContext = secureQueryContextService.buildContext(
                 userId,
                 userName,
                 admin,
                 request == null ? null : request.getQuery(),
-                request == null ? null : request.getTopK()
+                request == null ? null : request.getTopK(),
+                clientIp
         );
 
         if (request == null)

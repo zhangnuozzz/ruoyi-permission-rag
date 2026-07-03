@@ -38,6 +38,15 @@ public class SecureQueryContext implements Serializable
     /** 用户风险等级 */
     private String userRiskLevel;
 
+    /** 客户端 IP */
+    private String clientIp;
+
+    /** 单位时间窗口内请求次数 */
+    private Integer requestCountInWindow = 0;
+
+    /** 重复 query pattern 次数 */
+    private Integer repeatedQueryCount = 0;
+
     /** 用户所属组编码 */
     private List<String> groupCodes = new ArrayList<String>();
 
@@ -146,6 +155,37 @@ public class SecureQueryContext implements Serializable
     public void setUserRiskLevel(String userRiskLevel)
     {
         this.userRiskLevel = userRiskLevel;
+    }
+
+
+    public String getClientIp()
+    {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp)
+    {
+        this.clientIp = clientIp;
+    }
+
+    public Integer getRequestCountInWindow()
+    {
+        return requestCountInWindow;
+    }
+
+    public void setRequestCountInWindow(Integer requestCountInWindow)
+    {
+        this.requestCountInWindow = requestCountInWindow;
+    }
+
+    public Integer getRepeatedQueryCount()
+    {
+        return repeatedQueryCount;
+    }
+
+    public void setRepeatedQueryCount(Integer repeatedQueryCount)
+    {
+        this.repeatedQueryCount = repeatedQueryCount;
     }
 
     public List<String> getGroupCodes()

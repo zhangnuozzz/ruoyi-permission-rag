@@ -18,4 +18,17 @@ public interface ISecureQueryContextService
      * @return 查询安全上下文
      */
     SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK);
+
+    /**
+     * 构建带客户端 IP 的检索前安全查询上下文。
+     *
+     * @param userId 用户ID
+     * @param userName 用户名
+     * @param admin 是否管理员
+     * @param query 原始查询
+     * @param topK 原始 topK
+     * @param clientIp 客户端 IP
+     * @return 查询安全上下文
+     */
+    SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK, String clientIp);
 }

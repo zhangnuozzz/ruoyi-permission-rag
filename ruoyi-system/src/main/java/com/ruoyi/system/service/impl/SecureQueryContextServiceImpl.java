@@ -10,6 +10,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.ruoyi.system.domain.security.SecureQueryContext;
 import com.ruoyi.system.mapper.SecureQueryContextMapper;
+import com.ruoyi.system.mapper.BbacSecurityMapper;
 import com.ruoyi.system.service.ISecureQueryContextService;
 
 /**
@@ -26,11 +27,25 @@ import com.ruoyi.system.service.ISecureQueryContextService;
 @Service
 public class SecureQueryContextServiceImpl implements ISecureQueryContextService
 {
+    private static final int REQUEST_LIMIT_PER_MINUTE = 10;
+    private static final int REPEAT_QUERY_LIMIT_FIVE_MINUTES = 3;
+    private static final int FAIL_COUNT_LOCK_THRESHOLD = 5;
+    private static final int TEMP_LOCK_MINUTES = 30;
+
     @Autowired
     private SecureQueryContextMapper secureQueryContextMapper;
 
+    @Autowired
+    private BbacSecurityMapper bbacSecurityMapper;
+
     @Override
     public SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK)
+    {
+        return buildContext(userId, userName, admin, query, topK, null);
+    }
+
+    @Override
+    public SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK, String clientIp)
     {
         SecureQueryContext context = new SecureQueryContext();
         context.setUserId(userId);
@@ -38,8 +53,12 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setAdmin(Boolean.TRUE.equals(admin));
         context.setRawQuery(query);
         context.setSanitizedQuery(sanitizeQuery(query));
+        context.setClientIp(clientIp);
         context.setRawTopK(topK);
         context.setSafeTopK(normalizeTopK(topK));
+
+        // BBAC：如果临时封禁已过期，自动恢复 ACTIVE。
+        bbacSecurityMapper.unlockExpiredUser(userId);
 
         Map<String, Object> userAttr = secureQueryContextMapper.selectUserSecurityAttr(userId);
         if (userAttr == null)
@@ -59,6 +78,49 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setUserSecretLevel(secretLevel);
         context.setUserAccessStatus(accessStatus);
         context.setUserRiskLevel(riskLevel);
+
+        // BBAC 1：校验来源 IP，黑名单命中直接拒绝。
+        if (clientIp != null && clientIp.length() > 0 && bbacSecurityMapper.countActiveBlacklistIp(clientIp) > 0)
+        {
+            context.setAllowQuery(false);
+            context.getReasons().add("BBAC_IP_BLACKLIST_DENY");
+            context.setRiskScore(100);
+            return context;
+        }
+
+        // BBAC 3：连续访问失败次数 >= N -> 临时封禁。
+        if (failCount != null && failCount >= FAIL_COUNT_LOCK_THRESHOLD)
+        {
+            bbacSecurityMapper.lockUserTemporarily(userId, TEMP_LOCK_MINUTES, "BBAC_FAIL_COUNT_GE_" + FAIL_COUNT_LOCK_THRESHOLD);
+            context.setAllowQuery(false);
+            context.getReasons().add("BBAC_FAIL_COUNT_TEMP_LOCK");
+            context.setRiskScore(100);
+            return context;
+        }
+
+        // BBAC 2：单位时间访问次数 <= 阈值。
+        int requestCount = bbacSecurityMapper.countUserRequestsLastMinute(userId);
+        context.setRequestCountInWindow(requestCount);
+        if (requestCount >= REQUEST_LIMIT_PER_MINUTE)
+        {
+            context.setLimitedQuery(true);
+            context.setSafeTopK(Math.min(context.getSafeTopK(), 3));
+            context.getReasons().add("BBAC_REQUEST_RATE_LIMITED");
+        }
+
+        // BBAC 4：重复 query pattern -> 限制访问。
+        int repeatedQueryCount = 0;
+        if (context.getSanitizedQuery() != null && context.getSanitizedQuery().length() > 0)
+        {
+            repeatedQueryCount = bbacSecurityMapper.countRepeatedQueryLastFiveMinutes(userId, context.getSanitizedQuery());
+        }
+        context.setRepeatedQueryCount(repeatedQueryCount);
+        if (repeatedQueryCount >= REPEAT_QUERY_LIMIT_FIVE_MINUTES)
+        {
+            context.setLimitedQuery(true);
+            context.setSafeTopK(Math.min(context.getSafeTopK(), 3));
+            context.getReasons().add("BBAC_REPEAT_QUERY_PATTERN_LIMITED");
+        }
 
         int riskScore = calculateRiskScore(
                 context,
@@ -292,6 +354,18 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         {
             score += 10;
             context.getReasons().add("RISK_TOPK_TOO_LARGE");
+        }
+
+        if (context.getRequestCountInWindow() != null && context.getRequestCountInWindow() >= REQUEST_LIMIT_PER_MINUTE)
+        {
+            score += 20;
+            context.getReasons().add("RISK_REQUEST_RATE_TOO_HIGH");
+        }
+
+        if (context.getRepeatedQueryCount() != null && context.getRepeatedQueryCount() >= REPEAT_QUERY_LIMIT_FIVE_MINUTES)
+        {
+            score += 20;
+            context.getReasons().add("RISK_REPEAT_QUERY_PATTERN");
         }
 
         return Math.min(score, 100);
