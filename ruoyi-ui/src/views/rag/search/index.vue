@@ -5,7 +5,7 @@
         <div>
           <div class="page-title">RAG 安全检索测试</div>
           <div class="page-subtitle">
-            支持平台侧 mock 检索与 RAG Server 真实检索联调，验证“权限上下文 → Metadata Filter → 远程检索 → 二次过滤 → 审计留痕”完整链路。
+            支持平台 Mock 检索与 RAG Server 真实检索联调，验证“权限上下文 → Milvus 粗过滤 → 平台二次过滤 → 审计留痕 → AI 回答”的完整安全链路。
           </div>
         </div>
         <el-tag :type="form.useRemote ? 'success' : 'warning'" effect="plain">
@@ -14,7 +14,7 @@
       </div>
 
       <el-alert
-        title="链路定位：用户问题 → 当前登录用户权限上下文 → 策略决策 → Metadata Filter → 候选结果 → 平台侧二次过滤 → RAG 检索审计"
+        title="链路定位：用户问题 → 查询安全上下文 → Milvus 兼容粗过滤 → 真实向量召回 → 平台精细二次过滤 → 审计日志与行为分析"
         type="info"
         :closable="false"
         show-icon
@@ -95,7 +95,7 @@
             <div class="context-label">候选结果</div>
             <div class="context-value">{{ result.rawResultCount || 0 }} 条</div>
             <div class="context-extra">
-              {{ result.searchMode === 'remote_rag_server' ? '来自 RAG Server /rag/search' : '来自 sys_rag_doc 模拟候选集' }}
+              {{ result.searchMode === 'remote_rag_server' ? '来自 RAG Server /rag/search + Milvus' : '来自 sys_rag_doc 模拟候选集' }}
             </div>
           </div>
         </el-col>
@@ -104,7 +104,7 @@
           <div class="context-card">
             <div class="context-label">过滤统计</div>
             <div class="context-value">{{ result.filteredResultCount || 0 }} / {{ result.rejectedResultCount || 0 }}</div>
-            <div class="context-extra">允许 / 拦截，耗时：{{ result.costTime || 0 }} ms</div>
+            <div class="context-extra">通过 / 拦截，耗时：{{ result.costTime || 0 }} ms</div>
           </div>
         </el-col>
       </el-row>
@@ -137,15 +137,30 @@
         </el-col>
       </el-row>
 
-      <div class="detail-block">
-        <div class="detail-label">Metadata Filter</div>
-        <pre class="filter-code">{{ result.metadataFilter || '-' }}</pre>
-      </div>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <div class="detail-block">
+            <div class="detail-label">平台完整 VACP Metadata Filter</div>
+            <pre class="filter-code">{{ result.metadataFilter || '-' }}</pre>
+          </div>
+        </el-col>
+
+        <el-col :span="12">
+          <div class="detail-block">
+            <div class="detail-label">发给 RAG Server 的 Milvus 粗过滤表达式</div>
+            <pre class="filter-code">{{ buildMilvusCompatibleFilter() }}</pre>
+          </div>
+        </el-col>
+      </el-row>
 
       <div class="detail-block">
-        <div class="detail-label">决策说明</div>
+        <div class="detail-label">远程联调说明</div>
         <div class="decision-message">
           {{ result.decisionMessage || result.message || '-' }}
+        </div>
+        <div class="remote-note" v-if="result.searchMode === 'remote_rag_server'">
+          说明：RAG Server 当前 Milvus collection 支持 scope_code、chunk_id 等字段，因此远程检索阶段先用 scope_code 做粗过滤；
+          平台侧继续使用完整 VACP Metadata Filter 完成文档状态、密级、用户组、知悉范围等精细二次过滤。
         </div>
       </div>
     </el-card>
@@ -225,6 +240,18 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="所属用户组" min-width="150" show-overflow-tooltip>
+          <template slot-scope="scope">
+            {{ scope.row.ownerGroupName || scope.row.ownerGroupCode || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="元数据状态" prop="metadataStatus" width="120" align="center">
+          <template slot-scope="scope">
+            <el-tag :type="scope.row.metadataStatus === 'ACTIVE' ? 'success' : 'info'" size="small" effect="plain">
+              {{ scope.row.metadataStatus || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="过滤说明" prop="filterReason" min-width="260" show-overflow-tooltip />
         <el-table-column label="内容摘要" prop="content" min-width="420" show-overflow-tooltip />
       </el-table>
@@ -250,6 +277,13 @@
           <template slot-scope="scope">
             <el-tag size="small" :type="levelTagType(scope.row.level || scope.row.securityLevel)" effect="plain">
               {{ scope.row.level || scope.row.securityLevel || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="拦截原因" prop="blockedReason" min-width="220" show-overflow-tooltip>
+          <template slot-scope="scope">
+            <el-tag type="danger" size="small" effect="plain">
+              {{ scope.row.blockedReason || 'UNKNOWN' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -343,9 +377,18 @@ export default {
           groupCodes: this.result ? this.result.groupCodes : [],
           scopeCodes: this.result ? this.result.scopeCodes : []
         },
-        metadataFilter: this.result ? this.result.metadataFilter : null,
-        platformFilterMode: 'metadata_filter_and_second_filter'
+        metadataFilter: this.buildMilvusCompatibleFilter(),
+        platformMetadataFilter: this.result ? this.result.metadataFilter : null,
+        platformFilterMode: 'milvus_scope_prefilter_and_platform_second_filter'
       }
+    },
+
+    buildMilvusCompatibleFilter() {
+      const scopes = this.result ? this.normalizeArray(this.result.scopeCodes) : []
+      if (!scopes || scopes.length === 0) {
+        return 'chunk_id != ""'
+      }
+      return 'scope_code in [' + scopes.map(item => '"' + item + '"').join(', ') + ']'
     },
 
     normalizeArray(value) {
@@ -516,6 +559,17 @@ export default {
   border: 1px solid #ebeef5;
   border-radius: 6px;
   padding: 14px 16px;
+}
+
+
+.remote-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 6px;
+  color: #606266;
+  line-height: 1.7;
 }
 
 </style>
