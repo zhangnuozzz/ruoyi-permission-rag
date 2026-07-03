@@ -26,12 +26,12 @@
         />
       </el-form-item>
       <el-form-item label="文档密级" prop="securityLevel">
-        <el-input
-          v-model="queryParams.securityLevel"
-          placeholder="请输入文档密级"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
+        <el-select v-model="queryParams.securityLevel" placeholder="全部" clearable>
+          <el-option label="公开" value="PUBLIC" />
+          <el-option label="内部" value="INTERNAL" />
+          <el-option label="秘密" value="SECRET" />
+          <el-option label="机密" value="CONFIDENTIAL" />
+        </el-select>
       </el-form-item>
       <el-form-item label="所属用户组编码" prop="ownerGroupCode">
         <el-input
@@ -40,6 +40,13 @@
           clearable
           @keyup.enter.native="handleQuery"
         />
+      </el-form-item>
+      <el-form-item label="文档状态" prop="metadataStatus">
+        <el-select v-model="queryParams.metadataStatus" placeholder="全部" clearable>
+          <el-option label="启用" value="ACTIVE" />
+          <el-option label="禁用" value="DISABLED" />
+          <el-option label="归档" value="ARCHIVED" />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
@@ -120,6 +127,7 @@
       </el-table-column>
 
       <el-table-column label="文档名称" align="center" prop="docName" min-width="180" show-overflow-tooltip />
+      <el-table-column label="上传人" align="center" prop="uploadUserName" width="110" show-overflow-tooltip />
 
       <el-table-column label="知悉范围" align="center" prop="scopeCode" width="140" show-overflow-tooltip>
         <template slot-scope="scope">
@@ -131,20 +139,36 @@
         <template slot-scope="scope">
           <el-tag
             size="mini"
-            :type="scope.row.securityLevel === 'SECRET' ? 'danger' : scope.row.securityLevel === 'INTERNAL' ? 'warning' : 'success'"
+            :type="scope.row.securityLevel === 'CONFIDENTIAL' ? 'danger' : scope.row.securityLevel === 'SECRET' ? 'warning' : scope.row.securityLevel === 'INTERNAL' ? 'info' : 'success'"
           >
             {{ scope.row.securityLevel }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column label="所属用户组" align="center" prop="ownerGroupCode" width="160" show-overflow-tooltip />
-
-      <el-table-column label="状态" align="center" prop="status" width="90">
+      <el-table-column label="所属用户组" align="center" min-width="190" show-overflow-tooltip>
         <template slot-scope="scope">
-          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'danger'">
-            {{ scope.row.status === '0' ? '正常' : '停用' }}
-          </el-tag>
+          <div>{{ scope.row.ownerGroupCode }}</div>
+          <div class="sub-text">{{ scope.row.ownerGroupName }}</div>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="用户组密级" align="center" prop="ownerGroupSecretLevel" width="110">
+        <template slot-scope="scope">
+          <el-tag v-if="scope.row.ownerGroupSecretLevel === 'PUBLIC'" size="mini" type="success">公开</el-tag>
+          <el-tag v-else-if="scope.row.ownerGroupSecretLevel === 'INTERNAL'" size="mini" type="info">内部</el-tag>
+          <el-tag v-else-if="scope.row.ownerGroupSecretLevel === 'SECRET'" size="mini" type="warning">秘密</el-tag>
+          <el-tag v-else-if="scope.row.ownerGroupSecretLevel === 'CONFIDENTIAL'" size="mini" type="danger">机密</el-tag>
+          <el-tag v-else size="mini">{{ scope.row.ownerGroupSecretLevel }}</el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="文档状态" align="center" prop="metadataStatus" width="100">
+        <template slot-scope="scope">
+          <el-tag v-if="scope.row.metadataStatus === 'ACTIVE'" size="mini" type="success">启用</el-tag>
+          <el-tag v-else-if="scope.row.metadataStatus === 'DISABLED'" size="mini" type="danger">禁用</el-tag>
+          <el-tag v-else-if="scope.row.metadataStatus === 'ARCHIVED'" size="mini" type="info">归档</el-tag>
+          <el-tag v-else size="mini">{{ scope.row.metadataStatus }}</el-tag>
         </template>
       </el-table-column>
 
@@ -205,18 +229,57 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="上传人ID" prop="uploadUserId">
+              <el-input v-model="form.uploadUserId" placeholder="请输入上传人ID" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="上传人" prop="uploadUserName">
+              <el-input v-model="form.uploadUserName" placeholder="请输入上传人用户名" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
             <el-form-item label="知悉范围编码" prop="scopeCode">
               <el-input v-model="form.scopeCode" placeholder="请输入知悉范围编码" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="文档密级" prop="securityLevel">
-              <el-input v-model="form.securityLevel" placeholder="请输入文档密级" />
+              <el-select v-model="form.securityLevel" placeholder="请选择文档密级" style="width: 100%">
+                <el-option label="公开" value="PUBLIC" />
+                <el-option label="内部" value="INTERNAL" />
+                <el-option label="秘密" value="SECRET" />
+                <el-option label="机密" value="CONFIDENTIAL" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="所属用户组编码" prop="ownerGroupCode">
-              <el-input v-model="form.ownerGroupCode" placeholder="请输入所属用户组编码" />
+              <el-input v-model="form.ownerGroupCode" placeholder="请输入所属用户组编码，如 GROUP_RD_01" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="所属用户组名称" prop="ownerGroupName">
+              <el-input v-model="form.ownerGroupName" placeholder="请输入所属用户组名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="用户组密级" prop="ownerGroupSecretLevel">
+              <el-select v-model="form.ownerGroupSecretLevel" placeholder="请选择用户组密级" style="width: 100%">
+                <el-option label="公开" value="PUBLIC" />
+                <el-option label="内部" value="INTERNAL" />
+                <el-option label="秘密" value="SECRET" />
+                <el-option label="机密" value="CONFIDENTIAL" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="文档状态" prop="metadataStatus">
+              <el-select v-model="form.metadataStatus" placeholder="请选择文档状态" style="width: 100%">
+                <el-option label="启用" value="ACTIVE" />
+                <el-option label="禁用" value="DISABLED" />
+                <el-option label="归档" value="ARCHIVED" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -268,6 +331,8 @@ export default {
         scopeCode: null,
         securityLevel: null,
         ownerGroupCode: null,
+        ownerGroupSecretLevel: null,
+        metadataStatus: null,
         status: null,
       },
       // 表单参数
@@ -284,7 +349,16 @@ export default {
           { required: true, message: "知悉范围编码不能为空", trigger: "blur" }
         ],
         securityLevel: [
-          { required: true, message: "文档密级不能为空", trigger: "blur" }
+          { required: true, message: "文档密级不能为空", trigger: "change" }
+        ],
+        ownerGroupCode: [
+          { required: true, message: "所属用户组编码不能为空", trigger: "blur" }
+        ],
+        ownerGroupSecretLevel: [
+          { required: true, message: "用户组密级不能为空", trigger: "change" }
+        ],
+        metadataStatus: [
+          { required: true, message: "文档状态不能为空", trigger: "change" }
         ],
         status: [
           { required: true, message: "状态不能为空", trigger: "change" }
@@ -319,6 +393,8 @@ export default {
         scopeCode: null,
         securityLevel: null,
         ownerGroupCode: null,
+        ownerGroupSecretLevel: null,
+        metadataStatus: null,
         status: null,
         remark: null,
         createBy: null,
@@ -367,13 +443,13 @@ export default {
         if (valid) {
           if (this.form.id != null) {
             updateRagDoc(this.form).then(response => {
-              this.$modal.msgSuccess("修改成功")
+              this.msgSuccess("修改成功")
               this.open = false
               this.getList()
             })
           } else {
             addRagDoc(this.form).then(response => {
-              this.$modal.msgSuccess("新增成功")
+              this.msgSuccess("新增成功")
               this.open = false
               this.getList()
             })
@@ -388,7 +464,7 @@ export default {
         return delRagDoc(ids)
       }).then(() => {
         this.getList()
-        this.$modal.msgSuccess("删除成功")
+        this.msgSuccess("删除成功")
       }).catch(() => {})
     },
     /** 导出按钮操作 */

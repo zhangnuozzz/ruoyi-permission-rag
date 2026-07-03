@@ -8,9 +8,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="docId"    column="doc_id"    />
         <result property="docName"    column="doc_name"    />
+        <result property="uploadUserId"    column="upload_user_id"    />
+        <result property="uploadUserName"    column="upload_user_name"    />
         <result property="scopeCode"    column="scope_code"    />
         <result property="securityLevel"    column="security_level"    />
         <result property="ownerGroupCode"    column="owner_group_code"    />
+        <result property="ownerGroupName"    column="owner_group_name"    />
+        <result property="ownerGroupSecretLevel"    column="owner_group_secret_level"    />
+        <result property="metadataStatus"    column="metadata_status"    />
         <result property="status"    column="status"    />
         <result property="remark"    column="remark"    />
         <result property="createBy"    column="create_by"    />
@@ -21,7 +26,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSysRagDocVo">
-        select id, doc_id, doc_name, scope_code, security_level, owner_group_code, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_rag_doc
+        select id, doc_id, doc_name, upload_user_id, upload_user_name, scope_code, security_level,
+               owner_group_code, owner_group_name, owner_group_secret_level, metadata_status,
+               status, remark, create_by, create_time, update_by, update_time, del_flag
+        from sys_rag_doc
     </sql>
 
     <select id="selectSysRagDocList" parameterType="SysRagDoc" resultMap="SysRagDocResult">
@@ -29,9 +37,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>  
             <if test="docId != null  and docId != ''"> and doc_id like concat('%', #{docId}, '%')</if>
             <if test="docName != null  and docName != ''"> and doc_name like concat('%', #{docName}, '%')</if>
+            <if test="uploadUserName != null  and uploadUserName != ''"> and upload_user_name like concat('%', #{uploadUserName}, '%')</if>
             <if test="scopeCode != null  and scopeCode != ''"> and scope_code = #{scopeCode}</if>
             <if test="securityLevel != null  and securityLevel != ''"> and security_level = #{securityLevel}</if>
             <if test="ownerGroupCode != null  and ownerGroupCode != ''"> and owner_group_code like concat('%', #{ownerGroupCode}, '%')</if>
+            <if test="ownerGroupSecretLevel != null  and ownerGroupSecretLevel != ''"> and owner_group_secret_level = #{ownerGroupSecretLevel}</if>
+            <if test="metadataStatus != null  and metadataStatus != ''"> and metadata_status = #{metadataStatus}</if>
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
@@ -46,9 +57,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="docId != null and docId != ''">doc_id,</if>
             <if test="docName != null and docName != ''">doc_name,</if>
+            <if test="uploadUserId != null">upload_user_id,</if>
+            <if test="uploadUserName != null and uploadUserName != ''">upload_user_name,</if>
             <if test="scopeCode != null and scopeCode != ''">scope_code,</if>
             <if test="securityLevel != null and securityLevel != ''">security_level,</if>
             <if test="ownerGroupCode != null">owner_group_code,</if>
+            <if test="ownerGroupName != null">owner_group_name,</if>
+            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">owner_group_secret_level,</if>
+            <if test="metadataStatus != null and metadataStatus != ''">metadata_status,</if>
             <if test="status != null and status != ''">status,</if>
             <if test="remark != null">remark,</if>
             <if test="createBy != null">create_by,</if>
@@ -60,9 +76,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="docId != null and docId != ''">#{docId},</if>
             <if test="docName != null and docName != ''">#{docName},</if>
+            <if test="uploadUserId != null">#{uploadUserId},</if>
+            <if test="uploadUserName != null and uploadUserName != ''">#{uploadUserName},</if>
             <if test="scopeCode != null and scopeCode != ''">#{scopeCode},</if>
             <if test="securityLevel != null and securityLevel != ''">#{securityLevel},</if>
             <if test="ownerGroupCode != null">#{ownerGroupCode},</if>
+            <if test="ownerGroupName != null">#{ownerGroupName},</if>
+            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">#{ownerGroupSecretLevel},</if>
+            <if test="metadataStatus != null and metadataStatus != ''">#{metadataStatus},</if>
             <if test="status != null and status != ''">#{status},</if>
             <if test="remark != null">#{remark},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -78,9 +99,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="docId != null and docId != ''">doc_id = #{docId},</if>
             <if test="docName != null and docName != ''">doc_name = #{docName},</if>
+            <if test="uploadUserId != null">upload_user_id = #{uploadUserId},</if>
+            <if test="uploadUserName != null and uploadUserName != ''">upload_user_name = #{uploadUserName},</if>
             <if test="scopeCode != null and scopeCode != ''">scope_code = #{scopeCode},</if>
             <if test="securityLevel != null and securityLevel != ''">security_level = #{securityLevel},</if>
             <if test="ownerGroupCode != null">owner_group_code = #{ownerGroupCode},</if>
+            <if test="ownerGroupName != null">owner_group_name = #{ownerGroupName},</if>
+            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">owner_group_secret_level = #{ownerGroupSecretLevel},</if>
+            <if test="metadataStatus != null and metadataStatus != ''">metadata_status = #{metadataStatus},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             <if test="remark != null">remark = #{remark},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
