@@ -20,6 +20,12 @@ public interface ISysRagBehaviorAlertService
     /** 全量分析审计日志并生成行为告警 */
     public int analyzeRagAuditLogs();
 
+    /**
+     * 只分析指定的一条 RAG 审计日志。
+     * 用于每次检索结束后实时生成行为告警，避免每次都全量扫描历史日志。
+     */
+    public int analyzeRagAuditLogById(Long auditLogId);
+
     /** 处理告警：CONFIRM / IGNORE / BLOCK_USER / LIMIT_USER */
     public int handleAlert(Long id, String action, String handledBy, String handleRemark);
 

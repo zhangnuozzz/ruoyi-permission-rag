@@ -5,7 +5,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
 <mapper namespace="com.ruoyi.system.mapper.RagAuditLogMapper">
 
-    <insert id="insertRagAuditLog" parameterType="com.ruoyi.system.domain.rag.RagAuditLog">
+    <insert id="insertRagAuditLog" parameterType="com.ruoyi.system.domain.rag.RagAuditLog" useGeneratedKeys="true" keyProperty="id">
         insert into sys_rag_audit_log
         (
             user_id,

@@ -123,17 +123,34 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
         return sysRagBehaviorAlertMapper.updateSysRagBehaviorAlert(alert);
     }
 
-    @Override
-    public int analyzeRagAuditLogs()
-    {
-        int count = 0;
-        List<SysRagAuditLog> logs = sysRagAuditLogService.selectSysRagAuditLogList(new SysRagAuditLog());
 
+    @Override
+    public int analyzeRagAuditLogById(Long auditLogId)
+    {
+        if (auditLogId == null)
+        {
+            return 0;
+        }
+
+        SysRagAuditLog query = new SysRagAuditLog();
+        query.setId(auditLogId);
+
+        List<SysRagAuditLog> logs = sysRagAuditLogService.selectSysRagAuditLogList(query);
+        if (logs == null || logs.isEmpty())
+        {
+            SysRagAuditLog one = sysRagAuditLogService.selectSysRagAuditLogById(auditLogId);
+            if (one == null)
+            {
+                return 0;
+            }
+            return analyzeOneLog(one);
+        }
+
+        int count = 0;
         for (SysRagAuditLog log : logs)
         {
             count += analyzeOneLog(log);
         }
-
         return count;
     }
 
@@ -145,13 +162,14 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
         }
 
         int count = 0;
+
         Integer riskScore = safeInt(log.getRiskScore());
         Integer blockedCount = safeInt(log.getBlockedCount());
         String allowAccess = log.getAllowAccess();
         String blockedReasons = log.getBlockedReasons();
         String secureContextJson = log.getSecureContextJson();
 
-        if ("0".equals(String.valueOf(allowAccess)))
+        if ("0".equals(allowAccess))
         {
             count += insertAlertIgnoreDuplicate(
                     log,
@@ -203,24 +221,44 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
 
         if (containsRiskReason(secureContextJson, "RISK_QUERY_CONTAINS_SENSITIVE_KEYWORD"))
         {
-            count += insertAlertIgnoreDuplicate(log, "SENSITIVE_QUERY", "high", "查询安全上下文识别到敏感词访问行为");
+            count += insertAlertIgnoreDuplicate(
+                    log,
+                    "SENSITIVE_QUERY",
+                    "high",
+                    "查询安全上下文识别到敏感词访问行为"
+            );
         }
 
         if (containsRiskReason(secureContextJson, "RISK_TOPK_TOO_LARGE"))
         {
-            count += insertAlertIgnoreDuplicate(log, "LARGE_TOPK_QUERY", "low", "查询请求 topK 过大，系统已自动压缩安全召回数量");
-        }
-
-        if (containsRiskReason(secureContextJson, "RISK_REQUEST_RATE_TOO_HIGH")
-                || containsRiskReason(secureContextJson, "BBAC_REQUEST_RATE_LIMITED"))
-        {
-            count += insertAlertIgnoreDuplicate(log, "REQUEST_RATE_LIMIT", "medium", "单位时间访问频次过高，系统已执行限流策略");
+            count += insertAlertIgnoreDuplicate(
+                    log,
+                    "LARGE_TOPK_QUERY",
+                    "low",
+                    "查询请求 topK 过大，系统已自动压缩安全召回数量"
+            );
         }
 
         if (containsRiskReason(secureContextJson, "RISK_REPEAT_QUERY_PATTERN")
                 || containsRiskReason(secureContextJson, "BBAC_REPEAT_QUERY_PATTERN_LIMITED"))
         {
-            count += insertAlertIgnoreDuplicate(log, "REPEAT_QUERY_PATTERN", "medium", "检测到重复查询模式，系统已执行限制策略");
+            count += insertAlertIgnoreDuplicate(
+                    log,
+                    "REPEAT_QUERY_PATTERN",
+                    "medium",
+                    "检测到重复查询模式，系统已执行限制策略"
+            );
+        }
+
+        if (containsRiskReason(secureContextJson, "RISK_REQUEST_RATE_TOO_HIGH")
+                || containsRiskReason(secureContextJson, "BBAC_REQUEST_RATE_LIMITED"))
+        {
+            count += insertAlertIgnoreDuplicate(
+                    log,
+                    "HIGH_FREQUENCY_ACCESS",
+                    "medium",
+                    "检测到单位时间访问频次过高，系统已执行限流策略"
+            );
         }
 
         Long costTime = log.getCostTime();
@@ -238,29 +276,47 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
     }
 
     @Override
+    public int analyzeRagAuditLogs()
+    {
+        int count = 0;
+        List<SysRagAuditLog> logs = sysRagAuditLogService.selectSysRagAuditLogList(new SysRagAuditLog());
+
+        for (SysRagAuditLog log : logs)
+        {
+            count += analyzeOneLog(log);
+        }
+
+        return count;
+    }
+
+
+    @Override
     public String exportSyslog(SysRagBehaviorAlert query)
     {
-        List<SysRagBehaviorAlert> list = sysRagBehaviorAlertMapper.selectSysRagBehaviorAlertList(query);
+        List<SysRagBehaviorAlert> alerts = selectSysRagBehaviorAlertList(query == null ? new SysRagBehaviorAlert() : query);
         StringBuilder builder = new StringBuilder();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
-        for (SysRagBehaviorAlert alert : list)
+        if (alerts == null || alerts.isEmpty())
         {
-            String time = alert.getCreateTime() == null ? sdf.format(new Date()) : sdf.format(alert.getCreateTime());
-            builder.append(time)
-                    .append(" VACP-RAG-SECURITY")
-                    .append(" alert_id=").append(safeText(alert.getId()))
-                    .append(" source_log_id=").append(safeText(alert.getSourceLogId()))
-                    .append(" user_id=").append(safeText(alert.getUserId()))
-                    .append(" user=").append(safeText(alert.getUserName()))
-                    .append(" type=").append(safeText(alert.getAlertType()))
-                    .append(" level=").append(safeText(alert.getAlertLevel()))
-                    .append(" decision=").append("1".equals(String.valueOf(alert.getAllowAccess())) ? "ALLOW" : "DENY")
-                    .append(" status=").append(safeText(alert.getStatus()))
-                    .append(" cost_ms=").append(safeText(alert.getCostTime()))
-                    .append(" query=\"").append(escapeSyslog(alert.getQueryText())).append("\"")
-                    .append(" reason=\"").append(escapeSyslog(alert.getAlertReason())).append("\"")
-                    .append("\n");
+            return "";
+        }
+
+        for (SysRagBehaviorAlert alert : alerts)
+        {
+            builder.append("<134> VACP-RAG-AUDIT");
+            builder.append(" alert_id=").append(alert.getId());
+            builder.append(" source_log_id=").append(alert.getSourceLogId());
+            builder.append(" user_id=").append(alert.getUserId());
+            builder.append(" user_name=\"").append(escapeSyslog(alert.getUserName())).append("\"");
+            builder.append(" alert_type=").append(escapeSyslog(alert.getAlertType()));
+            builder.append(" alert_level=").append(escapeSyslog(alert.getAlertLevel()));
+            builder.append(" status=").append(escapeSyslog(alert.getStatus()));
+            builder.append(" allow_access=").append(escapeSyslog(alert.getAllowAccess()));
+            builder.append(" cost_time=").append(alert.getCostTime());
+            builder.append(" query=\"").append(escapeSyslog(alert.getQueryText())).append("\"");
+            builder.append(" reason=\"").append(escapeSyslog(alert.getAlertReason())).append("\"");
+            builder.append(" remark=\"").append(escapeSyslog(alert.getRemark())).append("\"");
+            builder.append("\n");
         }
 
         return builder.toString();

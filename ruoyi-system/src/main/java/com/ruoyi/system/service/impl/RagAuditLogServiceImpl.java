@@ -33,7 +33,7 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
              */
             try
             {
-                sysRagBehaviorAlertService.analyzeRagAuditLogs();
+                sysRagBehaviorAlertService.analyzeRagAuditLogById(auditLog.getId());
             }
             catch (Exception e)
             {
