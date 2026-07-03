@@ -86,6 +86,15 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
             return context;
         }
 
+        // 原型文档基础过滤：current_time ∈ user.access_time_window。
+        // 查询进入向量检索前，访问时间不合法必须快速拒绝，而不是只增加风险分。
+        if (isOutsideAccessWindow(accessStartTime, accessEndTime))
+        {
+            context.setAllowQuery(false);
+            context.getReasons().add("OUT_OF_USER_ACCESS_TIME_WINDOW");
+            return context;
+        }
+
         List<String> groupCodes = secureQueryContextMapper.selectGroupCodesByUserId(userId);
         List<String> scopeCodes = secureQueryContextMapper.selectScopeCodesByUserId(userId);
 
