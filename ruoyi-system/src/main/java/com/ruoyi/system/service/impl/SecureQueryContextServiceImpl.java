@@ -1,5 +1,6 @@
 package com.ruoyi.system.service.impl;
 
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -52,11 +53,31 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         String accessStatus = toStr(userAttr.get("access_status"));
         String riskLevel = toStr(userAttr.get("risk_level"));
         Integer failCount = toInt(userAttr.get("fail_count"));
+        String accessStartTime = toStr(userAttr.get("access_start_time"));
+        String accessEndTime = toStr(userAttr.get("access_end_time"));
 
         context.setUserSecretLevel(secretLevel);
         context.setUserAccessStatus(accessStatus);
         context.setUserRiskLevel(riskLevel);
-        context.setRiskScore(calculateRiskScore(riskLevel, failCount));
+
+        int riskScore = calculateRiskScore(
+                context,
+                riskLevel,
+                failCount,
+                accessStatus,
+                accessStartTime,
+                accessEndTime,
+                query,
+                topK
+        );
+        context.setRiskScore(riskScore);
+
+        if (riskScore >= 90)
+        {
+            context.setAllowQuery(false);
+            context.getReasons().add("RISK_SCORE_TOO_HIGH_QUERY_BLOCKED");
+            return context;
+        }
 
         if (!"ACTIVE".equalsIgnoreCase(accessStatus))
         {
@@ -88,11 +109,11 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
             }
         }
 
-        if ("HIGH".equalsIgnoreCase(riskLevel) || context.getRiskScore() >= 80)
+        if (context.getRiskScore() >= 70)
         {
             context.setLimitedQuery(true);
             context.setSafeTopK(Math.min(context.getSafeTopK(), 3));
-            context.getReasons().add("HIGH_RISK_USER_TOPK_LIMITED");
+            context.getReasons().add("HIGH_RISK_SCORE_TOPK_LIMITED");
         }
 
         context.setMetadataFilter(buildMetadataFilter(context));
@@ -197,25 +218,126 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         return builder.toString();
     }
 
-    private int calculateRiskScore(String riskLevel, Integer failCount)
+    /**
+     * 动态风险评分。
+     *
+     * 评分来源：
+     * 1. 用户基础风险等级；
+     * 2. 账号访问状态；
+     * 3. 登录失败次数；
+     * 4. 是否处于允许访问时间窗口；
+     * 5. 查询内容是否包含敏感词；
+     * 6. topK 是否过大。
+     */
+    private int calculateRiskScore(SecureQueryContext context, String riskLevel, Integer failCount,
+                                   String accessStatus, String accessStartTime, String accessEndTime,
+                                   String query, Integer topK)
     {
         int score = 10;
 
         if ("MEDIUM".equalsIgnoreCase(riskLevel))
         {
             score = 40;
+            context.getReasons().add("BASE_RISK_LEVEL_MEDIUM");
         }
         else if ("HIGH".equalsIgnoreCase(riskLevel))
         {
-            score = 80;
+            score = 70;
+            context.getReasons().add("BASE_RISK_LEVEL_HIGH");
+        }
+        else
+        {
+            context.getReasons().add("BASE_RISK_LEVEL_LOW");
         }
 
-        if (failCount != null && failCount > 0)
+        if (!"ACTIVE".equalsIgnoreCase(accessStatus))
         {
-            score += Math.min(failCount * 5, 20);
+            score += 30;
+            context.getReasons().add("RISK_ACCESS_STATUS_NOT_ACTIVE");
+        }
+
+        if (failCount != null && failCount >= 5)
+        {
+            score += 20;
+            context.getReasons().add("RISK_FAIL_COUNT_GE_5");
+        }
+        else if (failCount != null && failCount >= 3)
+        {
+            score += 10;
+            context.getReasons().add("RISK_FAIL_COUNT_GE_3");
+        }
+
+        if (isOutsideAccessWindow(accessStartTime, accessEndTime))
+        {
+            score += 10;
+            context.getReasons().add("RISK_OUTSIDE_ACCESS_TIME_WINDOW");
+        }
+
+        if (containsSensitiveKeyword(query))
+        {
+            score += 10;
+            context.getReasons().add("RISK_QUERY_CONTAINS_SENSITIVE_KEYWORD");
+        }
+
+        if (topK != null && topK > 20)
+        {
+            score += 10;
+            context.getReasons().add("RISK_TOPK_TOO_LARGE");
         }
 
         return Math.min(score, 100);
+    }
+
+    private boolean isOutsideAccessWindow(String accessStartTime, String accessEndTime)
+    {
+        if (accessStartTime == null || accessEndTime == null
+                || accessStartTime.length() == 0 || accessEndTime.length() == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            LocalTime now = LocalTime.now();
+            LocalTime start = LocalTime.parse(accessStartTime.substring(0, 8));
+            LocalTime end = LocalTime.parse(accessEndTime.substring(0, 8));
+
+            if (start.equals(end))
+            {
+                return false;
+            }
+
+            if (start.isBefore(end))
+            {
+                return now.isBefore(start) || now.isAfter(end);
+            }
+
+            // 兼容跨天窗口，例如 22:00:00 - 06:00:00
+            return now.isAfter(end) && now.isBefore(start);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    private boolean containsSensitiveKeyword(String query)
+    {
+        if (query == null)
+        {
+            return false;
+        }
+
+        String q = query.toLowerCase();
+        return q.contains("password")
+                || q.contains("passwd")
+                || q.contains("token")
+                || q.contains("secret")
+                || q.contains("key")
+                || q.contains("密钥")
+                || q.contains("密码")
+                || q.contains("绝密")
+                || q.contains("泄露");
     }
 
     private String toStr(Object obj)

@@ -14,7 +14,8 @@ public interface SecureQueryContextMapper
     /**
      * 查询用户安全属性
      */
-    @Select("select user_id, user_name, secret_level, access_status, risk_level, fail_count " +
+    @Select("select user_id, user_name, secret_level, access_status, risk_level, fail_count, " +
+            "access_start_time, access_end_time, last_access_ip, last_access_time " +
             "from sys_user_security_attr where user_id = #{userId} limit 1")
     Map<String, Object> selectUserSecurityAttr(@Param("userId") Long userId);
 
