@@ -92,6 +92,7 @@
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
           <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
+          <el-button type="info" plain icon="el-icon-document" size="mini" @click="handleSyslogExport">导出syslog</el-button>
         </el-form-item>
       </el-form>
 
@@ -249,6 +250,15 @@
           <el-input :value="alertTypeName(handleForm.alertType)" disabled />
         </el-form-item>
 
+        <el-form-item label="处置动作">
+          <el-radio-group v-model="handleForm.action">
+            <el-radio label="CONFIRM">确认</el-radio>
+            <el-radio label="IGNORE">忽略</el-radio>
+            <el-radio label="LIMIT_USER">限流</el-radio>
+            <el-radio label="BLOCK_USER">封禁</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
         <el-form-item label="处理说明">
           <el-input
             v-model="handleForm.handleRemark"
@@ -268,7 +278,7 @@
 </template>
 
 <script>
-import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlert } from '@/api/rag/behaviorAlert'
+import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlert, exportBehaviorAlertSyslog } from '@/api/rag/behaviorAlert'
 
 export default {
   name: 'BehaviorAlert',
@@ -284,6 +294,7 @@ export default {
       handleForm: {
         id: null,
         alertType: '',
+        action: 'CONFIRM',
         handleRemark: ''
       },
       queryParams: {
@@ -358,6 +369,19 @@ export default {
       })
     },
 
+    handleSyslogExport() {
+      exportBehaviorAlertSyslog(this.queryParams).then(response => {
+        const text = response.syslog || ''
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = 'vacp-rag-alert-syslog.log'
+        link.click()
+        window.URL.revokeObjectURL(url)
+      })
+    },
+
     handleView(row) {
       this.detail = row || {}
       this.detailOpen = true
@@ -367,6 +391,7 @@ export default {
       this.handleForm = {
         id: row.id,
         alertType: row.alertType,
+        action: 'CONFIRM',
         handleRemark: '已核查该告警，系统安全策略与二次过滤结果符合预期，已完成处置。'
       }
       this.handleOpen = true
@@ -381,7 +406,7 @@ export default {
       this.handleLoading = true
       handleBehaviorAlert(this.handleForm.id, {
         handleRemark: this.handleForm.handleRemark
-      }).then(() => {
+      }, this.handleForm.action).then(() => {
         this.msgSuccess('告警处理成功')
         this.handleOpen = false
         this.getList()

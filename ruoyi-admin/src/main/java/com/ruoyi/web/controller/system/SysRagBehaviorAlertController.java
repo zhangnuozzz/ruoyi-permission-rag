@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
@@ -32,9 +33,6 @@ public class SysRagBehaviorAlertController extends BaseController
     @Autowired
     private ISysRagBehaviorAlertService sysRagBehaviorAlertService;
 
-    /**
-     * 查询RAG行为分析告警列表
-     */
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:list')")
     @GetMapping("/list")
     public TableDataInfo list(SysRagBehaviorAlert sysRagBehaviorAlert)
@@ -44,9 +42,6 @@ public class SysRagBehaviorAlertController extends BaseController
         return getDataTable(list);
     }
 
-    /**
-     * 导出RAG行为分析告警列表
-     */
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:export')")
     @Log(title = "RAG行为分析告警", businessType = BusinessType.EXPORT)
     @RequestMapping(value = "/export", method = { RequestMethod.GET, RequestMethod.POST })
@@ -58,8 +53,19 @@ public class SysRagBehaviorAlertController extends BaseController
     }
 
     /**
-     * 触发行为分析
+     * syslog 风格文本导出。
      */
+    @PreAuthorize("@ss.hasPermi('system:behaviorAlert:export')")
+    @Log(title = "RAG行为告警syslog导出", businessType = BusinessType.EXPORT)
+    @RequestMapping(value = "/syslog", method = { RequestMethod.GET, RequestMethod.POST })
+    public AjaxResult exportSyslog(SysRagBehaviorAlert sysRagBehaviorAlert)
+    {
+        String syslogText = sysRagBehaviorAlertService.exportSyslog(sysRagBehaviorAlert);
+        AjaxResult ajax = AjaxResult.success();
+        ajax.put("syslog", syslogText);
+        return ajax;
+    }
+
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:analyze')")
     @Log(title = "RAG行为分析", businessType = BusinessType.OTHER)
     @PostMapping("/analyze")
@@ -69,14 +75,21 @@ public class SysRagBehaviorAlertController extends BaseController
         return AjaxResult.success("行为分析完成，新增告警 " + count + " 条");
     }
 
-
     /**
-     * 处理行为告警
+     * 处理行为告警。
+     *
+     * action:
+     * CONFIRM    确认告警
+     * IGNORE     忽略告警
+     * BLOCK_USER 临时封禁用户
+     * LIMIT_USER 标记用户高风险，后续查询更容易被限制
      */
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:analyze')")
     @Log(title = "RAG行为告警处理", businessType = BusinessType.UPDATE)
     @PutMapping("/handle/{id}")
-    public AjaxResult handle(@PathVariable("id") Long id, @RequestBody SysRagBehaviorAlert alert)
+    public AjaxResult handle(@PathVariable("id") Long id,
+                              @RequestParam(value = "action", required = false, defaultValue = "CONFIRM") String action,
+                              @RequestBody(required = false) SysRagBehaviorAlert alert)
     {
         String handledBy = "admin";
         try
@@ -89,12 +102,9 @@ public class SysRagBehaviorAlertController extends BaseController
         }
 
         String handleRemark = alert == null ? "" : alert.getHandleRemark();
-        return toAjax(sysRagBehaviorAlertService.handleAlert(id, handledBy, handleRemark));
+        return toAjax(sysRagBehaviorAlertService.handleAlert(id, action, handledBy, handleRemark));
     }
 
-    /**
-     * 获取RAG行为分析告警详细信息
-     */
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:query')")
     @GetMapping(value = "/{id}")
     public AjaxResult getInfo(@PathVariable("id") Long id)
@@ -102,9 +112,6 @@ public class SysRagBehaviorAlertController extends BaseController
         return AjaxResult.success(sysRagBehaviorAlertService.selectSysRagBehaviorAlertById(id));
     }
 
-    /**
-     * 删除RAG行为分析告警
-     */
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:remove')")
     @Log(title = "RAG行为分析告警", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")

@@ -18,11 +18,21 @@ export function analyzeBehaviorAlert() {
 }
 
 // 处理行为告警
-export function handleBehaviorAlert(id, data) {
+export function handleBehaviorAlert(id, data, action = 'CONFIRM') {
   return request({
     url: '/system/behaviorAlert/handle/' + id,
     method: 'put',
+    params: { action },
     data: data
+  })
+}
+
+// 导出syslog风格告警
+export function exportBehaviorAlertSyslog(query) {
+  return request({
+    url: '/system/behaviorAlert/syslog',
+    method: 'get',
+    params: query
   })
 }
 
