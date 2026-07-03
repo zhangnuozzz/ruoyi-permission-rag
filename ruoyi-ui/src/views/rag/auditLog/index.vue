@@ -3,21 +3,48 @@
     <el-card shadow="never" class="box-card">
       <div slot="header" class="card-header">
         <div>
-          <div class="page-title">RAG 检索审计日志</div>
+          <div class="page-title">安全审计与行为分析中心</div>
           <div class="page-subtitle">
-            记录每一次 RAG 安全检索请求的用户身份、用户组、权限标签、Metadata Filter、访问决策、拒绝原因和耗时，用于后续安全审计与权限追踪。
+            展示 RAG 安全检索请求的身份上下文、查询安全上下文、Metadata Filter、访问决策、风险分数、结果过滤与拦截原因。
           </div>
         </div>
         <el-tag type="info" effect="plain">sys_rag_audit_log</el-tag>
       </div>
 
       <el-alert
-        title="审计链路：检索问题 → 权限上下文 → 策略决策 → Metadata Filter → 二次过滤 → 审计留痕"
+        title="审计链路：检索问题 → 查询安全上下文 → 权限上下文 → Metadata Filter → 安全向量检索 → 二次过滤 → 审计留痕"
         type="info"
         :closable="false"
         show-icon
         class="tips-alert"
       />
+
+      <el-row :gutter="12" class="summary-row">
+        <el-col :span="6">
+          <el-card shadow="never" class="summary-card">
+            <div class="summary-label">当前页审计数</div>
+            <div class="summary-value">{{ logList.length }}</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="never" class="summary-card">
+            <div class="summary-label">当前页放行</div>
+            <div class="summary-value success">{{ allowCount }}</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="never" class="summary-card">
+            <div class="summary-label">当前页拒绝</div>
+            <div class="summary-value danger">{{ denyCount }}</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="never" class="summary-card">
+            <div class="summary-label">当前页拦截结果</div>
+            <div class="summary-value warning">{{ blockedResultCount }}</div>
+          </el-card>
+        </el-col>
+      </el-row>
 
       <el-form
         v-show="showSearch"
@@ -32,7 +59,7 @@
             v-model="queryParams.userName"
             placeholder="请输入用户名"
             clearable
-            style="width: 180px"
+            style="width: 160px"
             @keyup.enter.native="handleQuery"
           />
         </el-form-item>
@@ -42,7 +69,7 @@
             v-model="queryParams.queryText"
             placeholder="请输入检索内容"
             clearable
-            style="width: 220px"
+            style="width: 210px"
             @keyup.enter.native="handleQuery"
           />
         </el-form-item>
@@ -50,9 +77,9 @@
         <el-form-item label="用户组" prop="groupCodes">
           <el-input
             v-model="queryParams.groupCodes"
-            placeholder="请输入用户组编码"
+            placeholder="用户组编码"
             clearable
-            style="width: 180px"
+            style="width: 160px"
             @keyup.enter.native="handleQuery"
           />
         </el-form-item>
@@ -60,9 +87,9 @@
         <el-form-item label="权限标签" prop="scopeCodes">
           <el-input
             v-model="queryParams.scopeCodes"
-            placeholder="请输入 scopeCode"
+            placeholder="scopeCode"
             clearable
-            style="width: 180px"
+            style="width: 160px"
             @keyup.enter.native="handleQuery"
           />
         </el-form-item>
@@ -77,6 +104,28 @@
             <el-option label="放行" value="1" />
             <el-option label="拒绝" value="0" />
           </el-select>
+        </el-form-item>
+
+        <el-form-item label="受限查询" prop="limitedQuery">
+          <el-select
+            v-model="queryParams.limitedQuery"
+            placeholder="是否受限"
+            clearable
+            style="width: 120px"
+          >
+            <el-option label="是" value="1" />
+            <el-option label="否" value="0" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="拦截原因" prop="blockedReasons">
+          <el-input
+            v-model="queryParams.blockedReasons"
+            placeholder="blockedReason"
+            clearable
+            style="width: 210px"
+            @keyup.enter.native="handleQuery"
+          />
         </el-form-item>
 
         <el-form-item label="审计时间">
@@ -101,7 +150,7 @@
       <el-table v-loading="loading" :data="logList" border>
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="审计ID" align="center" prop="id" width="80" />
-        <el-table-column label="用户" align="center" prop="userName" width="120" />
+        <el-table-column label="用户" align="center" prop="userName" width="110" />
         <el-table-column label="检索内容" align="center" prop="queryText" min-width="180" show-overflow-tooltip />
 
         <el-table-column label="访问决策" align="center" prop="allowAccess" width="100">
@@ -112,10 +161,35 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="用户组" align="center" prop="groupCodes" min-width="180" show-overflow-tooltip />
-        <el-table-column label="权限标签" align="center" prop="scopeCodes" min-width="180" show-overflow-tooltip />
-        <el-table-column label="Metadata Filter" align="center" prop="metadataFilter" min-width="220" show-overflow-tooltip />
-        <el-table-column label="拒绝原因" align="center" prop="denyReasons" min-width="160" show-overflow-tooltip />
+        <el-table-column label="风险分数" align="center" prop="riskScore" width="90">
+          <template slot-scope="scope">
+            <el-tag :type="riskTagType(scope.row.riskScore)" size="small">
+              {{ scope.row.riskScore || 0 }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="受限查询" align="center" prop="limitedQuery" width="90">
+          <template slot-scope="scope">
+            <el-tag :type="scope.row.limitedQuery === '1' ? 'warning' : 'info'" size="small">
+              {{ scope.row.limitedQuery === '1' ? '是' : '否' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="通过/拦截" align="center" width="110">
+          <template slot-scope="scope">
+            <span class="pass-count">{{ scope.row.passedCount || 0 }}</span>
+            <span>/</span>
+            <span class="block-count">{{ scope.row.blockedCount || 0 }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="用户组" align="center" prop="groupCodes" min-width="170" show-overflow-tooltip />
+        <el-table-column label="权限标签" align="center" prop="scopeCodes" min-width="170" show-overflow-tooltip />
+        <el-table-column label="Metadata Filter" align="center" prop="metadataFilter" min-width="240" show-overflow-tooltip />
+        <el-table-column label="拒绝原因" align="center" prop="denyReasons" min-width="150" show-overflow-tooltip />
+        <el-table-column label="结果拦截原因" align="center" prop="blockedReasons" min-width="220" show-overflow-tooltip />
         <el-table-column label="耗时(ms)" align="center" prop="costTime" width="100" />
         <el-table-column label="审计时间" align="center" prop="createTime" width="170">
           <template slot-scope="scope">
@@ -123,7 +197,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160" fixed="right">
           <template slot-scope="scope">
             <el-button
               size="mini"
@@ -151,13 +225,35 @@
     </el-card>
 
     <el-dialog
-      title="RAG 审计 JSON 详情"
+      title="RAG 安全审计详情"
       :visible.sync="jsonDialogOpen"
-      width="80%"
+      width="82%"
       append-to-body
     >
-      <el-tabs v-model="jsonActiveTab">
-        <el-tab-pane label="用户上下文" name="userContext">
+      <el-descriptions :column="3" border size="small" class="audit-desc">
+        <el-descriptions-item label="审计ID">{{ jsonDetail.id }}</el-descriptions-item>
+        <el-descriptions-item label="用户">{{ jsonDetail.userName }}</el-descriptions-item>
+        <el-descriptions-item label="访问决策">
+          <el-tag :type="jsonDetail.allowAccess === '1' ? 'success' : 'danger'" size="small">
+            {{ jsonDetail.allowAccess === '1' ? '放行' : '拒绝' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="风险分数">{{ jsonDetail.riskScore || 0 }}</el-descriptions-item>
+        <el-descriptions-item label="受限查询">{{ jsonDetail.limitedQuery === '1' ? '是' : '否' }}</el-descriptions-item>
+        <el-descriptions-item label="通过/拦截">
+          {{ jsonDetail.passedCount || 0 }} / {{ jsonDetail.blockedCount || 0 }}
+        </el-descriptions-item>
+        <el-descriptions-item label="拦截原因" :span="3">
+          {{ jsonDetail.blockedReasons || jsonDetail.denyReasons || '暂无' }}
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <el-tabs v-model="jsonActiveTab" class="json-tabs">
+        <el-tab-pane label="查询安全上下文" name="secureContext">
+          <pre class="json-viewer">{{ formatJson(jsonDetail.secureContextJson) }}</pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="用户权限上下文" name="userContext">
           <pre class="json-viewer">{{ formatJson(jsonDetail.userContextJson) }}</pre>
         </el-tab-pane>
 
@@ -207,7 +303,7 @@ export default {
       logList: [],
       daterangeCreateTime: [],
       jsonDialogOpen: false,
-      jsonActiveTab: 'userContext',
+      jsonActiveTab: 'secureContext',
       jsonDetail: {},
       queryParams: {
         pageNum: 1,
@@ -216,8 +312,21 @@ export default {
         queryText: null,
         groupCodes: null,
         scopeCodes: null,
-        allowAccess: null
+        allowAccess: null,
+        limitedQuery: null,
+        blockedReasons: null
       }
+    }
+  },
+  computed: {
+    allowCount() {
+      return this.logList.filter(item => item.allowAccess === '1').length
+    },
+    denyCount() {
+      return this.logList.filter(item => item.allowAccess === '0').length
+    },
+    blockedResultCount() {
+      return this.logList.reduce((sum, item) => sum + (Number(item.blockedCount) || 0), 0)
     }
   },
   created() {
@@ -227,8 +336,8 @@ export default {
     getList() {
       this.loading = true
       listLog(this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')).then(response => {
-        this.logList = response.rows
-        this.total = response.total
+        this.logList = response.rows || []
+        this.total = response.total || 0
         this.loading = false
       })
     },
@@ -244,7 +353,6 @@ export default {
       this.handleQuery()
     },
 
-
     handleExport() {
       const queryParams = this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')
       this.$confirm('是否确认导出当前筛选条件下的 RAG 检索审计日志？', '警告', {
@@ -258,10 +366,9 @@ export default {
       })
     },
 
-
     handleViewJson(row) {
       this.jsonDetail = row || {}
-      this.jsonActiveTab = 'userContext'
+      this.jsonActiveTab = 'secureContext'
       this.jsonDialogOpen = true
     },
 
@@ -277,6 +384,20 @@ export default {
       } catch (e) {
         return value
       }
+    },
+
+    riskTagType(score) {
+      const value = Number(score) || 0
+      if (value >= 80) {
+        return 'danger'
+      }
+      if (value >= 50) {
+        return 'warning'
+      }
+      if (value >= 20) {
+        return ''
+      }
+      return 'success'
     },
 
     handleDelete(row) {
@@ -326,6 +447,56 @@ export default {
 
 .tips-alert {
   margin-bottom: 16px;
+}
+
+.summary-row {
+  margin-bottom: 16px;
+}
+
+.summary-card {
+  border-radius: 6px;
+}
+
+.summary-label {
+  color: #909399;
+  font-size: 13px;
+}
+
+.summary-value {
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.summary-value.success {
+  color: #67c23a;
+}
+
+.summary-value.danger {
+  color: #f56c6c;
+}
+
+.summary-value.warning {
+  color: #e6a23c;
+}
+
+.pass-count {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.block-count {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.audit-desc {
+  margin-bottom: 12px;
+}
+
+.json-tabs {
+  margin-top: 12px;
 }
 
 .json-viewer {

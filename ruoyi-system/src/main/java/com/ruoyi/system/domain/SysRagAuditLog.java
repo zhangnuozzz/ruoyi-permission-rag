@@ -68,6 +68,29 @@ public class SysRagAuditLog extends BaseEntity
     @Excel(name = "拒绝原因")
     private String denyReasons;
 
+    /** 风险分数 */
+    @Excel(name = "风险分数")
+    private Integer riskScore;
+
+    /** 是否受限查询 */
+    @Excel(name = "是否受限查询", readConverterExp = "1=是,0=否")
+    private String limitedQuery;
+
+    /** 通过结果数量 */
+    @Excel(name = "通过结果数量")
+    private Integer passedCount;
+
+    /** 拦截结果数量 */
+    @Excel(name = "拦截结果数量")
+    private Integer blockedCount;
+
+    /** 拦截原因汇总 */
+    @Excel(name = "拦截原因汇总")
+    private String blockedReasons;
+
+    /** 查询安全上下文JSON */
+    private String secureContextJson;
+
     /** 耗时，单位毫秒 */
     @Excel(name = "耗时，单位毫秒")
     private Long costTime;
@@ -223,6 +246,66 @@ public class SysRagAuditLog extends BaseEntity
         return denyReasons;
     }
 
+    public Integer getRiskScore()
+    {
+        return riskScore;
+    }
+
+    public void setRiskScore(Integer riskScore)
+    {
+        this.riskScore = riskScore;
+    }
+
+    public String getLimitedQuery()
+    {
+        return limitedQuery;
+    }
+
+    public void setLimitedQuery(String limitedQuery)
+    {
+        this.limitedQuery = limitedQuery;
+    }
+
+    public Integer getPassedCount()
+    {
+        return passedCount;
+    }
+
+    public void setPassedCount(Integer passedCount)
+    {
+        this.passedCount = passedCount;
+    }
+
+    public Integer getBlockedCount()
+    {
+        return blockedCount;
+    }
+
+    public void setBlockedCount(Integer blockedCount)
+    {
+        this.blockedCount = blockedCount;
+    }
+
+    public String getBlockedReasons()
+    {
+        return blockedReasons;
+    }
+
+    public void setBlockedReasons(String blockedReasons)
+    {
+        this.blockedReasons = blockedReasons;
+    }
+
+    public String getSecureContextJson()
+    {
+        return secureContextJson;
+    }
+
+    public void setSecureContextJson(String secureContextJson)
+    {
+        this.secureContextJson = secureContextJson;
+    }
+
     public void setCostTime(Long costTime) 
     {
         this.costTime = costTime;
@@ -251,6 +334,12 @@ public class SysRagAuditLog extends BaseEntity
             .append("responseJson", getResponseJson())
             .append("allowAccess", getAllowAccess())
             .append("denyReasons", getDenyReasons())
+            .append("riskScore", getRiskScore())
+            .append("limitedQuery", getLimitedQuery())
+            .append("passedCount", getPassedCount())
+            .append("blockedCount", getBlockedCount())
+            .append("blockedReasons", getBlockedReasons())
+            .append("secureContextJson", getSecureContextJson())
             .append("costTime", getCostTime())
             .append("createTime", getCreateTime())
             .toString();

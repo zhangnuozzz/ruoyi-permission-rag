@@ -20,12 +20,22 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="responseJson"    column="response_json"    />
         <result property="allowAccess"    column="allow_access"    />
         <result property="denyReasons"    column="deny_reasons"    />
+        <result property="riskScore"    column="risk_score"    />
+        <result property="limitedQuery"    column="limited_query"    />
+        <result property="passedCount"    column="passed_count"    />
+        <result property="blockedCount"    column="blocked_count"    />
+        <result property="blockedReasons"    column="blocked_reasons"    />
+        <result property="secureContextJson"    column="secure_context_json"    />
         <result property="costTime"    column="cost_time"    />
         <result property="createTime"    column="create_time"    />
     </resultMap>
 
     <sql id="selectSysRagAuditLogVo">
-        select id, user_id, user_name, query_text, group_codes, scope_codes, user_context_json, metadata_filter, request_json, raw_results_json, passed_results_json, blocked_results_json, response_json, allow_access, deny_reasons, cost_time, create_time from sys_rag_audit_log
+        select id, user_id, user_name, query_text, group_codes, scope_codes, user_context_json, metadata_filter,
+               request_json, raw_results_json, passed_results_json, blocked_results_json, response_json,
+               allow_access, deny_reasons, risk_score, limited_query, passed_count, blocked_count,
+               blocked_reasons, secure_context_json, cost_time, create_time
+        from sys_rag_audit_log
     </sql>
 
     <select id="selectSysRagAuditLogList" parameterType="SysRagAuditLog" resultMap="SysRagAuditLogResult">
@@ -37,6 +47,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="groupCodes != null  and groupCodes != ''"> and group_codes = #{groupCodes}</if>
             <if test="scopeCodes != null  and scopeCodes != ''"> and scope_codes like concat('%', #{scopeCodes}, '%')</if>
             <if test="allowAccess != null  and allowAccess != ''"> and allow_access = #{allowAccess}</if>
+            <if test="blockedReasons != null  and blockedReasons != ''"> and blocked_reasons like concat('%', #{blockedReasons}, '%')</if>
+            <if test="limitedQuery != null  and limitedQuery != ''"> and limited_query = #{limitedQuery}</if>
             <if test="params.beginCreateTime != null and params.beginCreateTime != '' and params.endCreateTime != null and params.endCreateTime != ''"> and create_time between #{params.beginCreateTime} and #{params.endCreateTime}</if>
         </where>
         order by create_time desc, id desc
