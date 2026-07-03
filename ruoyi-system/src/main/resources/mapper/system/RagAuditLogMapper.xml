@@ -22,6 +22,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             response_json,
             allow_access,
             deny_reasons,
+            risk_score,
+            limited_query,
+            passed_count,
+            blocked_count,
+            blocked_reasons,
+            secure_context_json,
             cost_time,
             create_time
         )
@@ -41,6 +47,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{responseJson},
             #{allowAccess},
             #{denyReasons},
+            #{riskScore},
+            #{limitedQuery},
+            #{passedCount},
+            #{blockedCount},
+            #{blockedReasons},
+            #{secureContextJson},
             #{costTime},
             sysdate()
         )

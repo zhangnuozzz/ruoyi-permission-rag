@@ -143,7 +143,7 @@ public class RagSearchController
 
             AjaxResult ajax = AjaxResult.error("请求被查询安全上下文拦截");
             ajax.put("data", blockedResult);
-            recordAuditLog(request, context, decision, costTime, emptyResults, emptyResults, emptyResults, ajax);
+            recordAuditLog(request, context, decision, secureQueryContext, costTime, emptyResults, emptyResults, emptyResults, ajax);
             return ajax;
         }
 
@@ -215,7 +215,7 @@ public class RagSearchController
         {
             AjaxResult ajax = AjaxResult.error("请求被权限策略拦截");
             ajax.put("data", result);
-            recordAuditLog(request, context, decision, costTime, rawResults, filteredResults, rejectedResults, ajax);
+            recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, filteredResults, rejectedResults, ajax);
             return ajax;
         }
 
@@ -224,7 +224,7 @@ public class RagSearchController
                 : "请求已通过策略决策，完成平台 Mock 检索、二次过滤、审计留痕与外部模型回答生成");
 
         AjaxResult ajax = AjaxResult.success(result);
-        recordAuditLog(request, context, decision, costTime, rawResults, filteredResults, rejectedResults, ajax);
+        recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, filteredResults, rejectedResults, ajax);
         return ajax;
     }
 
@@ -298,7 +298,8 @@ public class RagSearchController
      * 记录 RAG 检索审计日志。
      */
     private void recordAuditLog(RagSearchRequest request, PermissionContext context,
-                                PolicyDecisionResult decision, long costTime,
+                                PolicyDecisionResult decision, SecureQueryContext secureQueryContext,
+                                long costTime,
                                 List<RagSearchResult> rawResults,
                                 List<RagSearchResult> filteredResults,
                                 List<RagSearchResult> rejectedResults,
@@ -320,9 +321,54 @@ public class RagSearchController
         auditLog.setResponseJson(JSON.toJSONString(responseObject));
         auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "1" : "0");
         auditLog.setDenyReasons(joinList(decision.getDenyReasons()));
+
+        if (secureQueryContext != null)
+        {
+            auditLog.setRiskScore(secureQueryContext.getRiskScore());
+            auditLog.setLimitedQuery(Boolean.TRUE.equals(secureQueryContext.getLimitedQuery()) ? "1" : "0");
+            auditLog.setSecureContextJson(JSON.toJSONString(secureQueryContext));
+        }
+        else
+        {
+            auditLog.setRiskScore(0);
+            auditLog.setLimitedQuery("0");
+            auditLog.setSecureContextJson("");
+        }
+
+        auditLog.setPassedCount(filteredResults == null ? 0 : filteredResults.size());
+        auditLog.setBlockedCount(rejectedResults == null ? 0 : rejectedResults.size());
+        auditLog.setBlockedReasons(joinBlockedReasons(rejectedResults));
         auditLog.setCostTime(costTime);
 
         ragAuditLogService.record(auditLog);
+    }
+
+    /**
+     * 汇总被拦截结果的 blockedReason。
+     */
+    private String joinBlockedReasons(List<RagSearchResult> rejectedResults)
+    {
+        if (rejectedResults == null || rejectedResults.isEmpty())
+        {
+            return "";
+        }
+
+        List<String> reasons = new ArrayList<String>();
+        for (RagSearchResult result : rejectedResults)
+        {
+            if (result == null)
+            {
+                continue;
+            }
+
+            String reason = result.getBlockedReason();
+            if (reason != null && reason.length() > 0 && !reasons.contains(reason))
+            {
+                reasons.add(reason);
+            }
+        }
+
+        return joinList(reasons);
     }
 
     /**

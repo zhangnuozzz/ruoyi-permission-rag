@@ -41,6 +41,25 @@ public class RagAuditLog implements Serializable
 
     private String allowAccess;
     private String denyReasons;
+
+    /** 风险分数 */
+    private Integer riskScore;
+
+    /** 是否受限查询：0否 1是 */
+    private String limitedQuery;
+
+    /** 通过结果数量 */
+    private Integer passedCount;
+
+    /** 拦截结果数量 */
+    private Integer blockedCount;
+
+    /** 拦截原因汇总 */
+    private String blockedReasons;
+
+    /** 查询安全上下文 JSON */
+    private String secureContextJson;
+
     private Long costTime;
     private Date createTime;
 
@@ -192,6 +211,66 @@ public class RagAuditLog implements Serializable
     public void setDenyReasons(String denyReasons)
     {
         this.denyReasons = denyReasons;
+    }
+
+    public Integer getRiskScore()
+    {
+        return riskScore;
+    }
+
+    public void setRiskScore(Integer riskScore)
+    {
+        this.riskScore = riskScore;
+    }
+
+    public String getLimitedQuery()
+    {
+        return limitedQuery;
+    }
+
+    public void setLimitedQuery(String limitedQuery)
+    {
+        this.limitedQuery = limitedQuery;
+    }
+
+    public Integer getPassedCount()
+    {
+        return passedCount;
+    }
+
+    public void setPassedCount(Integer passedCount)
+    {
+        this.passedCount = passedCount;
+    }
+
+    public Integer getBlockedCount()
+    {
+        return blockedCount;
+    }
+
+    public void setBlockedCount(Integer blockedCount)
+    {
+        this.blockedCount = blockedCount;
+    }
+
+    public String getBlockedReasons()
+    {
+        return blockedReasons;
+    }
+
+    public void setBlockedReasons(String blockedReasons)
+    {
+        this.blockedReasons = blockedReasons;
+    }
+
+    public String getSecureContextJson()
+    {
+        return secureContextJson;
+    }
+
+    public void setSecureContextJson(String secureContextJson)
+    {
+        this.secureContextJson = secureContextJson;
     }
 
     public Long getCostTime()
