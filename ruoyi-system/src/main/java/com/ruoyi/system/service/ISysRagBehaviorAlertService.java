@@ -18,4 +18,6 @@ public interface ISysRagBehaviorAlertService
     public int deleteSysRagBehaviorAlertById(Long id);
 
     public int analyzeRagAuditLogs();
+
+    public int handleAlert(Long id, String handledBy, String handleRemark);
 }

@@ -44,6 +44,16 @@ public class SysRagBehaviorAlert extends BaseEntity
     @Excel(name = "处理状态")
     private String status;
 
+    @Excel(name = "处理人")
+    private String handledBy;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "处理时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
+    private Date handledTime;
+
+    @Excel(name = "处理说明")
+    private String handleRemark;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date createTime;
 
@@ -80,8 +90,18 @@ public class SysRagBehaviorAlert extends BaseEntity
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
+    public String getHandledBy() { return handledBy; }
+    public void setHandledBy(String handledBy) { this.handledBy = handledBy; }
+
+    public Date getHandledTime() { return handledTime; }
+    public void setHandledTime(Date handledTime) { this.handledTime = handledTime; }
+
+    public String getHandleRemark() { return handleRemark; }
+    public void setHandleRemark(String handleRemark) { this.handleRemark = handleRemark; }
+
     @Override
     public Date getCreateTime() { return createTime; }
+
     @Override
     public void setCreateTime(Date createTime) { this.createTime = createTime; }
 }

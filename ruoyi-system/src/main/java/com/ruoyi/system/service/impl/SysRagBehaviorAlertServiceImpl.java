@@ -1,5 +1,6 @@
 package com.ruoyi.system.service.impl;
 
+import java.util.Date;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +66,19 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
     public int deleteSysRagBehaviorAlertById(Long id)
     {
         return sysRagBehaviorAlertMapper.deleteSysRagBehaviorAlertById(id);
+    }
+
+
+    @Override
+    public int handleAlert(Long id, String handledBy, String handleRemark)
+    {
+        SysRagBehaviorAlert alert = new SysRagBehaviorAlert();
+        alert.setId(id);
+        alert.setStatus("handled");
+        alert.setHandledBy(handledBy == null || handledBy.length() == 0 ? "admin" : handledBy);
+        alert.setHandledTime(new Date());
+        alert.setHandleRemark(handleRemark == null ? "" : handleRemark);
+        return sysRagBehaviorAlertMapper.updateSysRagBehaviorAlert(alert);
     }
 
     @Override

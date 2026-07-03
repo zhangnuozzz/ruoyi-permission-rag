@@ -5,6 +5,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +20,7 @@ import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.system.domain.SysRagBehaviorAlert;
 import com.ruoyi.system.service.ISysRagBehaviorAlertService;
+import com.ruoyi.common.utils.SecurityUtils;
 
 /**
  * RAG行为分析告警Controller
@@ -64,6 +67,29 @@ public class SysRagBehaviorAlertController extends BaseController
     {
         int count = sysRagBehaviorAlertService.analyzeRagAuditLogs();
         return AjaxResult.success("行为分析完成，新增告警 " + count + " 条");
+    }
+
+
+    /**
+     * 处理行为告警
+     */
+    @PreAuthorize("@ss.hasPermi('system:behaviorAlert:analyze')")
+    @Log(title = "RAG行为告警处理", businessType = BusinessType.UPDATE)
+    @PutMapping("/handle/{id}")
+    public AjaxResult handle(@PathVariable("id") Long id, @RequestBody SysRagBehaviorAlert alert)
+    {
+        String handledBy = "admin";
+        try
+        {
+            handledBy = SecurityUtils.getUsername();
+        }
+        catch (Exception e)
+        {
+            handledBy = "admin";
+        }
+
+        String handleRemark = alert == null ? "" : alert.getHandleRemark();
+        return toAjax(sysRagBehaviorAlertService.handleAlert(id, handledBy, handleRemark));
     }
 
     /**

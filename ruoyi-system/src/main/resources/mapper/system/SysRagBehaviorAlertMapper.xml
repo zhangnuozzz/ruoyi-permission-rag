@@ -16,13 +16,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="allowAccess" column="allow_access"/>
         <result property="costTime" column="cost_time"/>
         <result property="status" column="status"/>
+        <result property="handledBy" column="handled_by"/>
+        <result property="handledTime" column="handled_time"/>
+        <result property="handleRemark" column="handle_remark"/>
         <result property="remark" column="remark"/>
         <result property="createTime" column="create_time"/>
     </resultMap>
 
     <sql id="selectSysRagBehaviorAlertVo">
         select id, source_log_id, user_id, user_name, alert_type, alert_level,
-               alert_reason, query_text, allow_access, cost_time, status, remark, create_time
+               alert_reason, query_text, allow_access, cost_time, status,
+               handled_by, handled_time, handle_remark, remark, create_time
         from sys_rag_behavior_alert
     </sql>
 
@@ -78,6 +82,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update sys_rag_behavior_alert
         <trim prefix="SET" suffixOverrides=",">
             <if test="status != null">status = #{status},</if>
+            <if test="handledBy != null">handled_by = #{handledBy},</if>
+            <if test="handledTime != null">handled_time = #{handledTime},</if>
+            <if test="handleRemark != null">handle_remark = #{handleRemark},</if>
             <if test="remark != null">remark = #{remark},</if>
         </trim>
         where id = #{id}

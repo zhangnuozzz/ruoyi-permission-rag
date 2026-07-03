@@ -17,6 +17,15 @@ export function analyzeBehaviorAlert() {
   })
 }
 
+// 处理行为告警
+export function handleBehaviorAlert(id, data) {
+  return request({
+    url: '/system/behaviorAlert/handle/' + id,
+    method: 'put',
+    data: data
+  })
+}
+
 // 删除RAG行为分析告警
 export function delBehaviorAlert(id) {
   return request({

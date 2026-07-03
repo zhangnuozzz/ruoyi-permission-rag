@@ -139,9 +139,16 @@
 
         <el-table-column label="告警时间" align="center" prop="createTime" width="170" />
 
-        <el-table-column label="操作" align="center" width="150" fixed="right">
+        <el-table-column label="操作" align="center" width="210" fixed="right">
           <template slot-scope="scope">
             <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
+            <el-button
+              v-if="scope.row.status !== 'handled'"
+              size="mini"
+              type="text"
+              icon="el-icon-check"
+              @click="openHandleDialog(scope.row)"
+            >处理</el-button>
             <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -216,17 +223,52 @@
           <div class="section-title">风险摘要</div>
           <pre class="remark-box">{{ formatRemark(detail.remark) }}</pre>
         </div>
+
+        <div class="detail-section">
+          <div class="section-title">处置信息</div>
+          <div class="section-content">
+            <div>处理人：{{ detail.handledBy || '暂无' }}</div>
+            <div>处理时间：{{ detail.handledTime || '暂无' }}</div>
+            <div>处理说明：{{ detail.handleRemark || '暂无' }}</div>
+          </div>
+        </div>
       </div>
 
       <span slot="footer" class="dialog-footer">
         <el-button @click="detailOpen = false">关闭</el-button>
       </span>
     </el-dialog>
+
+    <el-dialog title="处理行为告警" :visible.sync="handleOpen" width="620px" append-to-body>
+      <el-form :model="handleForm" label-width="90px">
+        <el-form-item label="告警ID">
+          <el-input v-model="handleForm.id" disabled />
+        </el-form-item>
+
+        <el-form-item label="告警类型">
+          <el-input :value="alertTypeName(handleForm.alertType)" disabled />
+        </el-form-item>
+
+        <el-form-item label="处理说明">
+          <el-input
+            v-model="handleForm.handleRemark"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入处理说明，例如：已核查该告警，系统拦截符合预期，已完成处置。"
+          />
+        </el-form-item>
+      </el-form>
+
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="handleOpen = false">取消</el-button>
+        <el-button type="primary" :loading="handleLoading" @click="submitHandle">确定处理</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { listBehaviorAlert, analyzeBehaviorAlert, delBehaviorAlert, exportBehaviorAlert } from '@/api/rag/behaviorAlert'
+import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlert } from '@/api/rag/behaviorAlert'
 
 export default {
   name: 'BehaviorAlert',
@@ -237,6 +279,13 @@ export default {
       alertList: [],
       detailOpen: false,
       detail: {},
+      handleOpen: false,
+      handleLoading: false,
+      handleForm: {
+        id: null,
+        alertType: '',
+        handleRemark: ''
+      },
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -312,6 +361,33 @@ export default {
     handleView(row) {
       this.detail = row || {}
       this.detailOpen = true
+    },
+
+    openHandleDialog(row) {
+      this.handleForm = {
+        id: row.id,
+        alertType: row.alertType,
+        handleRemark: '已核查该告警，系统安全策略与二次过滤结果符合预期，已完成处置。'
+      }
+      this.handleOpen = true
+    },
+
+    submitHandle() {
+      if (!this.handleForm.handleRemark || this.handleForm.handleRemark.trim().length === 0) {
+        this.$message.warning('请输入处理说明')
+        return
+      }
+
+      this.handleLoading = true
+      handleBehaviorAlert(this.handleForm.id, {
+        handleRemark: this.handleForm.handleRemark
+      }).then(() => {
+        this.msgSuccess('告警处理成功')
+        this.handleOpen = false
+        this.getList()
+      }).finally(() => {
+        this.handleLoading = false
+      })
     },
 
     handleDelete(row) {
