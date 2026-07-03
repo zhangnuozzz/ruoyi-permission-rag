@@ -9,6 +9,7 @@ import com.ruoyi.system.domain.permission.PolicyDecisionResult;
 import com.ruoyi.system.domain.rag.RagAuditLog;
 import com.ruoyi.system.domain.rag.RagSearchRequest;
 import com.ruoyi.system.domain.rag.RagSearchResult;
+import com.ruoyi.system.domain.security.SecureQueryContext;
 import com.ruoyi.system.service.IPermissionContextService;
 import com.ruoyi.system.service.IPolicyDecisionService;
 import com.ruoyi.system.service.IRagAuditLogService;
@@ -16,6 +17,7 @@ import com.ruoyi.system.service.IRagDocMockSearchService;
 import com.ruoyi.system.service.IRagSecondFilterService;
 import com.ruoyi.system.service.IRagRemoteSearchService;
 import com.ruoyi.system.service.IRagAnswerService;
+import com.ruoyi.system.service.ISecureQueryContextService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,6 +58,9 @@ public class RagSearchController
     @Autowired
     private IRagAnswerService ragAnswerService;
 
+    @Autowired
+    private ISecureQueryContextService secureQueryContextService;
+
     /**
      * RAG 安全检索入口。
      *
@@ -74,8 +79,73 @@ public class RagSearchController
         String userName = SecurityUtils.getUsername();
         Boolean admin = SecurityUtils.isAdmin(userId);
 
+        /*
+         * VACP 查询安全增强：
+         * 1. 先生成检索前安全上下文；
+         * 2. 对 query 做基础净化；
+         * 3. 对 topK 做安全收缩；
+         * 4. 生成统一 metadataFilter；
+         * 5. 如果安全上下文不允许查询，则直接拦截。
+         */
+        SecureQueryContext secureQueryContext = secureQueryContextService.buildContext(
+                userId,
+                userName,
+                admin,
+                request == null ? null : request.getQuery(),
+                request == null ? null : request.getTopK()
+        );
+
+        if (request == null)
+        {
+            request = new RagSearchRequest();
+        }
+
+        request.setQuery(secureQueryContext.getSanitizedQuery());
+        request.setTopK(secureQueryContext.getSafeTopK());
+
         PermissionContext context = permissionContextService.buildContext(userId, userName, admin);
         PolicyDecisionResult decision = policyDecisionService.decide(context);
+
+        /*
+         * 以查询安全上下文生成的 metadataFilter 为主。
+         * 后续接 RAG Server 时，下游统一使用这个标准过滤表达式。
+         */
+        decision.setMetadataFilter(secureQueryContext.getMetadataFilter());
+
+        if (Boolean.FALSE.equals(secureQueryContext.getAllowQuery()))
+        {
+            decision.setAllowAccess(false);
+            decision.setDenyReasons(secureQueryContext.getReasons());
+            decision.setMessage("查询安全上下文拒绝本次检索");
+
+            List<RagSearchResult> emptyResults = new ArrayList<RagSearchResult>();
+            long costTime = System.currentTimeMillis() - startTime;
+
+            Map<String, Object> blockedResult = new LinkedHashMap<String, Object>();
+            blockedResult.put("query", request.getQuery());
+            blockedResult.put("searchMode", "blocked_by_secure_query_context");
+            blockedResult.put("topK", request.getTopK());
+            blockedResult.put("userId", context.getUserId());
+            blockedResult.put("userName", context.getUserName());
+            blockedResult.put("admin", context.getAdmin());
+            blockedResult.put("allowAccess", false);
+            blockedResult.put("denyReasons", secureQueryContext.getReasons());
+            blockedResult.put("metadataFilter", secureQueryContext.getMetadataFilter());
+            blockedResult.put("secureQueryContext", secureQueryContext);
+            blockedResult.put("rawResultCount", 0);
+            blockedResult.put("filteredResultCount", 0);
+            blockedResult.put("rejectedResultCount", 0);
+            blockedResult.put("rawResults", emptyResults);
+            blockedResult.put("filteredResults", emptyResults);
+            blockedResult.put("rejectedResults", emptyResults);
+            blockedResult.put("costTime", costTime);
+            blockedResult.put("message", "本次查询被查询安全上下文拦截");
+
+            AjaxResult ajax = AjaxResult.error("请求被查询安全上下文拦截");
+            ajax.put("data", blockedResult);
+            recordAuditLog(request, context, decision, costTime, emptyResults, emptyResults, emptyResults, ajax);
+            return ajax;
+        }
 
         List<RagSearchResult> rawResults;
 
@@ -87,6 +157,9 @@ public class RagSearchController
         {
             rawResults = ragDocMockSearchService.search(request.getQuery());
         }
+
+        rawResults = limitResults(rawResults, secureQueryContext.getSafeTopK());
+
         List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
         List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
 
@@ -120,6 +193,11 @@ public class RagSearchController
         result.put("denyReasons", decision.getDenyReasons());
         result.put("metadataFilter", decision.getMetadataFilter());
         result.put("decisionMessage", decision.getMessage());
+        result.put("secureQueryContext", secureQueryContext);
+        result.put("limitedQuery", secureQueryContext.getLimitedQuery());
+        result.put("riskScore", secureQueryContext.getRiskScore());
+        result.put("safeTopK", secureQueryContext.getSafeTopK());
+        result.put("sanitizedQuery", secureQueryContext.getSanitizedQuery());
 
         result.put("rawResultCount", rawResults == null ? 0 : rawResults.size());
         result.put("filteredResultCount", filteredResults == null ? 0 : filteredResults.size());
@@ -148,6 +226,25 @@ public class RagSearchController
         AjaxResult ajax = AjaxResult.success(result);
         recordAuditLog(request, context, decision, costTime, rawResults, filteredResults, rejectedResults, ajax);
         return ajax;
+    }
+
+    /**
+     * 按安全 topK 截断候选结果。
+     */
+    private List<RagSearchResult> limitResults(List<RagSearchResult> results, Integer safeTopK)
+    {
+        if (results == null || results.isEmpty())
+        {
+            return results;
+        }
+
+        int limit = safeTopK == null || safeTopK <= 0 ? 5 : safeTopK;
+        if (results.size() <= limit)
+        {
+            return results;
+        }
+
+        return new ArrayList<RagSearchResult>(results.subList(0, limit));
     }
 
     /**
