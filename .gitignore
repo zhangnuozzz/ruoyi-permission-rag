@@ -6,6 +6,7 @@
 !gradle/wrapper/gradle-wrapper.jar
 
 target/
+.m2/
 !.mvn/wrapper/maven-wrapper.jar
 
 ######################################################################

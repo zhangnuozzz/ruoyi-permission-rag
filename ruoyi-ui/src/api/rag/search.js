@@ -5,6 +5,7 @@ export function ragSearch(data) {
   return request({
     url: '/rag/search',
     method: 'post',
-    data: data
+    data: data,
+    returnErrorData: true
   })
 }

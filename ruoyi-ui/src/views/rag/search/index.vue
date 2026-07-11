@@ -56,6 +56,66 @@
       </el-form>
     </el-card>
 
+    <el-card v-if="result && result.allowAccess === false" shadow="never" class="box-card">
+      <div slot="header" class="section-header">
+        <span class="section-title">查询安全拦截诊断</span>
+        <el-tag type="danger" effect="plain">{{ result.searchMode || 'blocked' }}</el-tag>
+      </div>
+
+      <el-alert
+        :title="result.message || result.decisionMessage || '本次查询被安全策略拦截'"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="tips-alert"
+      />
+
+      <el-row :gutter="12" class="context-row">
+        <el-col :span="8">
+          <div class="context-card">
+            <div class="context-label">风险分</div>
+            <div class="context-value">{{ result.riskScore || getSecureValue('riskScore') || 0 }}</div>
+            <div class="context-extra">limitedQuery = {{ result.limitedQuery || getSecureValue('limitedQuery') || false }}</div>
+          </div>
+        </el-col>
+        <el-col :span="8">
+          <div class="context-card">
+            <div class="context-label">安全 TopK</div>
+            <div class="context-value">{{ result.safeTopK || getSecureValue('safeTopK') || result.topK || '-' }}</div>
+            <div class="context-extra">原始 TopK：{{ getSecureValue('rawTopK') || form.topK }}</div>
+          </div>
+        </el-col>
+        <el-col :span="8">
+          <div class="context-card">
+            <div class="context-label">净化后查询</div>
+            <div class="context-value text-value">{{ result.sanitizedQuery || getSecureValue('sanitizedQuery') || result.query || '-' }}</div>
+            <div class="context-extra">原始查询：{{ getSecureValue('rawQuery') || form.query }}</div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <div class="detail-block compact">
+        <div class="detail-label">拦截 / 限制原因</div>
+        <div class="tag-list">
+          <el-tag
+            v-for="item in securityReasons"
+            :key="item"
+            size="small"
+            type="danger"
+            effect="plain"
+          >
+            {{ item }}
+          </el-tag>
+          <span v-if="securityReasons.length === 0" class="empty-text">后端未返回具体原因</span>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-label">常见原因对照</div>
+        <pre class="filter-code">{{ securityReasonHelp }}</pre>
+      </div>
+    </el-card>
+
     <el-card v-if="result" shadow="never" class="box-card">
       <div slot="header" class="section-header">
         <span class="section-title">本次检索权限上下文</span>
@@ -158,7 +218,7 @@
         <div class="decision-message">
           {{ result.decisionMessage || result.message || '-' }}
         </div>
-        <div class="remote-note" v-if="result.searchMode === 'remote_rag_server'">
+        <div v-if="result.searchMode === 'remote_rag_server'" class="remote-note">
           说明：RAG Server 当前 Milvus collection 支持 scope_code、chunk_id 等字段，因此远程检索阶段先用 scope_code 做粗过滤；
           平台侧继续使用完整 VACP Metadata Filter 完成文档状态、密级、用户组、知悉范围等精细二次过滤。
         </div>
@@ -186,7 +246,6 @@
         </el-card>
       </el-col>
     </el-row>
-
 
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
@@ -327,6 +386,36 @@ export default {
       }
     }
   },
+  computed: {
+    securityReasons() {
+      if (!this.result) {
+        return []
+      }
+      const reasons = []
+      reasons.push.apply(reasons, this.normalizeArray(this.result.denyReasons))
+      if (this.result.secureQueryContext) {
+        reasons.push.apply(reasons, this.normalizeArray(this.result.secureQueryContext.reasons))
+      }
+      return Array.from(new Set(reasons))
+    },
+    securityReasonHelp() {
+      const map = {
+        USER_SECURITY_ATTR_NOT_FOUND: '当前用户缺少 sys_user_security_attr 安全属性，需要补一条 ACTIVE/LOW 的用户安全属性。',
+        USER_ACCESS_STATUS_NOT_ACTIVE: '当前用户访问状态不是 ACTIVE，请在用户安全属性里恢复启用。',
+        OUT_OF_USER_ACCESS_TIME_WINDOW: '当前时间不在用户允许访问时间窗口内，可放宽 access_start_time/access_end_time。',
+        NO_VALID_GROUP_ASSIGNED: '普通用户没有绑定有效用户组，需要维护 sys_user_group_rel。',
+        NO_VALID_SCOPE_ASSIGNED: '普通用户所属用户组没有 scope_code，无法生成可访问知悉范围。',
+        BBAC_IP_BLACKLIST_DENY: '当前访问 IP 命中黑名单。',
+        BBAC_FAIL_COUNT_TEMP_LOCK: '失败次数达到阈值，用户被临时锁定。',
+        RISK_SCORE_TOO_HIGH_QUERY_BLOCKED: '风险分达到拦截阈值，通常由 HIGH 风险、敏感词、高频/重复查询叠加造成。'
+      }
+      const reasons = this.securityReasons
+      if (reasons.length === 0) {
+        return '暂无原因。'
+      }
+      return reasons.map(item => item + '：' + (map[item] || '请查看 secureQueryContext 详情或审计日志。')).join('\n')
+    }
+  },
   methods: {
     handleSearch() {
       if (!this.form.query || this.form.query.trim().length === 0) {
@@ -345,7 +434,7 @@ export default {
         const data = response && response.data ? response.data : response
         this.result = data
         if (response && response.code && response.code !== 200) {
-          this.$message.warning(response.msg || '检索请求返回异常')
+          this.$message.warning(response.msg || data.message || '检索请求返回异常')
         } else {
           this.$message.success(this.form.useRemote ? '真实 RAG Server 检索完成' : '平台 Mock 检索完成')
         }
@@ -389,6 +478,13 @@ export default {
         return 'chunk_id != ""'
       }
       return 'scope_code in [' + scopes.map(item => '"' + item + '"').join(', ') + ']'
+    },
+
+    getSecureValue(key) {
+      if (!this.result || !this.result.secureQueryContext) {
+        return null
+      }
+      return this.result.secureQueryContext[key]
     },
 
     normalizeArray(value) {
@@ -496,6 +592,12 @@ export default {
   color: #303133;
 }
 
+.context-value.text-value {
+  font-size: 14px;
+  line-height: 22px;
+  word-break: break-all;
+}
+
 .detail-block {
   margin-top: 16px;
 }
@@ -560,7 +662,6 @@ export default {
   border-radius: 6px;
   padding: 14px 16px;
 }
-
 
 .remote-note {
   margin-top: 10px;

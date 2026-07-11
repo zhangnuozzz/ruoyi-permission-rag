@@ -60,7 +60,7 @@
           >
             <el-button size="mini" type="primary">选择文件</el-button>
             <div slot="tip" class="el-upload__tip">
-              当前真实支持 TXT / MD / CSV / JSON / LOG 纯文本入库；PDF / Word / OFD / 图片 OCR 会被平台侧识别并拒绝，避免二进制内容误写入向量库。
+              支持 TXT / PDF / Word / OFD / PNG / JPG / JPEG / BMP / GIF / TIF / TIFF / WEBP；图片会进行 OCR 后入库。
             </div>
           </el-upload>
         </el-form-item>
@@ -362,6 +362,10 @@ export default {
         this.uploadResult = response.data || response
         this.$modal.msgSuccess('文件上传入库成功，三端列表已自动刷新')
         this.refreshAll()
+      }).catch(error => {
+        this.uploadResult = null
+        const message = error && error.message ? error.message : '文件上传入库失败，请查看后端日志'
+        this.$modal.msgError(message)
       }).finally(() => {
         this.uploading = false
       })

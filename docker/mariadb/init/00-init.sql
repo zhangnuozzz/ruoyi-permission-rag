@@ -1,0 +1,33 @@
+create database if not exists `ry-vue-320` default character set utf8mb4 collate utf8mb4_general_ci;
+create user if not exists 'ruoyi'@'%' identified by '001106';
+grant all privileges on `ry-vue-320`.* to 'ruoyi'@'%';
+flush privileges;
+
+use `ry-vue-320`;
+
+source /sql/ry_20200920.sql;
+source /sql/quartz.sql;
+source /docker-entrypoint-initdb.d/01-rag-core.sql;
+source /rag_sql/rag_file_processing_20260512.sql;
+source /sql/add_user_security_attr_20260701.sql;
+source /sql/add_rag_behavior_alert_20260626.sql;
+source /sql/add_rag_audit_json_fields_20260626.sql;
+source /sql/fix_rag_audit_log_route_20260626.sql;
+source /sql/rag_permission_isolation_test_user_20260529.sql;
+source /sql/hide_ruoyi_template_menus_20260603.sql;
+source /sql/hide_ruoyi_official_menu_20260526.sql;
+source /sql/add_group_secret_level_20260703.sql;
+source /sql/add_rag_doc_metadata_20260703.sql;
+source /sql/add_rag_file_vector_metadata_20260703.sql;
+source /sql/add_bbac_runtime_fields_20260703.sql;
+source /sql/complete_identity_abac_rules_20260703.sql;
+source /sql/repair_identity_abac_runtime_20260703.sql;
+source /sql/add_rag_audit_enhance_20260703.sql;
+source /sql/add_behavior_alert_handle_fields_20260703.sql;
+source /sql/enhance_audit_behavior_response_20260703.sql;
+source /sql/add_behavior_alert_unique_20260703.sql;
+source /sql/clean_irrelevant_ruoyi_menus_20260703.sql;
+source /sql/flatten_vacp_menu_20260703.sql;
+source /sql/split_vacp_menu_centers_20260703.sql;
+source /sql/rebuild_vacp_menu_20260703.sql;
+source /sql/rag_demo_data.sql;

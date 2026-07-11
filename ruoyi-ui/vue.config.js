@@ -34,7 +34,8 @@ module.exports = {
     proxy: {
       // detail: https://cli.vuejs.org/config/#devserver-proxy
       [process.env.VUE_APP_BASE_API]: {
-        target: `http://localhost:8080`,
+        // 固定走 IPv4 回环，避免 localhost 被解析为 ::1 或被系统代理接管。
+        target: `http://127.0.0.1:8080`,
         changeOrigin: true,
         pathRewrite: {
           ['^' + process.env.VUE_APP_BASE_API]: ''

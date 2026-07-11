@@ -66,6 +66,27 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/rag-test',
+    component: Layout,
+    redirect: '/rag-test/file',
+    alwaysShow: true,
+    meta: { title: 'RAG测试入口', icon: 'upload' },
+    children: [
+      {
+        path: 'file',
+        component: (resolve) => require(['@/views/rag/file/index'], resolve),
+        name: 'RagFileTest',
+        meta: { title: '文件传入测试', icon: 'upload', noCache: true }
+      },
+      {
+        path: 'search',
+        component: (resolve) => require(['@/views/rag/search/index'], resolve),
+        name: 'RagSearchTest',
+        meta: { title: '外部检索测试', icon: 'search', noCache: true }
+      }
+    ]
+  },
+  {
     path: '/user',
     component: Layout,
     hidden: true,

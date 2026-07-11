@@ -48,7 +48,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * RAG Server职责：
  * 1. 原文件备份到 MinIO；
- * 2. UTF-8 文本切分；
+ * 2. 多格式文本抽取 / 图片 OCR / 文本切分；
  * 3. 向量写入 Milvus；
  * 4. 基础文件元数据写入 MariaDB。
  */
@@ -150,6 +150,15 @@ public class RagFileProxyController
         {
             ResponseEntity<Object> response = restTemplate.postForEntity(url, requestEntity, Object.class);
             Object responseBody = response.getBody();
+
+            String ragErrorMessage = extractRagErrorMessage(responseBody);
+            if (!isBlank(ragErrorMessage))
+            {
+                RuntimeException exception = new RuntimeException(ragErrorMessage);
+                recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
+                        responseBody, exception, System.currentTimeMillis() - startTime);
+                return AjaxResult.error("RAG文件服务处理失败：" + ragErrorMessage);
+            }
 
             syncRagDoc(responseBody, groupDecision);
             syncRagFileVectorMetadata(responseBody, fileDecision, groupDecision);
@@ -367,31 +376,32 @@ public class RagFileProxyController
 
         if ("TXT".equals(ext) || "MD".equals(ext) || "CSV".equals(ext) || "JSON".equals(ext) || "LOG".equals(ext))
         {
-            return FileTypeDecision.allow(ext, "UTF8_TEXT", "文件格式支持，允许进入 RAG Server 文本切分与向量化流程");
+            return FileTypeDecision.allow(ext, "TIKA_TEXT", "文件格式支持，允许进入 RAG Server 文本抽取与向量化流程");
         }
 
         if ("PDF".equals(ext))
         {
-            return FileTypeDecision.deny("PDF", "TEXT_EXTRACTION_PENDING",
-                    "当前 RAG Server 尚未实现 PDF 文本抽取，已拒绝入库，避免二进制内容误写入向量库");
+            return FileTypeDecision.allow("PDF", "TIKA_TEXT_EXTRACTION",
+                    "PDF格式支持，允许进入 RAG Server 文本抽取与向量化流程");
         }
 
         if ("DOC".equals(ext) || "DOCX".equals(ext))
         {
-            return FileTypeDecision.deny(ext, "WORD_EXTRACTION_PENDING",
-                    "当前 RAG Server 尚未实现 Word 文本抽取，已拒绝入库，避免二进制内容误写入向量库");
+            return FileTypeDecision.allow(ext, "TIKA_TEXT_EXTRACTION",
+                    "Word格式支持，允许进入 RAG Server 文本抽取与向量化流程");
         }
 
         if ("OFD".equals(ext))
         {
-            return FileTypeDecision.deny("OFD", "OFD_UNSUPPORTED",
-                    "当前 RAG Server 尚未实现 OFD 解析，已拒绝入库");
+            return FileTypeDecision.allow("OFD", "OFD_TEXT_EXTRACTION",
+                    "OFD格式支持，允许进入 RAG Server 文本抽取与向量化流程");
         }
 
-        if ("PNG".equals(ext) || "JPG".equals(ext) || "JPEG".equals(ext) || "BMP".equals(ext))
+        if ("PNG".equals(ext) || "JPG".equals(ext) || "JPEG".equals(ext) || "BMP".equals(ext)
+                || "GIF".equals(ext) || "TIF".equals(ext) || "TIFF".equals(ext) || "WEBP".equals(ext))
         {
-            return FileTypeDecision.deny(ext, "OCR_PENDING",
-                    "当前 RAG Server 尚未实现 OCR 处理，已拒绝入库");
+            return FileTypeDecision.allow(ext, "PORTABLE_TESSERACT_OCR",
+                    "图片格式支持，允许进入 RAG Server OCR 与向量化流程");
         }
 
         return FileTypeDecision.deny(ext, "UNSUPPORTED",
@@ -539,6 +549,37 @@ public class RagFileProxyController
         }
 
         return (Map<String, Object>) dataObj;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractRagErrorMessage(Object responseBody)
+    {
+        if (!(responseBody instanceof Map))
+        {
+            return "RAG文件服务未返回有效响应";
+        }
+
+        Map<String, Object> outer = (Map<String, Object>) responseBody;
+        Object code = outer.get("code");
+        if (code != null && !"200".equals(String.valueOf(code)))
+        {
+            String msg = getString(outer, "msg");
+            return isBlank(msg) ? "RAG文件服务返回失败，code=" + code : msg;
+        }
+
+        Object dataObj = outer.get("data");
+        if (!(dataObj instanceof Map))
+        {
+            return "RAG文件服务未返回文件处理结果";
+        }
+
+        Map<String, Object> data = (Map<String, Object>) dataObj;
+        if (isBlank(getString(data, "fileId")))
+        {
+            return "RAG文件服务返回结果缺少 fileId";
+        }
+
+        return null;
     }
 
     private String getString(Map<String, Object> map, String key)
