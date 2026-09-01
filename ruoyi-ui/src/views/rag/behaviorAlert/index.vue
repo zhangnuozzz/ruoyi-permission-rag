@@ -83,7 +83,10 @@
         <el-form-item label="处理状态" prop="status">
           <el-select v-model="queryParams.status" placeholder="处理状态" clearable style="width: 130px">
             <el-option label="未处理" value="unhandled" />
-            <el-option label="已处理" value="handled" />
+            <el-option label="已确认" value="handled" />
+            <el-option label="已封禁" value="blocked" />
+            <el-option label="已限制" value="limited" />
+            <el-option label="已忽略" value="ignored" />
           </el-select>
         </el-form-item>
 
@@ -133,8 +136,7 @@
 
         <el-table-column label="处理状态" align="center" prop="status" width="100">
           <template slot-scope="scope">
-            <el-tag v-if="scope.row.status === 'handled'" type="success" size="small">已处理</el-tag>
-            <el-tag v-else type="danger" size="small">未处理</el-tag>
+            <el-tag :type="statusTag(scope.row.status)" size="small">{{ statusName(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
 
@@ -144,7 +146,7 @@
           <template slot-scope="scope">
             <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
             <el-button
-              v-if="scope.row.status !== 'handled'"
+              v-if="!isHandledStatus(scope.row.status)"
               size="mini"
               type="text"
               icon="el-icon-check"
@@ -196,8 +198,8 @@
             <div class="detail-card">
               <div class="detail-label">处理状态</div>
               <div class="detail-value">
-                <el-tag :type="detail.status === 'handled' ? 'success' : 'danger'" size="small">
-                  {{ detail.status === 'handled' ? '已处理' : '未处理' }}
+                <el-tag :type="statusTag(detail.status)" size="small">
+                  {{ statusName(detail.status) }}
                 </el-tag>
               </div>
             </div>
@@ -318,7 +320,7 @@ export default {
       return this.alertList.filter(item => item.alertLevel === 'medium').length
     },
     unhandledCount() {
-      return this.alertList.filter(item => item.status !== 'handled').length
+      return this.alertList.filter(item => !this.isHandledStatus(item.status)).length
     }
   },
   created() {
@@ -477,6 +479,32 @@ export default {
         low: 'info'
       }
       return map[level] || 'info'
+    },
+
+    isHandledStatus(status) {
+      return ['handled', 'blocked', 'limited', 'ignored'].includes(status)
+    },
+
+    statusName(status) {
+      const map = {
+        unhandled: '未处理',
+        handled: '已确认',
+        blocked: '已封禁',
+        limited: '已限制',
+        ignored: '已忽略'
+      }
+      return map[status] || status || '未知'
+    },
+
+    statusTag(status) {
+      const map = {
+        unhandled: 'danger',
+        handled: 'success',
+        blocked: 'danger',
+        limited: 'warning',
+        ignored: 'info'
+      }
+      return map[status] || 'info'
     },
 
     formatRemark(remark) {
