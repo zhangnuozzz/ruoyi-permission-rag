@@ -49,3 +49,6 @@ nbdist/
 *.bak*
 backups/
 logs-local/
+
+.run-local/
+logs-local/
