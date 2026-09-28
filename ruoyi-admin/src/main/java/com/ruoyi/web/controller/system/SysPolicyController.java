@@ -19,6 +19,7 @@ import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.system.domain.SysPolicy;
 import com.ruoyi.system.service.ISysPolicyService;
 import com.ruoyi.common.utils.poi.ExcelUtil;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
@@ -70,6 +71,16 @@ public class SysPolicyController extends BaseController
     }
 
     /**
+     * 查询指定策略的版本历史。
+     */
+    @PreAuthorize("@ss.hasPermi('system:policy:query')")
+    @GetMapping("/{id}/versions")
+    public AjaxResult versions(@PathVariable("id") Long id)
+    {
+        return AjaxResult.success(sysPolicyService.selectPolicyVersionList(id));
+    }
+
+    /**
      * 新增权限策略定义
      */
     @PreAuthorize("@ss.hasPermi('system:policy:add')")
@@ -77,6 +88,7 @@ public class SysPolicyController extends BaseController
     @PostMapping
     public AjaxResult add(@RequestBody SysPolicy sysPolicy)
     {
+        sysPolicy.setCreateBy(SecurityUtils.getUsername());
         return toAjax(sysPolicyService.insertSysPolicy(sysPolicy));
     }
 
@@ -88,6 +100,7 @@ public class SysPolicyController extends BaseController
     @PutMapping
     public AjaxResult edit(@RequestBody SysPolicy sysPolicy)
     {
+        sysPolicy.setUpdateBy(SecurityUtils.getUsername());
         return toAjax(sysPolicyService.updateSysPolicy(sysPolicy));
     }
 
