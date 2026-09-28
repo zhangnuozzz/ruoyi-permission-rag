@@ -71,11 +71,25 @@
 
     <el-table v-loading="loading" :data="policyBindList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
+      <el-table-column label="ID" align="center" prop="id" />
       <el-table-column label="策略ID" align="center" prop="policyId" />
-      <el-table-column label="绑定类型" align="center" prop="bindType" />
+      <el-table-column label="绑定类型" align="center" prop="bindType" width="110">
+        <template slot-scope="scope">
+          <span v-if="scope.row.bindType === 'USER'">用户</span>
+          <span v-else-if="scope.row.bindType === 'GROUP'">用户组</span>
+          <span v-else-if="scope.row.bindType === 'DOC'">文档</span>
+          <span v-else-if="scope.row.bindType === 'DIRECTORY'">目录</span>
+          <span v-else>{{ scope.row.bindType || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="绑定目标ID" align="center" prop="bindTargetId" />
-      <el-table-column label="状态" align="center" prop="status" />
+      <el-table-column label="状态" align="center" prop="status" width="90">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
+            {{ scope.row.status === '0' ? '正常' : '停用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
@@ -118,11 +132,37 @@
               <el-input v-model="form.policyId" placeholder="请输入策略ID" />
             </el-form-item>
           </el-col>
+
+          <el-col :span="24">
+            <el-form-item label="绑定类型" prop="bindType">
+              <el-select
+                v-model="form.bindType"
+                placeholder="请选择绑定类型"
+                style="width: 100%"
+                filterable
+                allow-create
+              >
+                <el-option label="用户" value="USER" />
+                <el-option label="用户组" value="GROUP" />
+                <el-option label="文档" value="DOC" />
+                <el-option label="目录" value="DIRECTORY" />
+              </el-select>
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="绑定目标ID" prop="bindTargetId">
               <el-input v-model="form.bindTargetId" placeholder="请输入绑定目标ID" />
             </el-form-item>
           </el-col>
+          <el-col :span="24">
+            <el-form-item label="状态" prop="status">
+              <el-radio-group v-model="form.status">
+                <el-radio label="0">正常</el-radio>
+                <el-radio label="1">停用</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+
           <el-col :span="24">
             <el-form-item label="备注" prop="remark">
               <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -168,9 +208,9 @@ export default {
         pageNum: 1,
         pageSize: 10,
         policyId: null,
-        bindType: null,
+        bindType: 'GROUP',
         bindTargetId: null,
-        status: null,
+        status: '0',
       },
       // 表单参数
       form: {},
@@ -214,9 +254,9 @@ export default {
       this.form = {
         id: null,
         policyId: null,
-        bindType: null,
+        bindType: 'GROUP',
         bindTargetId: null,
-        status: null,
+        status: '0',
         remark: null,
         createBy: null,
         createTime: null

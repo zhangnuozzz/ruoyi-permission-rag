@@ -4,7 +4,7 @@ import Cookies from 'js-cookie'
 
 import 'normalize.css/normalize.css' // a modern alternative to CSS resets
 
-import Element from 'element-ui'
+import Element, { Message, MessageBox } from 'element-ui'
 import './assets/styles/element-variables.scss'
 
 import '@/assets/styles/index.scss' // global css
@@ -44,6 +44,65 @@ Vue.prototype.msgError = function (msg) {
 
 Vue.prototype.msgInfo = function (msg) {
   this.$message.info(msg);
+}
+
+
+// warning 提示兼容
+Vue.prototype.msgWarning = function (msg) {
+  this.$message({
+    showClose: true,
+    message: msg,
+    type: "warning"
+  });
+}
+
+// 兼容较新版本 RuoYi 的 $modal 调用方式。
+// 当前项目基于 RuoYi-Vue 3.2.0，原有页面使用 msgSuccess / $confirm，
+// 部分扩展页面使用 $modal，因此在此统一适配。
+Vue.prototype.$modal = {
+  msgSuccess(msg) {
+    Message({
+      showClose: true,
+      message: msg,
+      type: "success"
+    })
+  },
+
+  msgError(msg) {
+    Message({
+      showClose: true,
+      message: msg,
+      type: "error"
+    })
+  },
+
+  msgWarning(msg) {
+    Message({
+      showClose: true,
+      message: msg,
+      type: "warning"
+    })
+  },
+
+  msgInfo(msg) {
+    Message({
+      showClose: true,
+      message: msg,
+      type: "info"
+    })
+  },
+
+  confirm(msg) {
+    return MessageBox.confirm(
+      msg,
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    )
+  }
 }
 
 // 全局组件挂载

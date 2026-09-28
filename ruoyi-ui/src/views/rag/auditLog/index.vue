@@ -3,12 +3,12 @@
     <el-card shadow="never" class="box-card">
       <div slot="header" class="card-header">
         <div>
-          <div class="page-title">安全审计与行为分析中心</div>
+          <div class="page-title">RAG 检索审计</div>
           <div class="page-subtitle">
             展示 RAG 安全检索请求的身份上下文、查询安全上下文、Metadata Filter、访问决策、风险分数、结果过滤与拦截原因。
           </div>
         </div>
-        <el-tag type="info" effect="plain">sys_rag_audit_log</el-tag>
+        <el-tag type="info" effect="plain">全链路审计</el-tag>
       </div>
 
       <el-alert
@@ -87,7 +87,7 @@
         <el-form-item label="权限标签" prop="scopeCodes">
           <el-input
             v-model="queryParams.scopeCodes"
-            placeholder="scopeCode"
+            placeholder="权限标签"
             clearable
             style="width: 160px"
             @keyup.enter.native="handleQuery"
@@ -121,7 +121,7 @@
         <el-form-item label="拦截原因" prop="blockedReasons">
           <el-input
             v-model="queryParams.blockedReasons"
-            placeholder="blockedReason"
+            placeholder="请输入拦截原因"
             clearable
             style="width: 210px"
             @keyup.enter.native="handleQuery"

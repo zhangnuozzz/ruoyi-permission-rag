@@ -64,6 +64,40 @@ public class RagSearchController
     private ISecureQueryContextService secureQueryContextService;
 
     /**
+     * 获取当前登录用户的知识问答权限摘要。
+     *
+     * 普通用户前端只展示必要的身份与授权范围信息，
+     * 不暴露后台策略表达式和管理配置。
+     */
+    @GetMapping("/context")
+    public AjaxResult context()
+    {
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        String userName = SecurityUtils.getUsername();
+        Boolean admin = SecurityUtils.isAdmin(userId);
+
+        PermissionContext context = permissionContextService.buildContext(
+                userId,
+                userName,
+                admin
+        );
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("userId", context.getUserId());
+        result.put("userName", context.getUserName());
+        result.put("admin", context.getAdmin());
+        result.put("groupCodes", context.getGroupCodes());
+        result.put("scopeCodes", context.getScopeCodes());
+        result.put(
+                "policyCount",
+                context.getPolicies() == null ? 0 : context.getPolicies().size()
+        );
+        result.put("requestTime", context.getRequestTime());
+
+        return AjaxResult.success(result);
+    }
+
+    /**
      * RAG 安全检索入口。
      *
      * 当前版本暂不真正调用向量数据库和大模型。

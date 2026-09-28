@@ -1,5 +1,11 @@
 <template>
   <div class="app-container">
+    <div class="group-intro">
+      <div class="group-intro-title">用户组管理</div>
+      <div class="group-intro-desc">
+        维护用户组、知悉范围与组密级，为权限策略配置和安全检索提供主体分组依据。
+      </div>
+    </div>
     <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
       <el-form-item label="组编码" prop="groupCode">
         <el-input
@@ -87,7 +93,7 @@
 
     <el-table v-loading="loading" :data="groupList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
+      <el-table-column label="ID" align="center" prop="id" />
       <el-table-column label="组编码" align="center" prop="groupCode" />
       <el-table-column label="组名称" align="center" prop="groupName" />
       <el-table-column label="知悉范围编码" align="center" prop="scopeCode" />
@@ -100,7 +106,16 @@
           <el-tag v-else>{{ scope.row.groupSecretLevel }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" />
+      <el-table-column label="状态" align="center" prop="status" width="90">
+        <template slot-scope="scope">
+          <el-tag
+            size="mini"
+            :type="scope.row.status === '0' ? 'success' : 'info'"
+          >
+            {{ scope.row.status === '0' ? '正常' : '停用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>

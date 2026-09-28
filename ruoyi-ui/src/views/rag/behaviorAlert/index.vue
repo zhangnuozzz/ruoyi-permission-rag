@@ -8,7 +8,7 @@
             基于 RAG 审计日志自动识别拒绝访问、高风险查询、敏感词查询、topK 异常、大量结果拦截与慢查询等安全行为。
           </div>
         </div>
-        <el-tag type="danger" effect="plain">sys_rag_behavior_alert</el-tag>
+        <el-tag type="danger" effect="plain">安全行为告警</el-tag>
       </div>
 
       <el-alert
@@ -91,11 +91,11 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="danger" icon="el-icon-cpu" size="mini" @click="handleAnalyze">触发行为分析</el-button>
+          <el-button type="danger" icon="el-icon-cpu" size="mini" @click="handleAnalyze">重新分析</el-button>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
           <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
-          <el-button type="info" plain icon="el-icon-document" size="mini" @click="handleSyslogExport">导出syslog</el-button>
+          <el-button type="info" plain icon="el-icon-document" size="mini" @click="handleSyslogExport">导出 Syslog</el-button>
         </el-form-item>
       </el-form>
 
