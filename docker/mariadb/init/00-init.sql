@@ -20,6 +20,7 @@ source /sql/add_group_secret_level_20260703.sql;
 source /sql/add_rag_doc_metadata_20260703.sql;
 source /sql/add_rag_file_vector_metadata_20260703.sql;
 source /sql/add_bbac_runtime_fields_20260703.sql;
+source /sql/add_ip_whitelist_20260928.sql;
 source /sql/complete_identity_abac_rules_20260703.sql;
 source /sql/repair_identity_abac_runtime_20260703.sql;
 source /sql/add_rag_audit_enhance_20260703.sql;

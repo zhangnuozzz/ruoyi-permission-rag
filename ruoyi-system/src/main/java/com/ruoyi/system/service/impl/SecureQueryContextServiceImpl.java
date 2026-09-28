@@ -79,19 +79,35 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setUserAccessStatus(accessStatus);
         context.setUserRiskLevel(riskLevel);
 
-        // BBAC 1：校验来源 IP，黑名单命中直接拒绝。
-        if (clientIp != null && clientIp.length() > 0 && bbacSecurityMapper.countActiveBlacklistIp(clientIp) > 0)
+        // BBAC 1：校验来源 IP，白名单优先于黑名单。
+        // 白名单只跳过 IP 黑名单检查，后续频率、重复查询、风险评分等规则仍然执行。
+        if (clientIp != null && clientIp.length() > 0)
         {
-            context.setAllowQuery(false);
-            context.getReasons().add("BBAC_IP_BLACKLIST_DENY");
-            context.setRiskScore(100);
-            return context;
+            boolean inWhitelist = bbacSecurityMapper.countActiveWhitelistIp(clientIp) > 0;
+
+            if (inWhitelist)
+            {
+                context.getReasons().add("BBAC_IP_WHITELIST_PASS");
+            }
+            else if (bbacSecurityMapper.countActiveBlacklistIp(clientIp) > 0)
+            {
+                context.setAllowQuery(false);
+                context.getReasons().add("BBAC_IP_BLACKLIST_DENY");
+                context.setRiskScore(100);
+                return context;
+            }
         }
 
         // BBAC 3：连续访问失败次数 >= N -> 临时封禁。
-        if (failCount != null && failCount >= FAIL_COUNT_LOCK_THRESHOLD)
+        if (failCount != null
+                && failCount >= FAIL_COUNT_LOCK_THRESHOLD
+                && "ACTIVE".equalsIgnoreCase(accessStatus))
         {
-            bbacSecurityMapper.lockUserTemporarily(userId, TEMP_LOCK_MINUTES, "BBAC_FAIL_COUNT_GE_" + FAIL_COUNT_LOCK_THRESHOLD);
+            bbacSecurityMapper.lockUserTemporarily(
+                    userId,
+                    TEMP_LOCK_MINUTES,
+                    "BBAC_FAIL_COUNT_GE_" + FAIL_COUNT_LOCK_THRESHOLD
+            );
             context.setAllowQuery(false);
             context.getReasons().add("BBAC_FAIL_COUNT_TEMP_LOCK");
             context.setRiskScore(100);
