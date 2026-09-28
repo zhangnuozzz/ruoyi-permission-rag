@@ -34,3 +34,4 @@ source /sql/split_vacp_menu_centers_20260703.sql;
 source /sql/rebuild_vacp_menu_20260703.sql;
 source /sql/add_ip_whitelist_menu_20260928.sql;
 source /sql/rag_demo_data.sql;
+source /sql/fix_vector_index_type_20260928.sql;

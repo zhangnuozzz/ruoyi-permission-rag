@@ -336,7 +336,7 @@ public class RagFileProxyController
             metadata.put("file_type", fileDecision.fileType);
             metadata.put("parse_method", fileDecision.parseMethod);
             metadata.put("embedding_status", "SUCCESS");
-            metadata.put("vector_index_type", "HNSW");
+            metadata.put("vector_index_type", "AUTOINDEX");
             metadata.put("metadata_index_status", "READY");
 
             jdbcTemplate.update(
@@ -352,7 +352,7 @@ public class RagFileProxyController
                     fileDecision.parseMethod,
                     chunks,
                     "SUCCESS",
-                    "HNSW",
+                    "AUTOINDEX",
                     "READY",
                     groupDecision.securityLevel,
                     groupDecision.groupCode,
