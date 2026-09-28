@@ -32,4 +32,5 @@ source /sql/clean_irrelevant_ruoyi_menus_20260703.sql;
 source /sql/flatten_vacp_menu_20260703.sql;
 source /sql/split_vacp_menu_centers_20260703.sql;
 source /sql/rebuild_vacp_menu_20260703.sql;
+source /sql/add_ip_whitelist_menu_20260928.sql;
 source /sql/rag_demo_data.sql;

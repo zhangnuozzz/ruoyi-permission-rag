@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ruoyi.system.mapper.SysIpWhitelistMapper">
+
+    <resultMap type="SysIpWhitelist" id="SysIpWhitelistResult">
+        <id     property="whitelistId" column="whitelist_id" />
+        <result property="ipaddr"      column="ipaddr" />
+        <result property="reason"      column="reason" />
+        <result property="status"      column="status" />
+        <result property="createBy"    column="create_by" />
+        <result property="createTime"  column="create_time" />
+        <result property="updateBy"    column="update_by" />
+        <result property="updateTime"  column="update_time" />
+        <result property="remark"      column="remark" />
+    </resultMap>
+
+    <sql id="selectSysIpWhitelistVo">
+        select whitelist_id, ipaddr, reason, status, create_by, create_time, update_by, update_time, remark
+        from sys_ip_whitelist
+    </sql>
+
+    <select id="selectSysIpWhitelistById" parameterType="Long" resultMap="SysIpWhitelistResult">
+        <include refid="selectSysIpWhitelistVo"/>
+        where whitelist_id = #{whitelistId}
+    </select>
+
+    <select id="selectEnabledByIpaddr" parameterType="String" resultMap="SysIpWhitelistResult">
+        <include refid="selectSysIpWhitelistVo"/>
+        where ipaddr = #{ipaddr}
+          and status = '0'
+        limit 1
+    </select>
+
+    <select id="selectSysIpWhitelistList" parameterType="SysIpWhitelist" resultMap="SysIpWhitelistResult">
+        <include refid="selectSysIpWhitelistVo"/>
+        <where>
+            <if test="ipaddr != null and ipaddr != ''"> and ipaddr like concat('%', #{ipaddr}, '%')</if>
+            <if test="reason != null and reason != ''"> and reason like concat('%', #{reason}, '%')</if>
+            <if test="status != null and status != ''"> and status = #{status}</if>
+        </where>
+        order by whitelist_id desc
+    </select>
+
+    <insert id="insertSysIpWhitelist" parameterType="SysIpWhitelist" useGeneratedKeys="true" keyProperty="whitelistId">
+        insert into sys_ip_whitelist
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="ipaddr != null">ipaddr,</if>
+            <if test="reason != null">reason,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time,
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="ipaddr != null">#{ipaddr},</if>
+            <if test="reason != null">#{reason},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate(),
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateSysIpWhitelist" parameterType="SysIpWhitelist">
+        update sys_ip_whitelist
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="ipaddr != null">ipaddr = #{ipaddr},</if>
+            <if test="reason != null">reason = #{reason},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate(),
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where whitelist_id = #{whitelistId}
+    </update>
+
+    <delete id="deleteSysIpWhitelistById" parameterType="Long">
+        delete from sys_ip_whitelist where whitelist_id = #{whitelistId}
+    </delete>
+
+    <delete id="deleteSysIpWhitelistByIds" parameterType="Long">
+        delete from sys_ip_whitelist where whitelist_id in
+        <foreach item="whitelistId" collection="array" open="(" separator="," close=")">
+            #{whitelistId}
+        </foreach>
+    </delete>
+
+</mapper>
