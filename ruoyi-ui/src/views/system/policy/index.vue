@@ -111,6 +111,13 @@
           <el-button
             size="mini"
             type="text"
+            icon="el-icon-time"
+            @click="handleVersions(scope.row)"
+            v-hasPermi="['system:policy:query']"
+          >版本历史</el-button>
+          <el-button
+            size="mini"
+            type="text"
             icon="el-icon-delete"
             @click="handleDelete(scope.row)"
             v-hasPermi="['system:policy:remove']"
@@ -118,7 +125,7 @@
         </template>
       </el-table-column>
     </el-table>
-    
+
     <pagination
       v-show="total>0"
       :total="total"
@@ -173,11 +180,79 @@
         <el-button @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
+
+    <!-- 权限策略版本历史 -->
+    <el-dialog
+      :title="versionTitle"
+      :visible.sync="versionOpen"
+      width="900px"
+      append-to-body
+    >
+      <el-table :data="versionList" border stripe>
+        <el-table-column label="版本" width="80" align="center">
+          <template slot-scope="scope">
+            V{{ scope.row.versionNo }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="变更类型" prop="changeType" width="110" align="center">
+          <template slot-scope="scope">
+            <el-tag
+              size="mini"
+              :type="scope.row.changeType === 'UPDATE' ? 'warning' : 'success'"
+            >
+              {{ scope.row.changeType }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="策略编码" prop="policyCode" min-width="160" show-overflow-tooltip />
+        <el-table-column label="策略名称" prop="policyName" min-width="150" show-overflow-tooltip />
+        <el-table-column label="效果" prop="effect" width="90" align="center" />
+        <el-table-column label="优先级" prop="priority" width="80" align="center" />
+        <el-table-column label="变更人" prop="changeBy" width="100" align="center" />
+
+        <el-table-column label="变更时间" prop="changeTime" width="170" align="center">
+          <template slot-scope="scope">
+            <span>{{ parseTime(scope.row.changeTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column type="expand">
+          <template slot-scope="scope">
+            <el-form label-position="left" inline class="demo-table-expand">
+              <el-form-item label="主体类型">
+                <span>{{ scope.row.subjectType || '-' }}</span>
+              </el-form-item>
+              <el-form-item label="主体条件">
+                <span>{{ scope.row.subjectExpr || '-' }}</span>
+              </el-form-item>
+              <el-form-item label="资源条件">
+                <span>{{ scope.row.resourceExpr || '-' }}</span>
+              </el-form-item>
+              <el-form-item label="环境条件">
+                <span>{{ scope.row.envExpr || '-' }}</span>
+              </el-form-item>
+              <el-form-item label="状态">
+                <span>{{ scope.row.status === '0' ? '正常' : '停用' }}</span>
+              </el-form-item>
+              <el-form-item label="备注">
+                <span>{{ scope.row.remark || '-' }}</span>
+              </el-form-item>
+            </el-form>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="versionOpen = false">关 闭</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { listPolicy, getPolicy, delPolicy, addPolicy, updatePolicy } from "@/api/system/policy"
+import { listPolicy, getPolicy, delPolicy, addPolicy, updatePolicy, getPolicyVersions } from "@/api/system/policy"
 
 export default {
   name: "Policy",
@@ -201,6 +276,12 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+      // 版本历史弹窗
+      versionOpen: false,
+      // 版本历史标题
+      versionTitle: "策略版本历史",
+      // 版本历史数据
+      versionList: [],
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -321,6 +402,14 @@ export default {
             })
           }
         }
+      })
+    },
+    /** 查看策略版本历史 */
+    handleVersions(row) {
+      getPolicyVersions(row.id).then(response => {
+        this.versionList = response.data || []
+        this.versionTitle = row.policyName + " - 版本历史"
+        this.versionOpen = true
       })
     },
     /** 删除按钮操作 */

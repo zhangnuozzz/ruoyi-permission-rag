@@ -114,4 +114,64 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <resultMap type="SysPolicyVersion" id="SysPolicyVersionResult">
+        <result property="id" column="id"/>
+        <result property="policyId" column="policy_id"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="policyCode" column="policy_code"/>
+        <result property="policyName" column="policy_name"/>
+        <result property="effect" column="effect"/>
+        <result property="subjectType" column="subject_type"/>
+        <result property="subjectExpr" column="subject_expr"/>
+        <result property="resourceExpr" column="resource_expr"/>
+        <result property="envExpr" column="env_expr"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="changeType" column="change_type"/>
+        <result property="changeBy" column="change_by"/>
+        <result property="changeTime" column="change_time"/>
+    </resultMap>
+
+    <select id="selectPolicyVersionList"
+            parameterType="Long"
+            resultMap="SysPolicyVersionResult">
+        select id, policy_id, version_no, policy_code, policy_name,
+               effect, subject_type, subject_expr, resource_expr,
+               env_expr, priority, status, remark,
+               change_type, change_by, change_time
+        from sys_policy_version
+        where policy_id = #{policyId}
+        order by version_no desc
+    </select>
+
+    <select id="selectMaxPolicyVersionNo"
+            parameterType="Long"
+            resultType="Integer">
+        select coalesce(max(version_no), 0)
+        from sys_policy_version
+        where policy_id = #{policyId}
+    </select>
+
+    <insert id="insertPolicyVersion"
+            parameterType="SysPolicyVersion"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        insert into sys_policy_version
+        (
+            policy_id, version_no, policy_code, policy_name,
+            effect, subject_type, subject_expr, resource_expr,
+            env_expr, priority, status, remark,
+            change_type, change_by, change_time
+        )
+        values
+        (
+            #{policyId}, #{versionNo}, #{policyCode}, #{policyName},
+            #{effect}, #{subjectType}, #{subjectExpr}, #{resourceExpr},
+            #{envExpr}, #{priority}, #{status}, #{remark},
+            #{changeType}, #{changeBy}, #{changeTime}
+        )
+    </insert>
+
 </mapper>

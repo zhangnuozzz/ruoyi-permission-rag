@@ -2,6 +2,7 @@ package com.ruoyi.system.mapper;
 
 import java.util.List;
 import com.ruoyi.system.domain.SysPolicy;
+import com.ruoyi.system.domain.SysPolicyVersion;
 
 /**
  * 权限策略定义Mapper接口
@@ -58,4 +59,19 @@ public interface SysPolicyMapper
      * @return 结果
      */
     public int deleteSysPolicyByIds(Long[] ids);
+
+    /**
+     * 查询策略版本历史。
+     */
+    public List<SysPolicyVersion> selectPolicyVersionList(Long policyId);
+
+    /**
+     * 查询当前最大版本号。
+     */
+    public Integer selectMaxPolicyVersionNo(Long policyId);
+
+    /**
+     * 保存策略版本快照。
+     */
+    public int insertPolicyVersion(SysPolicyVersion version);
 }

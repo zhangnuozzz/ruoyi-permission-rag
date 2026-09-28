@@ -2,6 +2,7 @@ package com.ruoyi.system.service;
 
 import java.util.List;
 import com.ruoyi.system.domain.SysPolicy;
+import com.ruoyi.system.domain.SysPolicyVersion;
 
 /**
  * 权限策略定义Service接口
@@ -18,6 +19,14 @@ public interface ISysPolicyService
      * @return 权限策略定义
      */
     public SysPolicy selectSysPolicyById(Long id);
+
+    /**
+     * 查询指定策略的版本历史。
+     *
+     * @param policyId 策略ID
+     * @return 策略版本历史
+     */
+    public List<SysPolicyVersion> selectPolicyVersionList(Long policyId);
 
     /**
      * 查询权限策略定义列表

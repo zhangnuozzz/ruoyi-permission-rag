@@ -42,3 +42,11 @@ export function delPolicy(id) {
     method: 'delete'
   })
 }
+
+// 查询权限策略版本历史
+export function getPolicyVersions(id) {
+  return request({
+    url: '/system/policy/' + id + '/versions',
+    method: 'get'
+  })
+}

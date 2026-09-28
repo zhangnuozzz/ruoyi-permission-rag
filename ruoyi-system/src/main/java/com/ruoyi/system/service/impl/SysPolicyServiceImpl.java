@@ -4,8 +4,10 @@ import java.util.List;
 import com.ruoyi.common.utils.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.ruoyi.system.mapper.SysPolicyMapper;
 import com.ruoyi.system.domain.SysPolicy;
+import com.ruoyi.system.domain.SysPolicyVersion;
 import com.ruoyi.system.service.ISysPolicyService;
 
 /**
@@ -33,6 +35,15 @@ public class SysPolicyServiceImpl implements ISysPolicyService
     }
 
     /**
+     * 查询策略版本历史。
+     */
+    @Override
+    public List<SysPolicyVersion> selectPolicyVersionList(Long policyId)
+    {
+        return sysPolicyMapper.selectPolicyVersionList(policyId);
+    }
+
+    /**
      * 查询权限策略定义列表
      * 
      * @param sysPolicy 权限策略定义
@@ -51,10 +62,18 @@ public class SysPolicyServiceImpl implements ISysPolicyService
      * @return 结果
      */
     @Override
+    @Transactional
     public int insertSysPolicy(SysPolicy sysPolicy)
     {
         sysPolicy.setCreateTime(DateUtils.getNowDate());
-        return sysPolicyMapper.insertSysPolicy(sysPolicy);
+        int rows = sysPolicyMapper.insertSysPolicy(sysPolicy);
+
+        if (rows > 0)
+        {
+            savePolicyVersion(sysPolicy.getId(), "CREATE", sysPolicy.getCreateBy());
+        }
+
+        return rows;
     }
 
     /**
@@ -64,10 +83,18 @@ public class SysPolicyServiceImpl implements ISysPolicyService
      * @return 结果
      */
     @Override
+    @Transactional
     public int updateSysPolicy(SysPolicy sysPolicy)
     {
         sysPolicy.setUpdateTime(DateUtils.getNowDate());
-        return sysPolicyMapper.updateSysPolicy(sysPolicy);
+        int rows = sysPolicyMapper.updateSysPolicy(sysPolicy);
+
+        if (rows > 0)
+        {
+            savePolicyVersion(sysPolicy.getId(), "UPDATE", sysPolicy.getUpdateBy());
+        }
+
+        return rows;
     }
 
     /**
@@ -93,4 +120,38 @@ public class SysPolicyServiceImpl implements ISysPolicyService
     {
         return sysPolicyMapper.deleteSysPolicyById(id);
     }
+
+    /**
+     * 保存当前策略完整快照。
+     */
+    private void savePolicyVersion(Long policyId, String changeType, String changeBy)
+    {
+        SysPolicy current = sysPolicyMapper.selectSysPolicyById(policyId);
+        if (current == null)
+        {
+            return;
+        }
+
+        Integer maxVersion = sysPolicyMapper.selectMaxPolicyVersionNo(policyId);
+
+        SysPolicyVersion version = new SysPolicyVersion();
+        version.setPolicyId(policyId);
+        version.setVersionNo(maxVersion == null ? 1 : maxVersion + 1);
+        version.setPolicyCode(current.getPolicyCode());
+        version.setPolicyName(current.getPolicyName());
+        version.setEffect(current.getEffect());
+        version.setSubjectType(current.getSubjectType());
+        version.setSubjectExpr(current.getSubjectExpr());
+        version.setResourceExpr(current.getResourceExpr());
+        version.setEnvExpr(current.getEnvExpr());
+        version.setPriority(current.getPriority());
+        version.setStatus(current.getStatus());
+        version.setRemark(current.getRemark());
+        version.setChangeType(changeType);
+        version.setChangeBy(changeBy == null ? "" : changeBy);
+        version.setChangeTime(DateUtils.getNowDate());
+
+        sysPolicyMapper.insertPolicyVersion(version);
+    }
+
 }
