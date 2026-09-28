@@ -3,18 +3,18 @@
     <el-card shadow="never" class="box-card">
       <div slot="header" class="card-header">
         <div>
-          <div class="page-title">RAG 安全检索测试</div>
+          <div class="page-title">RAG 安全检索</div>
           <div class="page-subtitle">
-            支持平台 Mock 检索与 RAG Server 真实检索联调，验证“权限上下文 → Milvus 粗过滤 → 平台二次过滤 → 审计留痕 → AI 回答”的完整安全链路。
+            基于统一身份权限、真实向量召回、二次权限过滤与审计留痕，提供安全可控的知识检索服务。
           </div>
         </div>
         <el-tag :type="form.useRemote ? 'success' : 'warning'" effect="plain">
-          {{ form.useRemote ? '真实 RAG Server 检索' : '平台 Mock 检索' }}
+          {{ form.useRemote ? '真实 RAG 检索' : '演示检索' }}
         </el-tag>
       </div>
 
       <el-alert
-        title="链路定位：用户问题 → 查询安全上下文 → Milvus 兼容粗过滤 → 真实向量召回 → 平台精细二次过滤 → 审计日志与行为分析"
+        title="安全链路：身份校验 → 安全检索 → 权限过滤 → 智能回答 → 审计留痕"
         type="info"
         :closable="false"
         show-icon
@@ -24,15 +24,15 @@
       <el-form :model="form" label-width="100px" class="search-form">
         <el-form-item label="检索模式">
           <el-radio-group v-model="form.useRemote">
-            <el-radio-button :label="false">平台 Mock 检索</el-radio-button>
-            <el-radio-button :label="true">RAG Server 真实检索</el-radio-button>
+            <el-radio-button :label="false">演示检索</el-radio-button>
+            <el-radio-button :label="true">真实 RAG 检索</el-radio-button>
           </el-radio-group>
           <span class="mode-tip">
-            {{ form.useRemote ? '调用 localhost:8081/rag/search' : '读取 sys_rag_doc 模拟候选集' }}
+            {{ form.useRemote ? '已接入远程 RAG 检索服务' : '使用平台内置演示数据' }}
           </span>
         </el-form-item>
 
-        <el-form-item label="TopK">
+        <el-form-item label="召回数量">
           <el-input-number v-model="form.topK" :min="1" :max="20" />
         </el-form-item>
 
@@ -436,7 +436,7 @@ export default {
         if (response && response.code && response.code !== 200) {
           this.$message.warning(response.msg || data.message || '检索请求返回异常')
         } else {
-          this.$message.success(this.form.useRemote ? '真实 RAG Server 检索完成' : '平台 Mock 检索完成')
+          this.$message.success(this.form.useRemote ? '真实 RAG 检索完成' : '演示检索完成')
         }
       }).catch(error => {
         console.error(error)

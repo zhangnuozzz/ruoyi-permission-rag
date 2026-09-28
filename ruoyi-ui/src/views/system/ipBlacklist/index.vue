@@ -11,7 +11,7 @@
       </div>
 
       <el-alert
-        title="本地开发保护：127.0.0.1、localhost、IPv6 本地回环地址默认不会被黑名单拦截，避免开发阶段误封自己。"
+        title="系统保留本地回环地址保护，避免本机管理访问被误封。"
         type="warning"
         :closable="false"
         show-icon

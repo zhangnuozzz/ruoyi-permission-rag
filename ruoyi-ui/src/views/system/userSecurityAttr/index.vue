@@ -3,8 +3,7 @@
     <el-card class="intro-card" shadow="never">
       <div class="intro-title">用户安全属性管理</div>
       <div class="intro-desc">
-        用于维护 VACP 零信任安全向量检索中的用户密级、访问状态、访问时间窗口和风险等级。
-        后续 ABAC、TBAC、BBAC、访问决策引擎、风险评分和安全检索过滤均基于这些属性完成。
+        维护用户密级、访问状态、访问时间窗口与风险等级，为 ABAC、TBAC、BBAC、安全检索与风险控制提供统一身份属性。
       </div>
     </el-card>
 

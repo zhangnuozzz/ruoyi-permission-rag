@@ -4,12 +4,12 @@
       <div slot="header">
         <div class="page-title">RAG 文件入库</div>
         <div class="page-subtitle">
-          通过若依平台上传带权限标签的文件，由后端代理转发至 RAG Server，完成 MariaDB / MinIO / Milvus 三段式存储，并自动回写文档权限标签。
+          上传带权限标签的知识文件，系统完成文件解析、原文件保存、向量切块写入及文档权限标签同步。
         </div>
       </div>
 
       <el-alert
-        title="对接链路：若依前端 → 若依后端 8080 → RAG Server 8081 → MariaDB / MinIO / Milvus → sys_rag_doc 权限标签回写"
+        title="入库链路：文件提交 → 内容解析与切块 → 原文件保存 → 向量写入 → 文档权限标签同步"
         type="info"
         :closable="false"
         show-icon
@@ -19,28 +19,28 @@
       <el-row :gutter="12" class="status-row">
         <el-col :span="6">
           <div class="status-card">
-            <div class="status-label">平台入口</div>
-            <div class="status-value">若依前端 1024</div>
+            <div class="status-label">管理入口</div>
+            <div class="status-value">向量库管理平台</div>
             <el-tag size="mini" type="success">已接入</el-tag>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="status-card">
-            <div class="status-label">代理服务</div>
-            <div class="status-value">若依后端 8080</div>
+            <div class="status-label">入库服务</div>
+            <div class="status-value">文件处理服务</div>
             <el-tag size="mini" type="success">转发中</el-tag>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="status-card">
-            <div class="status-label">RAG 服务</div>
-            <div class="status-value">RAG Server 8081</div>
+            <div class="status-label">检索服务</div>
+            <div class="status-value">RAG 检索服务</div>
             <el-tag size="mini" type="success">已对接</el-tag>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="status-card">
-            <div class="status-label">三段式存储</div>
+            <div class="status-label">知识存储</div>
             <div class="status-value">MariaDB / MinIO / Milvus</div>
             <el-tag size="mini" type="success">可验证</el-tag>
           </div>
@@ -98,7 +98,7 @@
         <el-form-item>
           <el-button type="primary" :loading="uploading" @click="handleUpload">上传入库</el-button>
           <el-button @click="resetUpload">重置</el-button>
-          <el-button type="success" plain :loading="refreshing" @click="refreshAll">刷新三端列表</el-button>
+          <el-button type="success" plain :loading="refreshing" @click="refreshAll">刷新存储状态</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -142,7 +142,7 @@
 
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
-        <span>MariaDB 文件元数据</span>
+        <span>文件元数据</span>
         <div>
           <el-tag size="mini" type="info">sys_rag_file</el-tag>
           <el-button size="mini" type="primary" plain @click="loadMariadb">刷新</el-button>
@@ -184,9 +184,9 @@
         </el-table-column>
         <el-table-column label="向量索引" prop="vectorIndexType" width="100" />
         <el-table-column label="元数据索引" prop="metadataIndexStatus" width="120" />
-        <el-table-column label="doc_level" prop="docLevel" width="110" />
-        <el-table-column label="doc_group" prop="docGroup" width="140" />
-        <el-table-column label="doc_status" prop="docStatus" width="110" />
+        <el-table-column label="文档密级" prop="docLevel" width="110" />
+        <el-table-column label="所属用户组" prop="docGroup" width="140" />
+        <el-table-column label="文档状态" prop="docStatus" width="110" />
         <el-table-column label="MinIO对象" prop="minioObjectName" min-width="260" show-overflow-tooltip>
           <template slot-scope="scope">
             <span class="mono-text">{{ scope.row.minioObjectName }}</span>
@@ -202,7 +202,7 @@
 
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
-        <span>Milvus 切块内容</span>
+        <span>向量切块数据</span>
         <div>
           <el-tag size="mini" type="info">rag_file_chunks</el-tag>
           <el-button size="mini" type="primary" plain @click="loadMilvus">刷新</el-button>
@@ -245,7 +245,7 @@
 
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
-        <span>MinIO 原始文件对象</span>
+        <span>原始文件对象</span>
         <div>
           <el-tag size="mini" type="info">rag-files bucket</el-tag>
           <el-button size="mini" type="primary" plain @click="loadMinio">刷新</el-button>

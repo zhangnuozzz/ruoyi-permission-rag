@@ -11,7 +11,7 @@
       </div>
 
       <el-alert
-        title="本地开发保护：127.0.0.1、localhost、IPv6 本地回环地址默认不会被白名单拦截，避免开发阶段误封自己。"
+        title="白名单优先：同一 IP 同时存在于启用状态的白名单和黑名单时，白名单规则优先生效。"
         type="success"
         :closable="false"
         show-icon

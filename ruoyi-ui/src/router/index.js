@@ -43,6 +43,16 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: '/knowledge',
+    component: (resolve) => require(['@/views/knowledge/index'], resolve),
+    name: 'KnowledgePortal',
+    hidden: true,
+    meta: {
+      title: '大模型向量知识库系统',
+      noCache: true
+    }
+  },
+  {
     path: '/404',
     component: (resolve) => require(['@/views/error/404'], resolve),
     hidden: true

@@ -17,10 +17,10 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="优先级，数值越小优先级越高" prop="priority">
+      <el-form-item label="优先级" prop="priority">
         <el-input
           v-model="queryParams.priority"
-          placeholder="请输入优先级，数值越小优先级越高"
+          placeholder="请输入优先级"
           clearable
           @keyup.enter.native="handleQuery"
         />
@@ -79,16 +79,39 @@
 
     <el-table v-loading="loading" :data="policyList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键ID" align="center" prop="id" />
+      <el-table-column label="ID" align="center" prop="id" />
       <el-table-column label="策略编码" align="center" prop="policyCode" />
       <el-table-column label="策略名称" align="center" prop="policyName" />
-      <el-table-column label="策略效果" align="center" prop="effect" />
-      <el-table-column label="主体类型" align="center" prop="subjectType" />
-      <el-table-column label="主体条件表达式" align="center" prop="subjectExpr" />
-      <el-table-column label="资源条件表达式" align="center" prop="resourceExpr" />
-      <el-table-column label="环境条件表达式" align="center" prop="envExpr" />
-      <el-table-column label="优先级，数值越小优先级越高" align="center" prop="priority" />
-      <el-table-column label="状态" align="center" prop="status" />
+      <el-table-column label="策略效果" align="center" prop="effect" width="100">
+        <template slot-scope="scope">
+          <el-tag
+            size="mini"
+            :type="scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? 'success' : 'danger'"
+          >
+            {{ scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? '允许' : '拒绝' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="主体类型" align="center" prop="subjectType" width="110">
+        <template slot-scope="scope">
+          <span v-if="scope.row.subjectType === 'USER'">用户</span>
+          <span v-else-if="scope.row.subjectType === 'GROUP'">用户组</span>
+          <span v-else>{{ scope.row.subjectType || '-' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="主体条件" align="center" prop="subjectExpr" min-width="150" show-overflow-tooltip />
+      <el-table-column label="资源条件" align="center" prop="resourceExpr" min-width="150" show-overflow-tooltip />
+      <el-table-column label="环境条件" align="center" prop="envExpr" min-width="150" show-overflow-tooltip />
+      <el-table-column label="优先级" align="center" prop="priority" width="90" />
+
+      <el-table-column label="状态" align="center" prop="status" width="90">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
+            {{ scope.row.status === '0' ? '正常' : '停用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="创建时间" align="center" prop="createTime" width="180">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
@@ -148,6 +171,24 @@
               <el-input v-model="form.policyName" placeholder="请输入策略名称" />
             </el-form-item>
           </el-col>
+
+          <el-col :span="12">
+            <el-form-item label="策略效果" prop="effect">
+              <el-select v-model="form.effect" placeholder="请选择策略效果" style="width: 100%">
+                <el-option label="允许" value="0" />
+                <el-option label="拒绝" value="1" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="12">
+            <el-form-item label="主体类型" prop="subjectType">
+              <el-select v-model="form.subjectType" placeholder="请选择主体类型" style="width: 100%">
+                <el-option label="用户" value="USER" />
+                <el-option label="用户组" value="GROUP" />
+              </el-select>
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="主体条件表达式" prop="subjectExpr">
               <el-input v-model="form.subjectExpr" type="textarea" placeholder="请输入内容" />
@@ -164,10 +205,25 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="优先级，数值越小优先级越高" prop="priority">
-              <el-input v-model="form.priority" placeholder="请输入优先级，数值越小优先级越高" />
+            <el-form-item label="优先级" prop="priority">
+              <el-input-number
+                v-model="form.priority"
+                :min="1"
+                :max="9999"
+                controls-position="right"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
+          <el-col :span="24">
+            <el-form-item label="状态" prop="status">
+              <el-radio-group v-model="form.status">
+                <el-radio label="0">正常</el-radio>
+                <el-radio label="1">停用</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+
           <el-col :span="24">
             <el-form-item label="备注" prop="remark">
               <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -201,14 +257,31 @@
               size="mini"
               :type="scope.row.changeType === 'UPDATE' ? 'warning' : 'success'"
             >
-              {{ scope.row.changeType }}
+              {{
+                scope.row.changeType === 'BASELINE'
+                  ? '初始基线'
+                  : scope.row.changeType === 'CREATE'
+                    ? '新建'
+                    : scope.row.changeType === 'UPDATE'
+                      ? '更新'
+                      : scope.row.changeType
+              }}
             </el-tag>
           </template>
         </el-table-column>
 
         <el-table-column label="策略编码" prop="policyCode" min-width="160" show-overflow-tooltip />
         <el-table-column label="策略名称" prop="policyName" min-width="150" show-overflow-tooltip />
-        <el-table-column label="效果" prop="effect" width="90" align="center" />
+        <el-table-column label="效果" prop="effect" width="90" align="center">
+          <template slot-scope="scope">
+            <el-tag
+              size="mini"
+              :type="scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? 'success' : 'danger'"
+            >
+              {{ scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? '允许' : '拒绝' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="优先级" prop="priority" width="80" align="center" />
         <el-table-column label="变更人" prop="changeBy" width="100" align="center" />
 
@@ -288,10 +361,10 @@ export default {
         pageSize: 10,
         policyCode: null,
         policyName: null,
-        effect: null,
-        subjectType: null,
-        priority: null,
-        status: null,
+        effect: '0',
+        subjectType: 'GROUP',
+        priority: 100,
+        status: '0',
       },
       // 表单参数
       form: {},
@@ -336,13 +409,13 @@ export default {
         id: null,
         policyCode: null,
         policyName: null,
-        effect: null,
-        subjectType: null,
+        effect: '0',
+        subjectType: 'GROUP',
         subjectExpr: null,
         resourceExpr: null,
         envExpr: null,
-        priority: null,
-        status: null,
+        priority: 100,
+        status: '0',
         remark: null,
         createBy: null,
         createTime: null,

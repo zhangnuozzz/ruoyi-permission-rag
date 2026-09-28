@@ -5,7 +5,7 @@
         <div>
           <div class="page-title">RAG 权限上下文</div>
           <div class="page-subtitle">
-            展示当前登录用户在 RAG 检索前的权限画像，包括所属用户组、可访问标签、命中策略与访问判断结果。后续真实检索接口接入后，该上下文将作为检索请求的权限输入。
+            展示当前登录用户的权限画像，包括所属用户组、可访问范围、命中策略与访问判断结果。该上下文作为安全检索、策略决策与结果二次过滤的统一权限输入。
           </div>
         </div>
         <el-button type="primary" size="mini" icon="el-icon-refresh" :loading="loading" @click="loadContext">
@@ -14,7 +14,7 @@
       </div>
 
       <el-alert
-        title="链路定位：当前用户 → 用户组关系 → 策略绑定 → 权限上下文 → 后续传入 RAG Server 检索接口"
+        title="权限链路：当前用户 → 用户组 → 策略绑定 → 权限上下文 → 安全检索"
         type="info"
         :closable="false"
         show-icon
@@ -38,7 +38,7 @@
                 {{ context.admin ? '管理员' : '普通用户' }}
               </el-tag>
             </div>
-            <div class="summary-extra">admin = {{ context.admin }}</div>
+            <div class="summary-extra">{{ context.admin ? '具备管理员权限' : '普通业务用户' }}</div>
           </div>
         </el-col>
 
@@ -58,9 +58,9 @@
           <div class="summary-card">
             <div class="summary-label">权限范围数量</div>
             <div class="summary-value">
-              {{ safeList(context.scopeCodes).length }} 个 scopeCode
+              {{ safeList(context.访问范围).length }} 项知悉范围
             </div>
-            <div class="summary-extra">{{ safeList(context.groupCodes).length }} 个用户组编码</div>
+            <div class="summary-extra">{{ safeList(context.groupCodes).length }} 个所属用户组</div>
           </div>
         </el-col>
       </el-row>
@@ -71,7 +71,7 @@
         <el-card shadow="never" class="result-card">
           <div slot="header" class="table-header">
             <span>所属用户组</span>
-            <el-tag size="mini" type="info">sys_group / sys_user_group_rel</el-tag>
+            <el-tag size="mini" type="info">用户组信息</el-tag>
           </div>
 
           <el-table v-loading="loading" :data="safeList(context.groups)" border stripe>
@@ -102,13 +102,13 @@
         <el-card shadow="never" class="result-card">
           <div slot="header" class="table-header">
             <span>可访问权限标签</span>
-            <el-tag size="mini" type="info">scopeCodes</el-tag>
+            <el-tag size="mini" type="info">访问范围</el-tag>
           </div>
 
           <div class="tag-area">
-            <template v-if="safeList(context.scopeCodes).length">
+            <template v-if="safeList(context.访问范围).length">
               <el-tag
-                v-for="item in safeList(context.scopeCodes)"
+                v-for="item in safeList(context.访问范围)"
                 :key="item"
                 type="success"
                 effect="plain"
@@ -162,7 +162,7 @@
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
         <span>命中策略</span>
-        <el-tag size="mini" type="info">sys_policy / sys_policy_bind</el-tag>
+        <el-tag size="mini" type="info">策略信息</el-tag>
       </div>
 
       <el-table v-loading="loading" :data="safeList(context.policies)" border stripe>
@@ -190,7 +190,7 @@
 
     <el-card shadow="never" class="result-card">
       <div slot="header" class="table-header">
-        <span>后续传给 RAG Server 检索接口的上下文 JSON</span>
+        <span>权限上下文技术详情</span>
         <el-button size="mini" type="primary" plain @click="copyJson">复制 JSON</el-button>
       </div>
 

@@ -1,292 +1,443 @@
 <template>
   <div class="dashboard-container">
-    <el-card class="hero-card" shadow="never">
-      <div class="hero-title">权限控制 RAG 平台</div>
-      <div class="hero-subtitle">
-        面向大模型向量库场景，提供权限治理、RAG 文件入库、真实向量检索、权限二次过滤、审计留痕、日志导出与行为分析告警能力。
-      </div>
-      <div class="tag-row">
-        <el-tag type="success">RuoYi-Vue 3.2</el-tag>
-        <el-tag>RAG Server 8081</el-tag>
-        <el-tag type="warning">MariaDB / MinIO / Milvus</el-tag>
-        <el-tag type="danger">权限过滤与审计</el-tag>
-        <el-tag type="info">平台侧已完成</el-tag>
+
+    <!-- 顶部概览 -->
+    <el-card shadow="never" class="hero-card">
+      <div class="hero-main">
+        <div>
+          <div class="hero-eyebrow">VECTOR KNOWLEDGE ACCESS CONTROL</div>
+          <div class="hero-title">大模型向量库管理平台</div>
+          <div class="hero-subtitle">
+            面向大模型知识库与 RAG 场景，统一管理身份权限、知识入库、
+            安全检索、结果过滤、审计留痕与行为告警。
+          </div>
+        </div>
+
+        <div class="hero-tags">
+          <el-tag type="success" effect="plain">统一权限治理</el-tag>
+          <el-tag type="primary" effect="plain">安全向量检索</el-tag>
+          <el-tag type="warning" effect="plain">审计与告警</el-tag>
+        </div>
       </div>
     </el-card>
 
+    <!-- 四项核心能力 -->
     <el-row :gutter="16" class="summary-row">
       <el-col :span="6">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-label">权限治理</div>
-          <div class="summary-value">已完成</div>
-          <div class="summary-desc">用户组、策略、策略绑定、权限上下文</div>
+        <el-card shadow="never" class="summary-card">
+          <div class="summary-icon">
+            <i class="el-icon-user"></i>
+          </div>
+          <div class="summary-content">
+            <div class="summary-title">身份与权限治理</div>
+            <div class="summary-desc">
+              用户安全属性、用户组、权限策略及策略绑定统一管理
+            </div>
+          </div>
         </el-card>
       </el-col>
+
       <el-col :span="6">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-label">RAG 文件入库</div>
-          <div class="summary-value">已跑通</div>
-          <div class="summary-desc">MariaDB / MinIO / Milvus 三段式链路</div>
+        <el-card shadow="never" class="summary-card">
+          <div class="summary-icon">
+            <i class="el-icon-upload2"></i>
+          </div>
+          <div class="summary-content">
+            <div class="summary-title">知识文件入库</div>
+            <div class="summary-desc">
+              文件解析、对象存储、向量切块与权限标签同步
+            </div>
+          </div>
         </el-card>
       </el-col>
+
       <el-col :span="6">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-label">权限检索过滤</div>
-          <div class="summary-value">已联调</div>
-          <div class="summary-desc">Metadata Filter + 平台二次过滤</div>
+        <el-card shadow="never" class="summary-card">
+          <div class="summary-icon">
+            <i class="el-icon-search"></i>
+          </div>
+          <div class="summary-content">
+            <div class="summary-title">安全检索</div>
+            <div class="summary-desc">
+              权限约束、向量召回与平台侧结果二次校验
+            </div>
+          </div>
         </el-card>
       </el-col>
+
       <el-col :span="6">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-label">审计与告警</div>
-          <div class="summary-value">已闭环</div>
-          <div class="summary-desc">JSON 留痕、日志导出、行为分析</div>
+        <el-card shadow="never" class="summary-card">
+          <div class="summary-icon">
+            <i class="el-icon-warning-outline"></i>
+          </div>
+          <div class="summary-content">
+            <div class="summary-title">审计与告警</div>
+            <div class="summary-desc">
+              检索审计、风险分析、行为告警与 Syslog 转发
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
+    <!-- 架构 -->
     <el-row :gutter="16">
-      <el-col :span="14">
-        <el-card shadow="never" class="box-card">
-          <div slot="header" class="card-title">
-            <span>系统总体架构</span>
-            <el-tag size="mini" type="success">1–10 平台侧闭环</el-tag>
+      <el-col :span="15">
+        <el-card shadow="never" class="content-card">
+          <div slot="header" class="card-header">
+            <div>
+              <div class="card-title">系统总体架构</div>
+              <div class="card-subtitle">
+                权限治理与 RAG 检索分层，实现检索前约束与检索后二次校验
+              </div>
+            </div>
           </div>
 
-          <div class="arch-wrapper">
-            <img class="arch-img" src="@/assets/images/rag/rag_architecture.png" alt="权限控制 RAG 平台架构图">
-          </div>
-
-          <div class="arch-note">
-            系统围绕“权限治理 → 文档入库 → RAG 检索 → 权限过滤 → 审计分析”构建平台侧闭环。
-            用户请求进入平台后，系统先生成权限上下文和 Metadata Filter，再调用 RAG Server 进行向量检索，
-            返回结果会经过平台侧二次过滤，并写入审计日志，后续支持日志导出和行为分析告警。
+          <div class="architecture-box">
+            <img
+              class="architecture-image"
+              src="@/assets/images/rag/rag_architecture.png"
+              alt="大模型向量库总体架构"
+            >
           </div>
         </el-card>
       </el-col>
 
-      <el-col :span="10">
-        <el-card shadow="never" class="box-card">
-          <div slot="header" class="card-title">
-            <span>当前实现边界</span>
-            <el-tag size="mini" type="warning">平台侧完成</el-tag>
+      <el-col :span="9">
+        <el-card shadow="never" class="content-card">
+          <div slot="header" class="card-header">
+            <div>
+              <div class="card-title">实现思路</div>
+              <div class="card-subtitle">
+                权限控制贯穿知识检索全链路
+              </div>
+            </div>
           </div>
 
-          <el-timeline>
-            <el-timeline-item color="#67C23A" timestamp="平台侧已完成">
-              权限主体、权限策略、策略绑定、文档标签、RAG 入库、权限过滤、审计日志、日志导出与行为告警均已实现。
-            </el-timeline-item>
-            <el-timeline-item color="#409EFF" timestamp="RAG 检索已联调">
-              平台侧可调用 RAG Server 的真实检索接口，基于 Milvus 返回候选结果，并进行权限二次过滤。
-            </el-timeline-item>
-            <el-timeline-item color="#E6A23C" timestamp="后续扩展">
-              大模型生成回答层可继续接入 LLM API 或本地模型，将检索结果作为上下文生成自然语言答案。
-            </el-timeline-item>
-          </el-timeline>
+          <div class="design-list">
+            <div class="design-item">
+              <div class="design-index">01</div>
+              <div>
+                <div class="design-title">统一身份与权限上下文</div>
+                <div class="design-desc">
+                  将用户密级、用户组、知悉范围及策略统一转换为检索约束。
+                </div>
+              </div>
+            </div>
+
+            <div class="design-item">
+              <div class="design-index">02</div>
+              <div>
+                <div class="design-title">受控候选空间内向量召回</div>
+                <div class="design-desc">
+                  将权限信息转换为可执行过滤条件，在权限边界内进行候选检索。
+                </div>
+              </div>
+            </div>
+
+            <div class="design-item">
+              <div class="design-index">03</div>
+              <div>
+                <div class="design-title">平台侧二次权限校验</div>
+                <div class="design-desc">
+                  对候选结果逐条校验密级、知悉范围与用户组，阻断越权结果。
+                </div>
+              </div>
+            </div>
+
+            <div class="design-item">
+              <div class="design-index">04</div>
+              <div>
+                <div class="design-title">审计与风险处置</div>
+                <div class="design-desc">
+                  对访问决策、过滤结果与异常行为形成完整审计记录和告警闭环。
+                </div>
+              </div>
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card shadow="never" class="box-card module-card">
-      <div slot="header" class="card-title">
-        <span>功能模块实现说明</span>
-        <el-tag size="mini" type="danger">对应架构图 1–10</el-tag>
+    <!-- 主链路 -->
+    <el-card shadow="never" class="flow-card">
+      <div slot="header" class="card-header">
+        <div>
+          <div class="card-title">安全检索主链路</div>
+          <div class="card-subtitle">
+            从身份认证到结果返回的统一访问控制过程
+          </div>
+        </div>
       </div>
 
-      <el-table :data="moduleList" border>
-        <el-table-column label="编号" prop="id" width="70" align="center" />
-        <el-table-column label="模块" prop="name" width="150" align="center" />
-        <el-table-column label="实现说明" prop="desc" min-width="420" />
-        <el-table-column label="状态" width="100" align="center">
-          <template slot-scope="scope">
-            <el-tag v-if="scope.row.status === '已完成'" type="success">{{ scope.row.status }}</el-tag>
-            <el-tag v-else-if="scope.row.status === '已联调'" type="primary">{{ scope.row.status }}</el-tag>
-            <el-tag v-else type="warning">{{ scope.row.status }}</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="flow">
+        <div class="flow-step">
+          <i class="el-icon-user"></i>
+          <span>身份认证</span>
+        </div>
+
+        <i class="el-icon-right flow-arrow"></i>
+
+        <div class="flow-step">
+          <i class="el-icon-key"></i>
+          <span>权限解析</span>
+        </div>
+
+        <i class="el-icon-right flow-arrow"></i>
+
+        <div class="flow-step">
+          <i class="el-icon-search"></i>
+          <span>向量召回</span>
+        </div>
+
+        <i class="el-icon-right flow-arrow"></i>
+
+        <div class="flow-step">
+          <i class="el-icon-lock"></i>
+          <span>二次校验</span>
+        </div>
+
+        <i class="el-icon-right flow-arrow"></i>
+
+        <div class="flow-step">
+          <i class="el-icon-document-checked"></i>
+          <span>结果返回</span>
+        </div>
+
+        <i class="el-icon-right flow-arrow"></i>
+
+        <div class="flow-step">
+          <i class="el-icon-document"></i>
+          <span>审计留痕</span>
+        </div>
+      </div>
     </el-card>
 
-    <el-row :gutter="16">
-      <el-col :span="12">
-        <el-card shadow="never" class="box-card">
-          <div slot="header" class="card-title">核心安全检索链路</div>
-          <div class="flow-line">
-            <span>用户问题</span>
-            <i class="el-icon-right"></i>
-            <span>权限上下文</span>
-            <i class="el-icon-right"></i>
-            <span>Metadata Filter</span>
-            <i class="el-icon-right"></i>
-            <span class="green">RAG Server 检索</span>
-            <i class="el-icon-right"></i>
-            <span class="red">二次过滤</span>
-            <i class="el-icon-right"></i>
-            <span>审计留痕</span>
-          </div>
-          <div class="green-box">
-            当前平台侧已完成真实检索第一轮联调：平台使用 useRemote=true 调用 RAG Server /rag/search，
-            RAG Server 基于 Milvus 返回候选结果，平台继续执行权限二次过滤与审计留痕。
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="12">
-        <el-card shadow="never" class="box-card">
-          <div slot="header" class="card-title">审计与行为分析闭环</div>
-          <div class="audit-list">
-            <div><i class="el-icon-document"></i> 审计日志：记录 query、用户组、权限标签、metadataFilter、allow_access、耗时等字段。</div>
-            <div><i class="el-icon-view"></i> JSON 详情：记录用户上下文、请求 JSON、原始候选、通过结果、拦截结果和响应 JSON。</div>
-            <div><i class="el-icon-download"></i> 日志导出：支持将 RAG 审计日志导出为 Excel。</div>
-            <div><i class="el-icon-warning-outline"></i> 行为分析：基于审计日志生成普通访问、拒绝访问、异常耗时等告警记录。</div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="project-footer">
+      <span>大模型向量库项目</span>
+      <span class="footer-separator">·</span>
+      <span>实现：zhangnuozzz · fufu</span>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'Index',
-  data() {
-    return {
-      moduleList: [
-        { id: '1', name: '基础信息', desc: '维护权限主体基础信息，包括用户、用户组以及用户与用户组关系，为后续权限上下文生成提供基础数据。', status: '已完成' },
-        { id: '2', name: '权限策略', desc: '支持定义读取密级、知悉范围、访问时间、访问对象等权限策略，用于描述文档访问规则。', status: '已完成' },
-        { id: '3', name: '策略绑定实体', desc: '将权限策略绑定到用户、用户组、文档或目录等实体上，形成可执行的访问控制关系。', status: '已完成' },
-        { id: '4', name: '文件上传', desc: '通过 RAG 文件入库页面上传文档，平台转发到 RAG Server，写入 MariaDB 元数据、MinIO 原文件和 Milvus 向量库。', status: '已完成' },
-        { id: '5', name: '标签绑定', desc: '维护文档的知悉范围、文档密级和所属用户组等权限标签，文件入库后自动生成标签记录，也支持后期维护。', status: '已完成' },
-        { id: '6', name: '访问请求处理', desc: '用户发起 RAG 检索时，平台解析当前用户身份、用户组和可访问权限标签，并构造权限上下文。', status: '已完成' },
-        { id: '7', name: '数据检索', desc: '平台调用 RAG Server 的真实检索接口，RAG Server 基于 Milvus 向量库返回候选检索结果。', status: '已联调' },
-        { id: '8', name: '数据过滤模块', desc: '平台对 RAG 返回结果再次进行权限校验，过滤不符合当前用户权限范围的数据，防止越权返回。', status: '已完成' },
-        { id: '9', name: '日志导出', desc: 'RAG 审计日志支持页面查看、JSON 详情查看和 Excel 导出，便于后续审计追踪与归档。', status: '已完成' },
-        { id: '10', name: '行为分析', desc: '基于访问审计日志进行规则分析，生成普通访问、拒绝访问、异常耗时等行为告警并入库展示。', status: '已完成' }
-      ]
-    }
-  }
+  name: 'Index'
 }
 </script>
 
 <style scoped>
 .dashboard-container {
-  padding: 24px;
-  background: #f5f7fa;
   min-height: calc(100vh - 84px);
+  padding: 22px;
+  background: #f5f7fa;
 }
+
 .hero-card,
-.box-card,
-.summary-card {
+.summary-card,
+.content-card,
+.flow-card {
   border-radius: 8px;
 }
+
 .hero-card {
   margin-bottom: 16px;
 }
-.hero-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #303133;
-  margin-bottom: 12px;
-}
-.hero-subtitle {
-  font-size: 15px;
-  color: #606266;
-  line-height: 1.8;
-  margin-bottom: 14px;
-}
-.tag-row .el-tag {
-  margin-right: 10px;
-  margin-bottom: 6px;
-}
-.summary-row {
-  margin-bottom: 16px;
-}
-.summary-label {
-  color: #909399;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-.summary-value {
-  color: #303133;
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-.summary-desc {
-  color: #606266;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.box-card {
-  margin-bottom: 16px;
-}
-.card-title {
+
+.hero-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 18px;
+}
+
+.hero-eyebrow {
+  margin-bottom: 7px;
+  color: #6f8ca8;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+}
+
+.hero-title {
+  color: #26384d;
+  font-size: 27px;
   font-weight: 600;
 }
-.arch-wrapper {
-  background: #fff;
-  border: 1px solid #ebeef5;
+
+.hero-subtitle {
+  max-width: 760px;
+  margin-top: 10px;
+  color: #788898;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.hero-tags {
+  display: flex;
+  gap: 8px;
+  margin-left: 30px;
+}
+
+.summary-row {
+  margin-bottom: 16px;
+}
+
+.summary-card {
+  height: 108px;
+}
+
+.summary-card ::v-deep .el-card__body {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.summary-icon {
+  width: 44px;
+  height: 44px;
+  margin-right: 14px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #eef5fc;
+  color: #397fc4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.summary-title {
+  color: #33485d;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.summary-desc {
+  margin-top: 7px;
+  color: #8a98a7;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.content-card {
+  min-height: 455px;
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  color: #34495e;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.card-subtitle {
+  margin-top: 5px;
+  color: #98a5b2;
+  font-size: 11px;
+}
+
+.architecture-box {
+  height: 355px;
+  padding: 8px;
+  border: 1px solid #edf0f4;
   border-radius: 6px;
-  padding: 12px;
+  background: #fff;
   text-align: center;
 }
-.arch-img {
+
+.architecture-image {
   width: 100%;
-  max-height: 520px;
+  height: 100%;
   object-fit: contain;
 }
-.arch-note {
-  margin-top: 12px;
-  padding: 12px 14px;
-  background: #ecf5ff;
-  color: #606266;
-  border-radius: 4px;
-  line-height: 1.8;
-  font-size: 14px;
+
+.design-list {
+  padding: 2px 4px;
 }
-.flow-line {
+
+.design-item {
   display: flex;
-  flex-wrap: wrap;
+  padding: 14px 4px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.design-item:last-child {
+  border-bottom: 0;
+}
+
+.design-index {
+  width: 38px;
+  flex-shrink: 0;
+  color: #3f82c4;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.design-title {
+  color: #405569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.design-desc {
+  margin-top: 5px;
+  color: #8897a6;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.flow-card {
+  margin-bottom: 12px;
+}
+
+.flow {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
+  justify-content: center;
+  padding: 11px 0;
 }
-.flow-line span {
-  padding: 10px 16px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  background: #fff;
-  color: #303133;
+
+.flow-step {
+  min-width: 115px;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #dce5ee;
+  border-radius: 7px;
+  background: #fafbfd;
+  color: #486077;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
 }
-.flow-line .green {
-  color: #67c23a;
-  border-color: #67c23a;
-  font-weight: 600;
+
+.flow-step i {
+  margin-right: 7px;
+  color: #4285c7;
+  font-size: 16px;
 }
-.flow-line .red {
-  color: #f56c6c;
-  border-color: #f56c6c;
-  font-weight: 600;
+
+.flow-arrow {
+  margin: 0 10px;
+  color: #b5c0cb;
 }
-.green-box {
-  padding: 12px 14px;
-  color: #2f9b56;
-  background: #e8f8ef;
-  border-radius: 4px;
-  line-height: 1.8;
-  font-size: 14px;
+
+.project-footer {
+  padding: 8px 3px 2px;
+  text-align: right;
+  color: #a3adb7;
+  font-size: 9px;
+  letter-spacing: 0.3px;
 }
-.audit-list {
-  color: #606266;
-  line-height: 2.1;
-  font-size: 14px;
-}
-.audit-list i {
-  margin-right: 6px;
-  color: #409eff;
+
+.footer-separator {
+  margin: 0 5px;
 }
 </style>
