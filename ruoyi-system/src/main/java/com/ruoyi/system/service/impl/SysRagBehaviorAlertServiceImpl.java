@@ -13,6 +13,7 @@ import com.ruoyi.system.domain.SysRagBehaviorAlert;
 import com.ruoyi.system.mapper.SysRagBehaviorAlertMapper;
 import com.ruoyi.system.service.ISysRagAuditLogService;
 import com.ruoyi.system.service.ISysRagBehaviorAlertService;
+import com.ruoyi.system.service.SyslogForwardService;
 
 /**
  * RAG行为分析告警Service业务层处理
@@ -39,6 +40,9 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private SyslogForwardService syslogForwardService;
 
     @Override
     public SysRagBehaviorAlert selectSysRagBehaviorAlertById(Long id)
@@ -320,7 +324,14 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
             alert.setCostTime(log.getCostTime());
             alert.setStatus("unhandled");
             alert.setRemark(buildRemark(log));
-            return sysRagBehaviorAlertMapper.insertSysRagBehaviorAlert(alert);
+            int rows = sysRagBehaviorAlertMapper.insertSysRagBehaviorAlert(alert);
+
+            if (rows > 0)
+            {
+                syslogForwardService.forwardAlert(alert);
+            }
+
+            return rows;
         }
         catch (Exception e)
         {
