@@ -42,3 +42,47 @@ export function delGroup(id) {
     method: 'delete'
   })
 }
+
+// 查询各用户组成员数量
+export function getGroupMemberCounts() {
+  return request({
+    url: '/system/group/member/counts',
+    method: 'get'
+  })
+}
+
+// 查询用户组成员
+export function listGroupMembers(groupId) {
+  return request({
+    url: '/system/group/member/list/' + groupId,
+    method: 'get'
+  })
+}
+
+// 查询可加入用户
+export function listGroupCandidates(groupId, keyword) {
+  return request({
+    url: '/system/group/member/candidates/' + groupId,
+    method: 'get',
+    params: {
+      keyword: keyword
+    }
+  })
+}
+
+// 添加用户组成员
+export function addGroupMember(data) {
+  return request({
+    url: '/system/group/member',
+    method: 'post',
+    data: data
+  })
+}
+
+// 移除用户组成员
+export function removeGroupMember(groupId, userId) {
+  return request({
+    url: '/system/group/member/' + groupId + '/' + userId,
+    method: 'delete'
+  })
+}

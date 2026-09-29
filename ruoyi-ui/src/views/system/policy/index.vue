@@ -1,6 +1,28 @@
 <template>
-  <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+  <div class="app-container policy-page">
+
+    <div class="page-header">
+      <div class="page-title">访问策略管理</div>
+      <div class="page-desc">
+        统一管理访问规则及其适用用户或用户组，策略绑定不再单独维护。
+      </div>
+    </div>
+
+    <el-alert
+      title="策略规则定义“允许访问什么”，适用对象决定“该策略对谁生效”。"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb20"
+    />
+
+    <el-form
+      ref="queryForm"
+      :model="queryParams"
+      size="small"
+      :inline="true"
+      v-show="showSearch"
+    >
       <el-form-item label="策略编码" prop="policyCode">
         <el-input
           v-model="queryParams.policyCode"
@@ -9,6 +31,7 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+
       <el-form-item label="策略名称" prop="policyName">
         <el-input
           v-model="queryParams.policyName"
@@ -17,6 +40,7 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+
       <el-form-item label="优先级" prop="priority">
         <el-input
           v-model="queryParams.priority"
@@ -25,9 +49,20 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        <el-button
+          type="primary"
+          icon="el-icon-search"
+          size="mini"
+          @click="handleQuery"
+        >搜索</el-button>
+
+        <el-button
+          icon="el-icon-refresh"
+          size="mini"
+          @click="resetQuery"
+        >重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -40,30 +75,9 @@
           size="mini"
           @click="handleAdd"
           v-hasPermi="['system:policy:add']"
-        >新增</el-button>
+        >新建策略</el-button>
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['system:policy:edit']"
-        >修改</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['system:policy:remove']"
-        >删除</el-button>
-      </el-col>
+
       <el-col :span="1.5">
         <el-button
           type="warning"
@@ -74,147 +88,261 @@
           v-hasPermi="['system:policy:export']"
         >导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+
+      <right-toolbar
+        :showSearch.sync="showSearch"
+        @queryTable="getList"
+      />
     </el-row>
 
-    <el-table v-loading="loading" :data="policyList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="ID" align="center" prop="id" />
-      <el-table-column label="策略编码" align="center" prop="policyCode" />
-      <el-table-column label="策略名称" align="center" prop="policyName" />
-      <el-table-column label="策略效果" align="center" prop="effect" width="100">
+    <el-table
+      v-loading="loading"
+      :data="policyList"
+      border
+      stripe
+    >
+      <el-table-column
+        label="策略名称"
+        prop="policyName"
+        min-width="150"
+      />
+
+      <el-table-column
+        label="策略编码"
+        prop="policyCode"
+        min-width="160"
+      />
+
+      <el-table-column
+        label="效果"
+        width="90"
+        align="center"
+      >
         <template slot-scope="scope">
           <el-tag
             size="mini"
-            :type="scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? 'success' : 'danger'"
+            :type="isAllow(scope.row.effect) ? 'success' : 'danger'"
           >
-            {{ scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? '允许' : '拒绝' }}
+            {{ isAllow(scope.row.effect) ? '允许' : '拒绝' }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column label="主体类型" align="center" prop="subjectType" width="110">
+      <el-table-column
+        label="适用对象"
+        min-width="230"
+      >
         <template slot-scope="scope">
-          <span v-if="scope.row.subjectType === 'USER'">用户</span>
-          <span v-else-if="scope.row.subjectType === 'GROUP'">用户组</span>
-          <span v-else>{{ scope.row.subjectType || '-' }}</span>
+          <div v-if="bindingsOf(scope.row.id).length">
+            <el-tag
+              v-for="binding in bindingsOf(scope.row.id)"
+              :key="binding.id"
+              size="mini"
+              style="margin:2px"
+            >
+              {{ bindingTargetName(binding) }}
+            </el-tag>
+          </div>
+
+          <span v-else class="empty-text">
+            未配置
+          </span>
         </template>
       </el-table-column>
-      <el-table-column label="主体条件" align="center" prop="subjectExpr" min-width="150" show-overflow-tooltip />
-      <el-table-column label="资源条件" align="center" prop="resourceExpr" min-width="150" show-overflow-tooltip />
-      <el-table-column label="环境条件" align="center" prop="envExpr" min-width="150" show-overflow-tooltip />
-      <el-table-column label="优先级" align="center" prop="priority" width="90" />
 
-      <el-table-column label="状态" align="center" prop="status" width="90">
+      <el-table-column
+        label="资源范围"
+        prop="resourceExpr"
+        min-width="170"
+        show-overflow-tooltip
+      >
         <template slot-scope="scope">
-          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
+          {{ scope.row.resourceExpr || '未限制' }}
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="环境限制"
+        prop="envExpr"
+        min-width="150"
+        show-overflow-tooltip
+      >
+        <template slot-scope="scope">
+          {{ scope.row.envExpr || '无限制' }}
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="优先级"
+        prop="priority"
+        width="90"
+        align="center"
+      />
+
+      <el-table-column
+        label="状态"
+        width="90"
+        align="center"
+      >
+        <template slot-scope="scope">
+          <el-tag
+            size="mini"
+            :type="scope.row.status === '0' ? 'success' : 'info'"
+          >
             {{ scope.row.status === '0' ? '正常' : '停用' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+
+      <el-table-column
+        label="操作"
+        width="290"
+        fixed="right"
+        align="center"
+      >
         <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
-        <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d}') }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+
           <el-button
-            size="mini"
             type="text"
             icon="el-icon-edit"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['system:policy:edit']"
-          >修改</el-button>
+          >编辑</el-button>
+
           <el-button
-            size="mini"
+            type="text"
+            icon="el-icon-user"
+            @click="openBindings(scope.row)"
+          >适用对象</el-button>
+
+          <el-button
             type="text"
             icon="el-icon-time"
             @click="handleVersions(scope.row)"
             v-hasPermi="['system:policy:query']"
-          >版本历史</el-button>
+          >版本</el-button>
+
           <el-button
-            size="mini"
             type="text"
             icon="el-icon-delete"
+            class="danger-text"
             @click="handleDelete(scope.row)"
             v-hasPermi="['system:policy:remove']"
           >删除</el-button>
+
         </template>
       </el-table-column>
+
     </el-table>
 
     <pagination
-      v-show="total>0"
+      v-show="total > 0"
       :total="total"
       :page.sync="queryParams.pageNum"
       :limit.sync="queryParams.pageSize"
       @pagination="getList"
     />
 
-    <!-- 添加或修改权限策略定义对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
-        <el-row>
-          <el-col :span="24">
-            <el-form-item label="策略编码" prop="policyCode">
-              <el-input v-model="form.policyCode" placeholder="请输入策略编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
+    <!-- 策略新增/编辑 -->
+    <el-dialog
+      :title="title"
+      :visible.sync="open"
+      width="680px"
+      append-to-body
+    >
+      <el-form
+        ref="form"
+        :model="form"
+        :rules="rules"
+        label-width="110px"
+      >
+        <el-row :gutter="18">
+
+          <el-col :span="12">
             <el-form-item label="策略名称" prop="policyName">
-              <el-input v-model="form.policyName" placeholder="请输入策略名称" />
+              <el-input
+                v-model="form.policyName"
+                placeholder="例如：公开文档读取策略"
+              />
             </el-form-item>
           </el-col>
 
           <el-col :span="12">
-            <el-form-item label="策略效果" prop="effect">
-              <el-select v-model="form.effect" placeholder="请选择策略效果" style="width: 100%">
-                <el-option label="允许" value="0" />
-                <el-option label="拒绝" value="1" />
-              </el-select>
+            <el-form-item label="策略编码" prop="policyCode">
+              <el-input
+                v-model="form.policyCode"
+                placeholder="例如：RAG_PUBLIC_READ"
+              />
             </el-form-item>
           </el-col>
 
           <el-col :span="12">
-            <el-form-item label="主体类型" prop="subjectType">
-              <el-select v-model="form.subjectType" placeholder="请选择主体类型" style="width: 100%">
-                <el-option label="用户" value="USER" />
-                <el-option label="用户组" value="GROUP" />
-              </el-select>
+            <el-form-item label="访问效果" prop="effect">
+              <el-radio-group v-model="form.effect">
+                <el-radio label="0">允许</el-radio>
+                <el-radio label="1">拒绝</el-radio>
+              </el-radio-group>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item label="主体条件表达式" prop="subjectExpr">
-              <el-input v-model="form.subjectExpr" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="资源条件表达式" prop="resourceExpr">
-              <el-input v-model="form.resourceExpr" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="环境条件表达式" prop="envExpr">
-              <el-input v-model="form.envExpr" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
+
+          <el-col :span="12">
             <el-form-item label="优先级" prop="priority">
               <el-input-number
                 v-model="form.priority"
                 :min="1"
                 :max="9999"
                 controls-position="right"
-                style="width: 100%"
+                style="width:100%"
               />
             </el-form-item>
           </el-col>
+
+          <el-col :span="24">
+            <el-form-item label="资源范围">
+              <el-input
+                v-model="form.resourceExpr"
+                placeholder="例如：scope_code=PUBLIC"
+              />
+              <div class="field-help">
+                用于描述该策略可以访问的资源范围。
+              </div>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="24">
+            <el-form-item label="环境限制">
+              <el-input
+                v-model="form.envExpr"
+                placeholder="不填写表示无限制，例如：time in [09:00-18:00]"
+              />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="24">
+            <el-collapse>
+              <el-collapse-item title="高级兼容配置（一般无需修改）">
+
+                <el-form-item label="主体类型">
+                  <el-select
+                    v-model="form.subjectType"
+                    style="width:100%"
+                  >
+                    <el-option label="用户组" value="GROUP" />
+                    <el-option label="用户" value="USER" />
+                  </el-select>
+                </el-form-item>
+
+                <el-form-item label="主体表达式">
+                  <el-input
+                    v-model="form.subjectExpr"
+                    placeholder="保留原策略表达式兼容能力"
+                  />
+                </el-form-item>
+
+              </el-collapse-item>
+            </el-collapse>
+          </el-col>
+
           <el-col :span="24">
             <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
@@ -225,137 +353,311 @@
           </el-col>
 
           <el-col :span="24">
-            <el-form-item label="备注" prop="remark">
-              <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
+            <el-form-item label="备注">
+              <el-input
+                v-model="form.remark"
+                type="textarea"
+                :rows="3"
+              />
             </el-form-item>
           </el-col>
+
         </el-row>
       </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+
+      <div slot="footer">
+        <el-button type="primary" @click="submitForm">
+          保存
+        </el-button>
+        <el-button @click="cancel">
+          取消
+        </el-button>
       </div>
     </el-dialog>
 
-    <!-- 权限策略版本历史 -->
+    <!-- 策略适用对象 -->
+    <el-dialog
+      :title="bindingDialogTitle"
+      :visible.sync="bindingOpen"
+      width="720px"
+      append-to-body
+    >
+      <el-alert
+        title="策略绑定到用户或用户组后，才会进入对应用户的权限上下文。"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom:18px"
+      />
+
+      <div class="binding-add-row">
+
+        <el-select
+          v-model="newBinding.bindType"
+          style="width:130px"
+          @change="newBinding.bindTargetId = null"
+        >
+          <el-option label="用户组" value="GROUP" />
+          <el-option label="用户" value="USER" />
+        </el-select>
+
+        <el-select
+          v-if="newBinding.bindType === 'GROUP'"
+          v-model="newBinding.bindTargetId"
+          filterable
+          clearable
+          placeholder="选择用户组"
+          style="flex:1"
+        >
+          <el-option
+            v-for="group in groupOptions"
+            :key="group.id"
+            :label="group.groupName + '（' + group.groupCode + '）'"
+            :value="group.id"
+          />
+        </el-select>
+
+        <el-select
+          v-else
+          v-model="newBinding.bindTargetId"
+          filterable
+          clearable
+          placeholder="选择用户"
+          style="flex:1"
+        >
+          <el-option
+            v-for="user in userOptions"
+            :key="user.userId"
+            :label="userLabel(user)"
+            :value="user.userId"
+          />
+        </el-select>
+
+        <el-button
+          type="primary"
+          icon="el-icon-plus"
+          :disabled="!newBinding.bindTargetId"
+          @click="addBinding"
+        >添加</el-button>
+
+      </div>
+
+      <el-table
+        v-if="currentPolicy"
+        :data="bindingsOf(currentPolicy.id)"
+        border
+      >
+        <el-table-column
+          label="对象类型"
+          width="110"
+          align="center"
+        >
+          <template slot-scope="scope">
+            {{ bindingTypeText(scope.row.bindType) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="适用对象"
+          min-width="280"
+        >
+          <template slot-scope="scope">
+            {{ bindingTargetName(scope.row) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="状态"
+          width="90"
+          align="center"
+        >
+          <template>
+            <el-tag type="success" size="mini">
+              生效
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="操作"
+          width="110"
+          align="center"
+        >
+          <template slot-scope="scope">
+            <el-button
+              type="text"
+              class="danger-text"
+              @click="removeBinding(scope.row)"
+            >取消绑定</el-button>
+          </template>
+        </el-table-column>
+
+      </el-table>
+
+      <div slot="footer">
+        <el-button @click="bindingOpen = false">
+          关闭
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 策略版本历史 -->
     <el-dialog
       :title="versionTitle"
       :visible.sync="versionOpen"
       width="900px"
       append-to-body
     >
-      <el-table :data="versionList" border stripe>
-        <el-table-column label="版本" width="80" align="center">
+      <el-table
+        :data="versionList"
+        border
+        stripe
+      >
+        <el-table-column
+          label="版本"
+          width="80"
+          align="center"
+        >
           <template slot-scope="scope">
             V{{ scope.row.versionNo }}
           </template>
         </el-table-column>
 
-        <el-table-column label="变更类型" prop="changeType" width="110" align="center">
+        <el-table-column
+          label="变更类型"
+          prop="changeType"
+          width="110"
+          align="center"
+        >
           <template slot-scope="scope">
             <el-tag
               size="mini"
               :type="scope.row.changeType === 'UPDATE' ? 'warning' : 'success'"
             >
-              {{
-                scope.row.changeType === 'BASELINE'
-                  ? '初始基线'
-                  : scope.row.changeType === 'CREATE'
-                    ? '新建'
-                    : scope.row.changeType === 'UPDATE'
-                      ? '更新'
-                      : scope.row.changeType
-              }}
+              {{ changeTypeText(scope.row.changeType) }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="策略编码" prop="policyCode" min-width="160" show-overflow-tooltip />
-        <el-table-column label="策略名称" prop="policyName" min-width="150" show-overflow-tooltip />
-        <el-table-column label="效果" prop="effect" width="90" align="center">
-          <template slot-scope="scope">
-            <el-tag
-              size="mini"
-              :type="scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? 'success' : 'danger'"
-            >
-              {{ scope.row.effect === '0' || scope.row.effect === 'ALLOW' ? '允许' : '拒绝' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="优先级" prop="priority" width="80" align="center" />
-        <el-table-column label="变更人" prop="changeBy" width="100" align="center" />
+        <el-table-column
+          label="策略名称"
+          prop="policyName"
+          min-width="150"
+        />
 
-        <el-table-column label="变更时间" prop="changeTime" width="170" align="center">
+        <el-table-column
+          label="效果"
+          width="90"
+          align="center"
+        >
           <template slot-scope="scope">
-            <span>{{ parseTime(scope.row.changeTime, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
+            {{ isAllow(scope.row.effect) ? '允许' : '拒绝' }}
           </template>
         </el-table-column>
 
-        <el-table-column type="expand">
+        <el-table-column
+          label="资源范围"
+          prop="resourceExpr"
+          min-width="160"
+          show-overflow-tooltip
+        />
+
+        <el-table-column
+          label="优先级"
+          prop="priority"
+          width="80"
+          align="center"
+        />
+
+        <el-table-column
+          label="变更人"
+          prop="changeBy"
+          width="100"
+        />
+
+        <el-table-column
+          label="变更时间"
+          prop="changeTime"
+          width="170"
+        >
           <template slot-scope="scope">
-            <el-form label-position="left" inline class="demo-table-expand">
-              <el-form-item label="主体类型">
-                <span>{{ scope.row.subjectType || '-' }}</span>
-              </el-form-item>
-              <el-form-item label="主体条件">
-                <span>{{ scope.row.subjectExpr || '-' }}</span>
-              </el-form-item>
-              <el-form-item label="资源条件">
-                <span>{{ scope.row.resourceExpr || '-' }}</span>
-              </el-form-item>
-              <el-form-item label="环境条件">
-                <span>{{ scope.row.envExpr || '-' }}</span>
-              </el-form-item>
-              <el-form-item label="状态">
-                <span>{{ scope.row.status === '0' ? '正常' : '停用' }}</span>
-              </el-form-item>
-              <el-form-item label="备注">
-                <span>{{ scope.row.remark || '-' }}</span>
-              </el-form-item>
-            </el-form>
+            {{
+              parseTime(
+                scope.row.changeTime,
+                '{y}-{m}-{d} {h}:{i}:{s}'
+              )
+            }}
           </template>
         </el-table-column>
+
       </el-table>
 
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="versionOpen = false">关 闭</el-button>
+      <div slot="footer">
+        <el-button @click="versionOpen = false">
+          关闭
+        </el-button>
       </div>
     </el-dialog>
+
   </div>
 </template>
 
 <script>
-import { listPolicy, getPolicy, delPolicy, addPolicy, updatePolicy, getPolicyVersions } from "@/api/system/policy"
+import {
+  listPolicy,
+  getPolicy,
+  delPolicy,
+  addPolicy,
+  updatePolicy,
+  getPolicyVersions
+} from '@/api/system/policy'
+
+import {
+  listPolicyBind,
+  addPolicyBind,
+  delPolicyBind
+} from '@/api/system/policyBind'
+
+import {
+  listGroup
+} from '@/api/system/group'
+
+import {
+  listUser
+} from '@/api/system/user'
 
 export default {
-  name: "Policy",
+  name: 'Policy',
+
   data() {
     return {
-      // 遮罩层
       loading: true,
-      // 选中数组
-      ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
-      multiple: true,
-      // 显示搜索条件
       showSearch: true,
-      // 总条数
+
       total: 0,
-      // 权限策略定义表格数据
       policyList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
+
       open: false,
-      // 版本历史弹窗
+      title: '',
+
+      ids: [],
+
+      allBindings: [],
+      groupOptions: [],
+      userOptions: [],
+
+      bindingOpen: false,
+      currentPolicy: null,
+
+      newBinding: {
+        bindType: 'GROUP',
+        bindTargetId: null
+      },
+
       versionOpen: false,
-      // 版本历史标题
-      versionTitle: "策略版本历史",
-      // 版本历史数据
+      versionTitle: '策略版本历史',
       versionList: [],
-      // 查询参数
+
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -364,46 +666,122 @@ export default {
         effect: null,
         subjectType: null,
         priority: null,
-        status: null,
+        status: null
       },
-      // 表单参数
+
       form: {},
-      // 表单校验
+
       rules: {
         policyCode: [
-          { required: true, message: "策略编码不能为空", trigger: "blur" }
+          {
+            required: true,
+            message: '策略编码不能为空',
+            trigger: 'blur'
+          }
         ],
         policyName: [
-          { required: true, message: "策略名称不能为空", trigger: "blur" }
+          {
+            required: true,
+            message: '策略名称不能为空',
+            trigger: 'blur'
+          }
         ],
         effect: [
-          { required: true, message: "策略效果不能为空", trigger: "change" }
+          {
+            required: true,
+            message: '请选择访问效果',
+            trigger: 'change'
+          }
         ],
         priority: [
-          { required: true, message: "优先级，数值越小优先级越高不能为空", trigger: "blur" }
-        ],
+          {
+            required: true,
+            message: '优先级不能为空',
+            trigger: 'blur'
+          }
+        ]
       }
     }
   },
-  created() {
-    this.getList()
+
+  computed: {
+    bindingDialogTitle() {
+      if (!this.currentPolicy) {
+        return '策略适用对象'
+      }
+
+      return this.currentPolicy.policyName + ' - 适用对象'
+    }
   },
+
+  created() {
+    this.loadReferenceData()
+  },
+
   methods: {
-    /** 查询权限策略定义列表 */
+    loadReferenceData() {
+      Promise.all([
+        listGroup({
+          pageNum: 1,
+          pageSize: 1000
+        }),
+        listUser({
+          pageNum: 1,
+          pageSize: 1000
+        })
+      ]).then(([groups, users]) => {
+        this.groupOptions = groups.rows || []
+        this.userOptions = users.rows || []
+        this.getList()
+      }).catch(() => {
+        this.getList()
+      })
+    },
+
     getList() {
       this.loading = true
-      listPolicy(this.queryParams).then(response => {
-        this.policyList = response.rows
-        this.total = response.total
+
+      Promise.all([
+        listPolicy(this.queryParams),
+        this.refreshBindings()
+      ]).then(([response]) => {
+        this.policyList = response.rows || []
+        this.total = response.total || 0
+        this.loading = false
+      }).catch(() => {
         this.loading = false
       })
     },
-    // 取消按钮
-    cancel() {
-      this.open = false
-      this.reset()
+
+    refreshBindings() {
+      return listPolicyBind({
+        pageNum: 1,
+        pageSize: 1000
+      }).then(response => {
+        this.allBindings = response.rows || []
+        return response
+      })
     },
-    // 表单重置
+
+    bindingsOf(policyId) {
+      return this.allBindings.filter(item => {
+        return (
+          String(item.policyId) === String(policyId) &&
+          item.status === '0'
+        )
+      })
+    },
+
+    handleQuery() {
+      this.queryParams.pageNum = 1
+      this.getList()
+    },
+
+    resetQuery() {
+      this.resetForm('queryForm')
+      this.handleQuery()
+    },
+
     reset() {
       this.form = {
         id: null,
@@ -416,91 +794,265 @@ export default {
         envExpr: null,
         priority: 100,
         status: '0',
-        remark: null,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
-        delFlag: null
+        remark: null
       }
-      this.resetForm("form")
+
+      this.resetForm('form')
     },
-    /** 搜索按钮操作 */
-    handleQuery() {
-      this.queryParams.pageNum = 1
-      this.getList()
-    },
-    /** 重置按钮操作 */
-    resetQuery() {
-      this.resetForm("queryForm")
-      this.handleQuery()
-    },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map(item => item.id)
-      this.single = selection.length !== 1
-      this.multiple = !selection.length
-    },
-    /** 新增按钮操作 */
+
     handleAdd() {
       this.reset()
+      this.title = '新建访问策略'
       this.open = true
-      this.title = "添加权限策略定义"
     },
-    /** 修改按钮操作 */
+
     handleUpdate(row) {
       this.reset()
-      const id = row.id || this.ids
-      getPolicy(id).then(response => {
+
+      getPolicy(row.id).then(response => {
         this.form = response.data
+        this.title = '编辑访问策略'
         this.open = true
-        this.title = "修改权限策略定义"
       })
     },
-    /** 提交按钮 */
+
     submitForm() {
-      this.$refs["form"].validate(valid => {
-        if (valid) {
-          if (this.form.id != null) {
-            updatePolicy(this.form).then(response => {
-              this.$modal.msgSuccess("修改成功")
-              this.open = false
-              this.getList()
-            })
-          } else {
-            addPolicy(this.form).then(response => {
-              this.$modal.msgSuccess("新增成功")
-              this.open = false
-              this.getList()
-            })
-          }
+      this.$refs.form.validate(valid => {
+        if (!valid) {
+          return
         }
+
+        const request = this.form.id
+          ? updatePolicy(this.form)
+          : addPolicy(this.form)
+
+        request.then(() => {
+          this.$modal.msgSuccess(
+            this.form.id ? '修改成功' : '新增成功'
+          )
+
+          this.open = false
+          this.getList()
+        })
       })
     },
-    /** 查看策略版本历史 */
+
+    handleDelete(row) {
+      this.$modal
+        .confirm(
+          '确认删除访问策略“' +
+          row.policyName +
+          '”吗？'
+        )
+        .then(() => delPolicy(row.id))
+        .then(() => {
+          this.$modal.msgSuccess('删除成功')
+          this.getList()
+        })
+        .catch(() => {})
+    },
+
+    handleExport() {
+      this.download(
+        'system/policy/export',
+        {
+          ...this.queryParams
+        },
+        'policy_' + new Date().getTime() + '.xlsx'
+      )
+    },
+
+    openBindings(row) {
+      this.currentPolicy = row
+
+      this.newBinding = {
+        bindType: 'GROUP',
+        bindTargetId: null
+      }
+
+      this.bindingOpen = true
+      this.refreshBindings()
+    },
+
+    addBinding() {
+      if (!this.currentPolicy || !this.newBinding.bindTargetId) {
+        return
+      }
+
+      const exists =
+        this.bindingsOf(this.currentPolicy.id).some(item => {
+          return (
+            item.bindType === this.newBinding.bindType &&
+            String(item.bindTargetId) ===
+              String(this.newBinding.bindTargetId)
+          )
+        })
+
+      if (exists) {
+        this.$message.warning('该对象已经绑定当前策略')
+        return
+      }
+
+      addPolicyBind({
+        policyId: this.currentPolicy.id,
+        bindType: this.newBinding.bindType,
+        bindTargetId: Number(this.newBinding.bindTargetId),
+        status: '0',
+        remark: '通过访问策略管理页面配置'
+      }).then(() => {
+        this.$modal.msgSuccess('适用对象添加成功')
+        this.newBinding.bindTargetId = null
+        this.refreshBindings()
+      })
+    },
+
+    removeBinding(binding) {
+      this.$modal
+        .confirm('确认取消该对象的策略绑定吗？')
+        .then(() => delPolicyBind(binding.id))
+        .then(() => {
+          this.$modal.msgSuccess('绑定已取消')
+          this.refreshBindings()
+        })
+        .catch(() => {})
+    },
+
+    bindingTypeText(type) {
+      if (type === 'GROUP') {
+        return '用户组'
+      }
+
+      if (type === 'USER') {
+        return '用户'
+      }
+
+      if (type === 'DOC') {
+        return '文档'
+      }
+
+      if (type === 'DIRECTORY') {
+        return '目录'
+      }
+
+      return type || '-'
+    },
+
+    bindingTargetName(binding) {
+      const id = String(binding.bindTargetId)
+
+      if (binding.bindType === 'GROUP') {
+        const group = this.groupOptions.find(
+          item => String(item.id) === id
+        )
+
+        return group
+          ? group.groupName
+          : '用户组 #' + id
+      }
+
+      if (binding.bindType === 'USER') {
+        const user = this.userOptions.find(
+          item => String(item.userId) === id
+        )
+
+        return user
+          ? (user.nickName || user.userName)
+          : '用户 #' + id
+      }
+
+      return '#' + id
+    },
+
+    userLabel(user) {
+      if (
+        user.nickName &&
+        user.nickName !== user.userName
+      ) {
+        return (
+          user.nickName +
+          '（' +
+          user.userName +
+          '）'
+        )
+      }
+
+      return user.userName
+    },
+
     handleVersions(row) {
       getPolicyVersions(row.id).then(response => {
         this.versionList = response.data || []
-        this.versionTitle = row.policyName + " - 版本历史"
+        this.versionTitle =
+          row.policyName + ' - 版本历史'
         this.versionOpen = true
       })
     },
-    /** 删除按钮操作 */
-    handleDelete(row) {
-      const ids = row.id || this.ids
-      this.$modal.confirm('是否确认删除权限策略定义编号为"' + ids + '"的数据项？').then(function() {
-        return delPolicy(ids)
-      }).then(() => {
-        this.getList()
-        this.$modal.msgSuccess("删除成功")
-      }).catch(() => {})
+
+    isAllow(effect) {
+      return effect === '0' || effect === 'ALLOW'
     },
-    /** 导出按钮操作 */
-    handleExport() {
-      this.download('system/policy/export', {
-        ...this.queryParams
-      }, `policy_${new Date().getTime()}.xlsx`)
+
+    changeTypeText(type) {
+      if (type === 'BASELINE') {
+        return '初始基线'
+      }
+
+      if (type === 'CREATE') {
+        return '新建'
+      }
+
+      if (type === 'UPDATE') {
+        return '更新'
+      }
+
+      return type || '-'
     }
   }
 }
 </script>
+
+<style scoped>
+.policy-page {
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 18px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.page-desc {
+  margin-top: 7px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.mb20 {
+  margin-bottom: 20px;
+}
+
+.empty-text {
+  color: #909399;
+}
+
+.binding-add-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.field-help {
+  margin-top: 5px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.danger-text {
+  color: #f56c6c !important;
+}
+</style>

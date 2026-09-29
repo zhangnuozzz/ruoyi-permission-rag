@@ -1,47 +1,82 @@
 <template>
-  <div class="app-container">
-    <div class="group-intro">
-      <div class="group-intro-title">用户组管理</div>
-      <div class="group-intro-desc">
-        维护用户组、知悉范围与组密级，为权限策略配置和安全检索提供主体分组依据。
+  <div class="app-container group-page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">用户组管理</div>
+        <div class="page-desc">
+          统一管理用户组、成员、知悉范围与用户组密级，成员关系不再单独维护。
+        </div>
       </div>
     </div>
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="组编码" prop="groupCode">
-        <el-input
-          v-model="queryParams.groupCode"
-          placeholder="请输入组编码"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="组名称" prop="groupName">
+
+    <el-alert
+      title="用户加入用户组后，将继承该用户组对应的基础访问范围。"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb20"
+    />
+
+    <el-form
+      ref="queryForm"
+      :model="queryParams"
+      size="small"
+      :inline="true"
+      v-show="showSearch"
+    >
+      <el-form-item label="用户组名称" prop="groupName">
         <el-input
           v-model="queryParams.groupName"
-          placeholder="请输入组名称"
+          placeholder="请输入用户组名称"
           clearable
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="知悉范围编码" prop="scopeCode">
+
+      <el-form-item label="用户组编码" prop="groupCode">
+        <el-input
+          v-model="queryParams.groupCode"
+          placeholder="请输入用户组编码"
+          clearable
+          @keyup.enter.native="handleQuery"
+        />
+      </el-form-item>
+
+      <el-form-item label="知悉范围" prop="scopeCode">
         <el-input
           v-model="queryParams.scopeCode"
-          placeholder="请输入知悉范围编码"
+          placeholder="例如 PUBLIC"
           clearable
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+
       <el-form-item label="用户组密级" prop="groupSecretLevel">
-        <el-select v-model="queryParams.groupSecretLevel" placeholder="全部" clearable>
+        <el-select
+          v-model="queryParams.groupSecretLevel"
+          placeholder="全部"
+          clearable
+        >
           <el-option label="公开" value="PUBLIC" />
           <el-option label="内部" value="INTERNAL" />
           <el-option label="秘密" value="SECRET" />
           <el-option label="机密" value="CONFIDENTIAL" />
         </el-select>
       </el-form-item>
+
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        <el-button
+          type="primary"
+          icon="el-icon-search"
+          size="mini"
+          @click="handleQuery"
+        >搜索</el-button>
+
+        <el-button
+          icon="el-icon-refresh"
+          size="mini"
+          @click="resetQuery"
+        >重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -54,30 +89,9 @@
           size="mini"
           @click="handleAdd"
           v-hasPermi="['system:group:add']"
-        >新增</el-button>
+        >新建用户组</el-button>
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['system:group:edit']"
-        >修改</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['system:group:remove']"
-        >删除</el-button>
-      </el-col>
+
       <el-col :span="1.5">
         <el-button
           type="warning"
@@ -88,25 +102,76 @@
           v-hasPermi="['system:group:export']"
         >导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+
+      <right-toolbar
+        :showSearch.sync="showSearch"
+        @queryTable="getList"
+      />
     </el-row>
 
-    <el-table v-loading="loading" :data="groupList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="ID" align="center" prop="id" />
-      <el-table-column label="组编码" align="center" prop="groupCode" />
-      <el-table-column label="组名称" align="center" prop="groupName" />
-      <el-table-column label="知悉范围编码" align="center" prop="scopeCode" />
-      <el-table-column label="用户组密级" align="center" prop="groupSecretLevel" width="110">
+    <el-table
+      v-loading="loading"
+      :data="groupList"
+      border
+      stripe
+    >
+      <el-table-column
+        label="用户组名称"
+        prop="groupName"
+        min-width="150"
+      />
+
+      <el-table-column
+        label="用户组编码"
+        prop="groupCode"
+        min-width="150"
+      />
+
+      <el-table-column
+        label="知悉范围"
+        prop="scopeCode"
+        min-width="120"
+        align="center"
+      >
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.groupSecretLevel === 'PUBLIC'" type="success">公开</el-tag>
-          <el-tag v-else-if="scope.row.groupSecretLevel === 'INTERNAL'" type="info">内部</el-tag>
-          <el-tag v-else-if="scope.row.groupSecretLevel === 'SECRET'" type="warning">秘密</el-tag>
-          <el-tag v-else-if="scope.row.groupSecretLevel === 'CONFIDENTIAL'" type="danger">机密</el-tag>
-          <el-tag v-else>{{ scope.row.groupSecretLevel }}</el-tag>
+          <el-tag size="mini" effect="plain">
+            {{ scope.row.scopeCode || '未配置' }}
+          </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" width="90">
+
+      <el-table-column
+        label="用户组密级"
+        width="110"
+        align="center"
+      >
+        <template slot-scope="scope">
+          <el-tag
+            size="mini"
+            :type="secretTagType(scope.row.groupSecretLevel)"
+          >
+            {{ secretText(scope.row.groupSecretLevel) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="成员数"
+        width="90"
+        align="center"
+      >
+        <template slot-scope="scope">
+          <el-tag type="info" size="mini">
+            {{ memberCount(scope.row.id) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        label="状态"
+        width="90"
+        align="center"
+      >
         <template slot-scope="scope">
           <el-tag
             size="mini"
@@ -116,122 +181,280 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
-        <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
-        <template slot-scope="scope">
-          <span>{{ parseTime(scope.row.updateTime, '{y}-{m}-{d}') }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+
+      <el-table-column
+        label="备注"
+        prop="remark"
+        min-width="150"
+        show-overflow-tooltip
+      />
+
+      <el-table-column
+        label="操作"
+        width="230"
+        align="center"
+        fixed="right"
+      >
         <template slot-scope="scope">
           <el-button
-            size="mini"
+            type="text"
+            icon="el-icon-user"
+            @click="openMembers(scope.row)"
+            v-hasPermi="['system:group:list']"
+          >成员管理</el-button>
+
+          <el-button
             type="text"
             icon="el-icon-edit"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['system:group:edit']"
-          >修改</el-button>
+          >编辑</el-button>
+
           <el-button
-            size="mini"
             type="text"
             icon="el-icon-delete"
+            class="danger-text"
             @click="handleDelete(scope.row)"
             v-hasPermi="['system:group:remove']"
           >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
-    
+
     <pagination
-      v-show="total>0"
+      v-show="total > 0"
       :total="total"
       :page.sync="queryParams.pageNum"
       :limit.sync="queryParams.pageSize"
       @pagination="getList"
     />
 
-    <!-- 添加或修改用户组对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
-        <el-row>
-          <el-col :span="24">
-            <el-form-item label="组编码" prop="groupCode">
-              <el-input v-model="form.groupCode" placeholder="请输入组编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="组名称" prop="groupName">
-              <el-input v-model="form.groupName" placeholder="请输入组名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="知悉范围编码" prop="scopeCode">
-              <el-input v-model="form.scopeCode" placeholder="请输入知悉范围编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="用户组密级" prop="groupSecretLevel">
-              <el-select v-model="form.groupSecretLevel" placeholder="请选择用户组密级" style="width: 100%">
-                <el-option label="公开" value="PUBLIC" />
-                <el-option label="内部" value="INTERNAL" />
-                <el-option label="秘密" value="SECRET" />
-                <el-option label="机密" value="CONFIDENTIAL" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="状态" prop="status">
-              <el-radio-group v-model="form.status">
-                <el-radio label="0">正常</el-radio>
-                <el-radio label="1">停用</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="备注" prop="remark">
-              <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+    <!-- 用户组新增/编辑 -->
+    <el-dialog
+      :title="title"
+      :visible.sync="open"
+      width="560px"
+      append-to-body
+    >
+      <el-form
+        ref="form"
+        :model="form"
+        :rules="rules"
+        label-width="110px"
+      >
+        <el-form-item label="用户组名称" prop="groupName">
+          <el-input
+            v-model="form.groupName"
+            placeholder="例如：公开文档组"
+          />
+        </el-form-item>
+
+        <el-form-item label="用户组编码" prop="groupCode">
+          <el-input
+            v-model="form.groupCode"
+            placeholder="例如：GROUP_PUBLIC"
+          />
+        </el-form-item>
+
+        <el-form-item label="知悉范围" prop="scopeCode">
+          <el-input
+            v-model="form.scopeCode"
+            placeholder="例如：PUBLIC"
+          />
+        </el-form-item>
+
+        <el-form-item label="用户组密级" prop="groupSecretLevel">
+          <el-select
+            v-model="form.groupSecretLevel"
+            style="width:100%"
+          >
+            <el-option label="公开" value="PUBLIC" />
+            <el-option label="内部" value="INTERNAL" />
+            <el-option label="秘密" value="SECRET" />
+            <el-option label="机密" value="CONFIDENTIAL" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="状态" prop="status">
+          <el-radio-group v-model="form.status">
+            <el-radio label="0">正常</el-radio>
+            <el-radio label="1">停用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="备注">
+          <el-input
+            v-model="form.remark"
+            type="textarea"
+            :rows="3"
+          />
+        </el-form-item>
       </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+
+      <div slot="footer">
+        <el-button type="primary" @click="submitForm">保存</el-button>
+        <el-button @click="cancel">取消</el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 用户组成员管理 -->
+    <el-dialog
+      :title="memberDialogTitle"
+      :visible.sync="memberOpen"
+      width="760px"
+      append-to-body
+    >
+      <div v-if="currentGroup" class="member-summary">
+        <div>
+          <strong>{{ currentGroup.groupName }}</strong>
+          <span class="summary-code">
+            {{ currentGroup.groupCode }}
+          </span>
+        </div>
+
+        <div>
+          知悉范围：
+          <el-tag size="mini">
+            {{ currentGroup.scopeCode || '-' }}
+          </el-tag>
+        </div>
+      </div>
+
+      <el-divider content-position="left">
+        添加成员
+      </el-divider>
+
+      <div class="add-member-row">
+        <el-select
+          v-model="candidateUserId"
+          filterable
+          clearable
+          placeholder="选择需要加入的用户"
+          style="width:430px"
+        >
+          <el-option
+            v-for="user in candidateList"
+            :key="user.userId"
+            :label="userLabel(user)"
+            :value="user.userId"
+          />
+        </el-select>
+
+        <el-button
+          type="primary"
+          icon="el-icon-plus"
+          :disabled="!candidateUserId"
+          @click="addMember"
+        >
+          加入用户组
+        </el-button>
+      </div>
+
+      <el-divider content-position="left">
+        当前成员
+      </el-divider>
+
+      <el-table
+        v-loading="memberLoading"
+        :data="memberList"
+        border
+      >
+        <el-table-column
+          label="用户名"
+          prop="userName"
+          min-width="130"
+        />
+
+        <el-table-column
+          label="姓名"
+          prop="nickName"
+          min-width="130"
+        />
+
+        <el-table-column
+          label="状态"
+          width="90"
+          align="center"
+        >
+          <template slot-scope="scope">
+            <el-tag
+              size="mini"
+              :type="scope.row.status === '0' ? 'success' : 'info'"
+            >
+              {{ scope.row.status === '0' ? '正常' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="加入时间"
+          width="170"
+        >
+          <template slot-scope="scope">
+            {{ parseTime(scope.row.joinTime, '{y}-{m}-{d} {h}:{i}:{s}') }}
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          label="操作"
+          width="100"
+          align="center"
+        >
+          <template slot-scope="scope">
+            <el-button
+              type="text"
+              class="danger-text"
+              @click="removeMember(scope.row)"
+            >移出</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div slot="footer">
+        <el-button @click="memberOpen = false">关闭</el-button>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { listGroup, getGroup, delGroup, addGroup, updateGroup } from "@/api/system/group"
+import {
+  listGroup,
+  getGroup,
+  delGroup,
+  addGroup,
+  updateGroup,
+  getGroupMemberCounts,
+  listGroupMembers,
+  listGroupCandidates,
+  addGroupMember,
+  removeGroupMember
+} from '@/api/system/group'
 
 export default {
-  name: "Group",
+  name: 'Group',
+
   data() {
     return {
-      // 遮罩层
       loading: true,
-      // 选中数组
-      ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
-      multiple: true,
-      // 显示搜索条件
       showSearch: true,
-      // 总条数
+
       total: 0,
-      // 用户组表格数据
       groupList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
+
       open: false,
-      // 查询参数
+      title: '',
+      form: {},
+
+      memberCountMap: {},
+
+      memberOpen: false,
+      memberLoading: false,
+      currentGroup: null,
+      memberList: [],
+      candidateList: [],
+      candidateUserId: null,
+
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -239,131 +462,325 @@ export default {
         groupName: null,
         scopeCode: null,
         groupSecretLevel: null,
-        status: null,
+        status: null
       },
-      // 表单参数
-      form: {},
-      // 表单校验
+
       rules: {
-        groupCode: [
-          { required: true, message: "组编码不能为空", trigger: "blur" }
-        ],
         groupName: [
-          { required: true, message: "组名称不能为空", trigger: "blur" }
+          {
+            required: true,
+            message: '用户组名称不能为空',
+            trigger: 'blur'
+          }
+        ],
+        groupCode: [
+          {
+            required: true,
+            message: '用户组编码不能为空',
+            trigger: 'blur'
+          }
+        ],
+        scopeCode: [
+          {
+            required: true,
+            message: '知悉范围不能为空',
+            trigger: 'blur'
+          }
         ],
         groupSecretLevel: [
-          { required: true, message: "用户组密级不能为空", trigger: "change" }
-        ],
-        status: [
-          { required: true, message: "状态不能为空", trigger: "change" }
-        ],
+          {
+            required: true,
+            message: '请选择用户组密级',
+            trigger: 'change'
+          }
+        ]
       }
     }
   },
+
+  computed: {
+    memberDialogTitle() {
+      if (!this.currentGroup) {
+        return '用户组成员管理'
+      }
+
+      return this.currentGroup.groupName + ' - 成员管理'
+    }
+  },
+
   created() {
     this.getList()
   },
+
   methods: {
-    /** 查询用户组列表 */
     getList() {
       this.loading = true
+
       listGroup(this.queryParams).then(response => {
-        this.groupList = response.rows
-        this.total = response.total
+        this.groupList = response.rows || []
+        this.total = response.total || 0
         this.loading = false
+        this.loadMemberCounts()
       })
     },
-    // 取消按钮
-    cancel() {
-      this.open = false
-      this.reset()
+
+    loadMemberCounts() {
+      getGroupMemberCounts().then(response => {
+        const map = {}
+
+        ;(response.data || []).forEach(item => {
+          map[String(item.groupId)] =
+            Number(item.memberCount) || 0
+        })
+
+        this.memberCountMap = map
+      })
     },
-    // 表单重置
+
+    memberCount(groupId) {
+      return this.memberCountMap[String(groupId)] || 0
+    },
+
+    handleQuery() {
+      this.queryParams.pageNum = 1
+      this.getList()
+    },
+
+    resetQuery() {
+      this.resetForm('queryForm')
+      this.handleQuery()
+    },
+
     reset() {
       this.form = {
         id: null,
         groupCode: null,
         groupName: null,
         scopeCode: null,
-        groupSecretLevel: null,
-        status: null,
-        remark: null,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
-        delFlag: null
+        groupSecretLevel: 'PUBLIC',
+        status: '0',
+        remark: null
       }
-      this.resetForm("form")
+
+      this.resetForm('form')
     },
-    /** 搜索按钮操作 */
-    handleQuery() {
-      this.queryParams.pageNum = 1
-      this.getList()
-    },
-    /** 重置按钮操作 */
-    resetQuery() {
-      this.resetForm("queryForm")
-      this.handleQuery()
-    },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map(item => item.id)
-      this.single = selection.length !== 1
-      this.multiple = !selection.length
-    },
-    /** 新增按钮操作 */
+
     handleAdd() {
       this.reset()
+      this.title = '新建用户组'
       this.open = true
-      this.title = "添加用户组"
     },
-    /** 修改按钮操作 */
+
     handleUpdate(row) {
       this.reset()
-      const id = row.id || this.ids
-      getGroup(id).then(response => {
+
+      getGroup(row.id).then(response => {
         this.form = response.data
+        this.title = '编辑用户组'
         this.open = true
-        this.title = "修改用户组"
       })
     },
-    /** 提交按钮 */
+
+    cancel() {
+      this.open = false
+      this.reset()
+    },
+
     submitForm() {
-      this.$refs["form"].validate(valid => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateGroup(this.form).then(response => {
-              this.msgSuccess("修改成功")
-              this.open = false
-              this.getList()
-            })
-          } else {
-            addGroup(this.form).then(response => {
-              this.msgSuccess("新增成功")
-              this.open = false
-              this.getList()
-            })
-          }
+      this.$refs.form.validate(valid => {
+        if (!valid) {
+          return
         }
+
+        const request = this.form.id
+          ? updateGroup(this.form)
+          : addGroup(this.form)
+
+        request.then(() => {
+          this.$modal.msgSuccess(
+            this.form.id ? '修改成功' : '新增成功'
+          )
+
+          this.open = false
+          this.getList()
+        })
       })
     },
-    /** 删除按钮操作 */
+
     handleDelete(row) {
-      const ids = row.id || this.ids
-      this.$modal.confirm('是否确认删除用户组编号为"' + ids + '"的数据项？').then(function() {
-        return delGroup(ids)
-      }).then(() => {
-        this.getList()
-        this.msgSuccess("删除成功")
-      }).catch(() => {})
+      this.$modal
+        .confirm(
+          '确认删除用户组“' +
+          row.groupName +
+          '”吗？'
+        )
+        .then(() => delGroup(row.id))
+        .then(() => {
+          this.$modal.msgSuccess('删除成功')
+          this.getList()
+        })
+        .catch(() => {})
     },
-    /** 导出按钮操作 */
+
     handleExport() {
-      this.download('system/group/export', {
-        ...this.queryParams
-      }, `group_${new Date().getTime()}.xlsx`)
+      this.download(
+        'system/group/export',
+        {
+          ...this.queryParams
+        },
+        'group_' + new Date().getTime() + '.xlsx'
+      )
+    },
+
+    openMembers(row) {
+      this.currentGroup = row
+      this.memberOpen = true
+      this.candidateUserId = null
+      this.loadMembers()
+    },
+
+    loadMembers() {
+      if (!this.currentGroup) {
+        return
+      }
+
+      this.memberLoading = true
+
+      Promise.all([
+        listGroupMembers(this.currentGroup.id),
+        listGroupCandidates(this.currentGroup.id)
+      ]).then(([members, candidates]) => {
+        this.memberList = members.data || []
+        this.candidateList = candidates.data || []
+        this.memberLoading = false
+        this.loadMemberCounts()
+      }).catch(() => {
+        this.memberLoading = false
+      })
+    },
+
+    addMember() {
+      if (!this.candidateUserId) {
+        return
+      }
+
+      addGroupMember({
+        groupId: this.currentGroup.id,
+        userId: this.candidateUserId
+      }).then(() => {
+        this.$modal.msgSuccess('成员添加成功')
+        this.candidateUserId = null
+        this.loadMembers()
+      })
+    },
+
+    removeMember(user) {
+      this.$modal
+        .confirm(
+          '确认将用户“' +
+          user.userName +
+          '”移出该用户组吗？'
+        )
+        .then(() => {
+          return removeGroupMember(
+            this.currentGroup.id,
+            user.userId
+          )
+        })
+        .then(() => {
+          this.$modal.msgSuccess('成员已移出')
+          this.loadMembers()
+        })
+        .catch(() => {})
+    },
+
+    userLabel(user) {
+      if (
+        user.nickName &&
+        user.nickName !== user.userName
+      ) {
+        return (
+          user.nickName +
+          '（' +
+          user.userName +
+          '）'
+        )
+      }
+
+      return user.userName
+    },
+
+    secretText(value) {
+      const map = {
+        PUBLIC: '公开',
+        INTERNAL: '内部',
+        SECRET: '秘密',
+        CONFIDENTIAL: '机密'
+      }
+
+      return map[value] || value || '未配置'
+    },
+
+    secretTagType(value) {
+      const map = {
+        PUBLIC: 'success',
+        INTERNAL: 'info',
+        SECRET: 'warning',
+        CONFIDENTIAL: 'danger'
+      }
+
+      return map[value] || 'info'
     }
   }
 }
 </script>
+
+<style scoped>
+.group-page {
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 18px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.page-desc {
+  margin-top: 7px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.mb20 {
+  margin-bottom: 20px;
+}
+
+.member-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f5f7fa;
+  padding: 14px 16px;
+  border-radius: 4px;
+}
+
+.summary-code {
+  margin-left: 12px;
+  color: #909399;
+}
+
+.add-member-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.danger-text {
+  color: #f56c6c !important;
+}
+</style>
