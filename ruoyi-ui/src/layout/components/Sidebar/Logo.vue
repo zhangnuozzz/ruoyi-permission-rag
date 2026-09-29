@@ -12,7 +12,7 @@
         v-if="!collapse"
         class="project-title"
       >
-        大模型向量库管理平台
+        向量库访问控制系统
       </div>
     </router-link>
   </div>

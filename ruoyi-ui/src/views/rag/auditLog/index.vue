@@ -179,9 +179,9 @@
 
         <el-table-column label="通过/拦截" align="center" width="110">
           <template slot-scope="scope">
-            <span class="pass-count">{{ scope.row.passedCount || 0 }}</span>
+            <span class="pass-count">{{ auditPassedCount(scope.row) }}</span>
             <span>/</span>
-            <span class="block-count">{{ scope.row.blockedCount || 0 }}</span>
+            <span class="block-count">{{ auditBlockedCount(scope.row) }}</span>
           </template>
         </el-table-column>
 
@@ -241,7 +241,7 @@
         <el-descriptions-item label="风险分数">{{ jsonDetail.riskScore || 0 }}</el-descriptions-item>
         <el-descriptions-item label="受限查询">{{ jsonDetail.limitedQuery === '1' ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="通过/拦截">
-          {{ jsonDetail.passedCount || 0 }} / {{ jsonDetail.blockedCount || 0 }}
+          {{ auditPassedCount(jsonDetail) }} / {{ auditBlockedCount(jsonDetail) }}
         </el-descriptions-item>
         <el-descriptions-item label="拦截原因" :span="3">
           {{ jsonDetail.blockedReasons || jsonDetail.denyReasons || '暂无' }}
@@ -326,7 +326,9 @@ export default {
       return this.logList.filter(item => item.allowAccess === '0').length
     },
     blockedResultCount() {
-      return this.logList.reduce((sum, item) => sum + (Number(item.blockedCount) || 0), 0)
+      return this.logList.reduce((sum, item) => {
+        return sum + this.auditBlockedCount(item)
+      }, 0)
     }
   },
   created() {
@@ -384,6 +386,60 @@ export default {
       } catch (e) {
         return value
       }
+    },
+
+    /**
+     * 从审计 JSON 中计算结果数量。
+     * 兼容历史记录中 passed_count / blocked_count 为 0，
+     * 但结果 JSON 已经存在的情况。
+     */
+    auditJsonArrayCount(value) {
+      if (!value) {
+        return 0
+      }
+
+      if (Array.isArray(value)) {
+        return value.length
+      }
+
+      if (typeof value === 'string') {
+        try {
+          const data = JSON.parse(value)
+          return Array.isArray(data) ? data.length : 0
+        } catch (e) {
+          return 0
+        }
+      }
+
+      return 0
+    },
+
+    /**
+     * 获取实际通过数量。
+     */
+    auditPassedCount(row) {
+      if (!row) {
+        return 0
+      }
+
+      const stored = Number(row.passedCount) || 0
+      const derived = this.auditJsonArrayCount(row.passedResultsJson)
+
+      return Math.max(stored, derived)
+    },
+
+    /**
+     * 获取实际拦截数量。
+     */
+    auditBlockedCount(row) {
+      if (!row) {
+        return 0
+      }
+
+      const stored = Number(row.blockedCount) || 0
+      const derived = this.auditJsonArrayCount(row.blockedResultsJson)
+
+      return Math.max(stored, derived)
     },
 
     riskTagType(score) {

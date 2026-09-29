@@ -5,8 +5,8 @@
     <el-card shadow="never" class="hero-card">
       <div class="hero-main">
         <div>
-          <div class="hero-eyebrow">VECTOR KNOWLEDGE ACCESS CONTROL</div>
-          <div class="hero-title">大模型向量库管理平台</div>
+          <div class="hero-eyebrow">VECTOR ACCESS CONTROL SYSTEM</div>
+          <div class="hero-title">向量库访问控制系统</div>
           <div class="hero-subtitle">
             面向大模型知识库与 RAG 场景，统一管理身份权限、知识入库、
             安全检索、结果过滤、审计留痕与行为告警。
@@ -214,7 +214,7 @@
     </el-card>
 
     <div class="project-footer">
-      <span>大模型向量库项目</span>
+      <span>向量库访问控制系统</span>
       <span class="footer-separator">·</span>
       <span>实现：zhangnuozzz · fufu</span>
     </div>

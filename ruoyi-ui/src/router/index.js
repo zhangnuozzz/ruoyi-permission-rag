@@ -48,7 +48,7 @@ export const constantRoutes = [
     name: 'KnowledgePortal',
     hidden: true,
     meta: {
-      title: '大模型向量知识库系统',
+      title: '向量库访问控制系统',
       noCache: true
     }
   },

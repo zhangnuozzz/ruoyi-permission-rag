@@ -10,17 +10,17 @@
 
           <div>
             <div class="brand-cn">
-              大模型向量知识库系统
+              向量库访问控制系统
             </div>
             <div class="brand-en">
-              VECTOR KNOWLEDGE SYSTEM
+              VECTOR ACCESS CONTROL SYSTEM
             </div>
           </div>
         </div>
 
         <div class="intro-content">
           <div class="intro-label">
-            VECTOR KNOWLEDGE SERVICE
+            VECTOR ACCESS CONTROL SYSTEM
           </div>
 
           <h1>
@@ -70,7 +70,7 @@
         </div>
 
         <div class="intro-footer">
-          <div>大模型向量库项目 · 安全知识服务入口</div>
+          <div>向量库访问控制系统 · 安全知识服务入口</div>
           <div class="designer-line">
             实现：zhangnuozzz · fufu
           </div>

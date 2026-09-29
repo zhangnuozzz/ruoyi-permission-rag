@@ -8,8 +8,8 @@
         </div>
 
         <div>
-          <div class="brand-name">大模型向量知识库</div>
-          <div class="brand-en">VECTOR KNOWLEDGE</div>
+          <div class="brand-name">向量库访问控制系统</div>
+          <div class="brand-en">VECTOR ACCESS CONTROL SYSTEM</div>
         </div>
       </div>
 
@@ -80,7 +80,7 @@
       <!-- 顶栏 -->
       <header class="topbar">
         <div>
-          <div class="topbar-title">大模型向量知识库系统</div>
+          <div class="topbar-title">向量库访问控制系统</div>
           <div class="topbar-subtitle">
             知识安全检索与智能问答服务
           </div>
@@ -175,7 +175,7 @@
             <i class="el-icon-reading"></i>
           </div>
 
-          <h1>欢迎使用大模型向量知识库系统</h1>
+          <h1>欢迎使用向量库访问控制系统</h1>
 
           <p>
             基于向量检索、权限控制与大模型能力，为知识访问提供
