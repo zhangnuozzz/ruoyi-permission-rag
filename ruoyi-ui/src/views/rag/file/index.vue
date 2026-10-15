@@ -20,7 +20,7 @@
         <el-col :span="6">
           <div class="status-card">
             <div class="status-label">管理入口</div>
-            <div class="status-value">向量库管理平台</div>
+            <div class="status-value">向量库访问控制系统</div>
             <el-tag size="mini" type="success">已接入</el-tag>
           </div>
         </el-col>
@@ -66,33 +66,111 @@
         </el-form-item>
 
         <el-form-item label="文件密级">
-          <el-select v-model="form.securityLevel" placeholder="请选择文件密级" style="width: 260px">
-            <el-option label="公开 PUBLIC" value="PUBLIC" />
-            <el-option label="内部 INTERNAL" value="INTERNAL" />
-            <el-option label="秘密 SECRET" value="SECRET" />
-            <el-option label="机密 CONFIDENTIAL" value="CONFIDENTIAL" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="绑定用户组">
-          <el-select v-model="form.groupCode" placeholder="PUBLIC 会自动绑定公开组" style="width: 260px" filterable>
+          <el-select
+            v-model="form.securityLevel"
+            placeholder="请选择文件密级"
+            style="width: 320px"
+            @change="handleSecurityLevelChange"
+          >
             <el-option
-              v-for="group in groupOptions"
-              :key="group.groupCode"
-              :label="group.groupName + ' / ' + group.groupCode + ' / ' + group.groupSecretLevel"
-              :value="group.groupCode"
+              label="公开 · 非密数据 PUBLIC"
+              value="PUBLIC"
+            />
+            <el-option
+              label="内部 · 工作秘密 INTERNAL"
+              value="INTERNAL"
+            />
+            <el-option
+              label="秘密 · 国家秘密 SECRET"
+              value="SECRET"
+            />
+            <el-option
+              label="机密 · 国家秘密 CONFIDENTIAL"
+              value="CONFIDENTIAL"
             />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="权限标签">
-          <el-select v-model="form.scopeCode" placeholder="请选择权限标签" style="width: 260px">
-            <el-option label="PUBLIC" value="PUBLIC" />
-            <el-option label="INTERNAL" value="INTERNAL" />
-            <el-option label="DOC_ADMIN" value="DOC_ADMIN" />
-            <el-option label="PROJECT_A" value="PROJECT_A" />
-            <el-option label="RD" value="RD" />
+        <el-form-item
+          v-if="requiresKnowledgeGroup"
+          label="知悉用户组"
+          required
+        >
+          <el-select
+            v-model="form.groupCode"
+            placeholder="请选择唯一知悉用户组"
+            style="width: 320px"
+            filterable
+            clearable
+          >
+            <el-option
+              v-for="group in groupOptions"
+              :key="group.groupCode"
+              :label="group.groupName + '（' + group.groupCode + '）'"
+              :value="group.groupCode"
+            />
           </el-select>
+
+          <div class="permission-help">
+            秘密级、机密级国家秘密必须绑定一个唯一知悉用户组。
+            只有人员密级满足且属于该用户组时才可访问。
+          </div>
+        </el-form-item>
+
+        <el-form-item
+          v-else
+          label="知悉用户组"
+        >
+          <el-input
+            :value="nonSecretGroupText"
+            disabled
+            style="width: 320px"
+          />
+
+          <div class="permission-help">
+            {{
+              form.securityLevel === 'PUBLIC'
+                ? '公开非密数据不受人员密级和用户组限制。'
+                : '内部工作秘密只校验人员密级，不校验知悉用户组。'
+            }}
+          </div>
+        </el-form-item>
+
+        <el-form-item label="权限模型">
+          <div class="access-model-box">
+            <template v-if="form.securityLevel === 'PUBLIC'">
+              <el-tag type="success" size="small">
+                PUBLIC
+              </el-tag>
+              <span>所有用户均可访问</span>
+            </template>
+
+            <template v-else-if="form.securityLevel === 'INTERNAL'">
+              <el-tag type="info" size="small">
+                INTERNAL
+              </el-tag>
+              <span>人员密级 ≥ INTERNAL 即可访问</span>
+            </template>
+
+            <template v-else>
+              <el-tag
+                :type="
+                  form.securityLevel === 'CONFIDENTIAL'
+                    ? 'danger'
+                    : 'warning'
+                "
+                size="small"
+              >
+                {{ form.securityLevel }}
+              </el-tag>
+
+              <span>
+                人员密级 ≥ 文档密级
+                AND
+                文档用户组 ∈ 人员用户组集合
+              </span>
+            </template>
+          </div>
         </el-form-item>
 
         <el-form-item>
@@ -128,10 +206,10 @@
         <el-descriptions-item label="文件密级">
           <el-tag :type="tagType(latestUpload.securityLevel)" size="mini">{{ latestUpload.securityLevel || '-' }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="权限标签">
+        <el-descriptions-item label="兼容标签">
           <el-tag type="info" size="mini">{{ latestUpload.scopeCode || '-' }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="用户组">
+        <el-descriptions-item label="知悉用户组">
           {{ latestUpload.groupName || latestUpload.groupId || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="MinIO 对象" :span="3">
@@ -168,12 +246,12 @@
             <el-tag size="mini" :type="tagType(scope.row.securityLevel)">{{ scope.row.securityLevel }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="权限标签" prop="scopeCode" width="120">
+        <el-table-column label="兼容标签" prop="scopeCode" width="130">
           <template slot-scope="scope">
             <el-tag size="mini" type="info">{{ scope.row.scopeCode }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="用户组" prop="groupName" width="120" show-overflow-tooltip />
+        <el-table-column label="知悉用户组" prop="groupName" width="140" show-overflow-tooltip />
         <el-table-column label="切块数" prop="chunkCount" width="90" />
         <el-table-column label="向量化状态" prop="embeddingStatus" width="120">
           <template slot-scope="scope">
@@ -185,7 +263,7 @@
         <el-table-column label="向量索引" prop="vectorIndexType" width="100" />
         <el-table-column label="元数据索引" prop="metadataIndexStatus" width="120" />
         <el-table-column label="文档密级" prop="docLevel" width="110" />
-        <el-table-column label="所属用户组" prop="docGroup" width="140" />
+        <el-table-column label="唯一知悉用户组" prop="docGroup" width="160" />
         <el-table-column label="文档状态" prop="docStatus" width="110" />
         <el-table-column label="MinIO对象" prop="minioObjectName" min-width="260" show-overflow-tooltip>
           <template slot-scope="scope">
@@ -228,7 +306,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="权限标签" width="120">
+        <el-table-column label="兼容标签" width="130">
           <template slot-scope="scope">
             <el-tag size="mini" type="info">
               {{ scope.row.scope_code || scope.row.scopeCode || '-' }}
@@ -292,8 +370,13 @@ export default {
       selectedFile: null,
       form: {
         securityLevel: 'INTERNAL',
+
+        // scopeCode 仅用于兼容 RAG Server 旧接口，
+        // 不再由管理员手工配置。
         scopeCode: 'INTERNAL',
-        groupCode: 'GROUP_RD_01'
+
+        // PUBLIC / INTERNAL 不需要知悉用户组。
+        groupCode: ''
       },
       groupOptions: [],
       uploadResult: null,
@@ -310,7 +393,27 @@ export default {
       if (!this.uploadResult) {
         return {}
       }
+
       return this.uploadResult.data || this.uploadResult || {}
+    },
+
+    /**
+     * SECRET / CONFIDENTIAL 属于国家秘密，
+     * 必须配置唯一知悉用户组。
+     */
+    requiresKnowledgeGroup() {
+      return (
+        this.form.securityLevel === 'SECRET' ||
+        this.form.securityLevel === 'CONFIDENTIAL'
+      )
+    },
+
+    nonSecretGroupText() {
+      if (this.form.securityLevel === 'PUBLIC') {
+        return '无需配置（公开非密数据）'
+      }
+
+      return '无需配置（内部工作秘密仅校验人员密级）'
     }
   },
   created() {
@@ -330,32 +433,111 @@ export default {
       this.fileList = []
       this.selectedFile = null
       this.form.securityLevel = 'INTERNAL'
+
+      // scopeCode 只保留给 fufu RAG Server 兼容使用
       this.form.scopeCode = 'INTERNAL'
-      this.form.groupCode = 'GROUP_RD_01'
+
+      // INTERNAL 不绑定知悉用户组
+      this.form.groupCode = ''
+
       this.uploadResult = null
       if (this.$refs.upload) {
         this.$refs.upload.clearFiles()
       }
     },
+    /**
+     * 根据文件密级自动维护兼容 scopeCode。
+     *
+     * PUBLIC：
+     * scopeCode = PUBLIC
+     *
+     * INTERNAL：
+     * scopeCode = INTERNAL
+     *
+     * SECRET / CONFIDENTIAL：
+     * scopeCode = 唯一用户组编码
+     *
+     * scopeCode 不再承担独立权限含义。
+     */
+    handleSecurityLevelChange(level) {
+      if (level === 'PUBLIC') {
+        this.form.groupCode = ''
+        this.form.scopeCode = 'PUBLIC'
+        return
+      }
+
+      if (level === 'INTERNAL') {
+        this.form.groupCode = ''
+        this.form.scopeCode = 'INTERNAL'
+        return
+      }
+
+      // 国家秘密切换密级时重新选择唯一知悉用户组
+      this.form.groupCode = ''
+      this.form.scopeCode = ''
+    },
+
     handleUpload() {
       if (!this.selectedFile) {
         this.$modal.msgWarning('请先选择文件')
         return
       }
-      if (!this.form.securityLevel || !this.form.scopeCode) {
-        this.$modal.msgWarning('请选择文件密级和权限标签')
-        return
-      }
-      if (this.form.securityLevel !== 'PUBLIC' && !this.form.groupCode) {
-        this.$modal.msgWarning('非公开文件必须选择绑定用户组')
+      if (!this.form.securityLevel) {
+        this.$modal.msgWarning('请选择文件密级')
         return
       }
 
+      /*
+       * SECRET / CONFIDENTIAL：
+       * 必须选择唯一知悉用户组。
+       */
+      if (
+        this.requiresKnowledgeGroup &&
+        !this.form.groupCode
+      ) {
+        this.$modal.msgWarning(
+          '秘密级、机密级国家秘密必须选择唯一知悉用户组'
+        )
+        return
+      }
+
+      /*
+       * scopeCode 仅为兼容 fufu 当前接口自动生成：
+       *
+       * PUBLIC       -> PUBLIC
+       * INTERNAL     -> INTERNAL
+       * SECRET       -> groupCode
+       * CONFIDENTIAL -> groupCode
+       */
+      if (this.form.securityLevel === 'PUBLIC') {
+        this.form.scopeCode = 'PUBLIC'
+      } else if (this.form.securityLevel === 'INTERNAL') {
+        this.form.scopeCode = 'INTERNAL'
+      } else {
+        this.form.scopeCode = this.form.groupCode
+      }
+
       const data = new FormData()
-      data.append('file', this.selectedFile)
-      data.append('securityLevel', this.form.securityLevel)
-      data.append('scopeCode', this.form.scopeCode)
-      data.append('groupCode', this.form.groupCode || '')
+
+      data.append(
+        'file',
+        this.selectedFile
+      )
+
+      data.append(
+        'securityLevel',
+        this.form.securityLevel
+      )
+
+      data.append(
+        'scopeCode',
+        this.form.scopeCode
+      )
+
+      data.append(
+        'groupCode',
+        this.form.groupCode || ''
+      )
 
       this.uploading = true
       uploadRagFile(data).then(response => {
@@ -372,7 +554,7 @@ export default {
     },
     loadGroups() {
       return listRagUploadGroups().then(response => {
-        this.groupOptions = response.data || []
+        this.groupOptions = (response.data || []).filter(group => group.groupCode !== 'GROUP_PUBLIC')
       }).catch(() => {
         this.groupOptions = []
       })
@@ -427,15 +609,22 @@ export default {
       })
     },
     tagType(value) {
-      if (value === 'SECRET') {
+      if (value === 'CONFIDENTIAL') {
         return 'danger'
       }
-      if (value === 'INTERNAL') {
+
+      if (value === 'SECRET') {
         return 'warning'
       }
+
+      if (value === 'INTERNAL') {
+        return 'info'
+      }
+
       if (value === 'PUBLIC') {
         return 'success'
       }
+
       return 'info'
     },
     contentPreview(value) {
@@ -509,6 +698,26 @@ export default {
 
 .tips-alert {
   margin-bottom: 16px;
+}
+
+.permission-help {
+  margin-top: 6px;
+  max-width: 650px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.access-model-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 8px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #606266;
 }
 
 .status-row {

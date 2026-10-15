@@ -55,12 +55,41 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             body.put("scopeCodes", context.getScopeCodes());
         }
 
-        // 发给 8081 的是 Milvus 当前 collection 能识别的粗过滤表达式。
-        body.put("metadataFilter", buildMilvusCompatibleFilter(context));
+        /*
+         * Milvus 前置过滤使用统一安全过滤表达式：
+         *
+         * PUBLIC：
+         * 所有人；
+         *
+         * INTERNAL：
+         * 根据人员密级；
+         *
+         * SECRET / CONFIDENTIAL：
+         * 根据人员密级 + group_id。
+         *
+         * 不再使用 scope_code 作为统一权限过滤条件。
+         */
+        String metadataFilter =
+                decision == null
+                        || decision.getMetadataFilter() == null
+                        || decision.getMetadataFilter().length() == 0
+                        ? "chunk_id != \"\""
+                        : decision.getMetadataFilter();
 
-        // 平台完整过滤表达式仍保留，方便 RAG Server 后续升级时使用，也便于联调抓包观察。
-        body.put("platformMetadataFilter", decision == null ? null : decision.getMetadataFilter());
-        body.put("platformFilterMode", "milvus_scope_prefilter_and_platform_second_filter");
+        body.put(
+                "metadataFilter",
+                metadataFilter
+        );
+
+        body.put(
+                "platformMetadataFilter",
+                metadataFilter
+        );
+
+        body.put(
+                "platformFilterMode",
+                "security_level_and_knowledge_group_prefilter"
+        );
 
         Object response = restTemplate.postForObject(ragServerUrl + "/rag/search", body, Object.class);
 

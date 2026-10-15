@@ -186,6 +186,30 @@ public class RagSearchController
             return ajax;
         }
 
+        // 策略拒绝时立即结束，不检索、不返回任何文档正文。
+        if (!Boolean.TRUE.equals(decision.getAllowAccess()))
+        {
+            List<RagSearchResult> empty = new ArrayList<RagSearchResult>();
+            Map<String, Object> denied = new LinkedHashMap<String, Object>();
+            denied.put("query", request.getQuery());
+            denied.put("allowAccess", false);
+            denied.put("searchMode", "blocked_by_policy");
+            denied.put("denyReasons", decision.getDenyReasons());
+            denied.put("rawResultCount", 0);
+            denied.put("filteredResultCount", 0);
+            denied.put("rejectedResultCount", 0);
+            denied.put("rawResults", empty);
+            denied.put("filteredResults", empty);
+            denied.put("rejectedResults", empty);
+            long deniedCost = System.currentTimeMillis() - startTime;
+            denied.put("costTime", deniedCost);
+            AjaxResult ajax = AjaxResult.error("请求被权限策略拦截");
+            ajax.put("data", denied);
+            recordAuditLog(request, context, decision, secureQueryContext,
+                    deniedCost, empty, empty, empty, ajax);
+            return ajax;
+        }
+
         List<RagSearchResult> rawResults;
 
         if (Boolean.TRUE.equals(request.getUseRemote()))
@@ -241,9 +265,9 @@ public class RagSearchController
         result.put("rawResultCount", rawResults == null ? 0 : rawResults.size());
         result.put("filteredResultCount", filteredResults == null ? 0 : filteredResults.size());
         result.put("rejectedResultCount", rejectedResults == null ? 0 : rejectedResults.size());
-        result.put("rawResults", rawResults);
+        result.put("rawResults", new ArrayList<RagSearchResult>());
         result.put("filteredResults", filteredResults);
-        result.put("rejectedResults", rejectedResults);
+        result.put("rejectedResults", new ArrayList<RagSearchResult>());
         result.put("costTime", costTime);
         result.put("answer", answer);
         result.put("answerModel", answerModel);

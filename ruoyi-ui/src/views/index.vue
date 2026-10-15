@@ -288,7 +288,7 @@ export default {
       return ({ critical: '严重', high: '高危', medium: '中危', low: '低危' })[value] || '低危'
     },
     alertName(value) {
-      return ({ CRITICAL_RISK_QUERY: '严重风险查询', HIGH_RISK_QUERY: '高风险查询', DENY_ACCESS: '拒绝访问', SENSITIVE_QUERY: '敏感词查询', LARGE_TOPK_QUERY: '超量检索', MASSIVE_RESULT_BLOCK: '大量结果拦截', SECOND_FILTER_BLOCK: '二次过滤拦截', SLOW_QUERY: '异常耗时', HIGH_FREQUENCY_ACCESS: '高频访问' })[value] || value || '安全告警'
+      return ({ CRITICAL_RISK_QUERY: '严重风险查询', HIGH_RISK_QUERY: '高风险查询', DENY_ACCESS: '拒绝访问', SENSITIVE_QUERY: '敏感词查询', LARGE_TOPK_QUERY: '超量检索', MASSIVE_RESULT_BLOCK: '大量结果拦截', SECOND_FILTER_BLOCK: '二次过滤拦截', REPEAT_QUERY_PATTERN: '重复查询', HIGH_FREQUENCY_ACCESS: '高频访问', SLOW_QUERY: '异常耗时', NORMAL_ACCESS: '普通访问' })[value] || '安全告警'
     },
     decisionClass(value) {
       return String(value) === '1' ? 'allowed' : String(value) === '0' ? 'denied' : 'unknown'

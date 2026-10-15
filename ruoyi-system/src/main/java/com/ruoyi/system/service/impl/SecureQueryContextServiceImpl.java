@@ -179,22 +179,15 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setGroupCodes(groupCodes);
         context.setScopeCodes(scopeCodes);
 
-        if (!Boolean.TRUE.equals(admin))
-        {
-            if (CollectionUtils.isEmpty(groupCodes))
-            {
-                context.setAllowQuery(false);
-                context.getReasons().add("NO_VALID_GROUP_ASSIGNED");
-                return context;
-            }
-
-            if (CollectionUtils.isEmpty(scopeCodes))
-            {
-                context.setAllowQuery(false);
-                context.getReasons().add("NO_VALID_SCOPE_ASSIGNED");
-                return context;
-            }
-        }
+        /*
+         * 没有用户组并不代表不能检索：
+         *
+         * PUBLIC 不需要用户组；
+         * INTERNAL 只检查人员密级；
+         * SECRET / CONFIDENTIAL 才使用用户组作为知悉范围。
+         *
+         * scopeCodes 仅保留兼容展示，不参与核心鉴权。
+         */
 
         if (context.getRiskScore() >= 70)
         {
@@ -259,50 +252,152 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
      * 说明：
      * 这是平台侧标准化表达式，后续可转换为 Milvus / RAG Server 实际过滤语法。
      */
+    /**
+     * 根据人员密级 + 用户组集合生成 Milvus 可直接使用的前置过滤。
+     *
+     * PUBLIC：
+     * 所有人。
+     *
+     * INTERNAL：
+     * 人员密级达到 INTERNAL 即可。
+     *
+     * SECRET / CONFIDENTIAL：
+     * 人员密级满足且 group_id 属于人员用户组集合。
+     */
     private String buildMetadataFilter(SecureQueryContext context)
     {
-        StringBuilder filter = new StringBuilder();
+        String level = normalizeLevel(
+                context.getUserSecretLevel()
+        );
 
-        filter.append("metadata_status == 'ACTIVE'");
+        List<String> groups =
+                context.getGroupCodes();
 
-        if (context.getUserSecretLevel() != null && context.getUserSecretLevel().length() > 0)
+        StringBuilder filter =
+                new StringBuilder();
+
+        filter.append(
+                "(security_level == \"PUBLIC\""
+        );
+
+        if (secretRank(level)
+                >= secretRank("INTERNAL"))
         {
-            filter.append(" && security_level <= '");
-            filter.append(context.getUserSecretLevel());
-            filter.append("'");
+            filter.append(
+                    " || security_level == \"INTERNAL\""
+            );
         }
 
-        if (!Boolean.TRUE.equals(context.getAdmin()) && !CollectionUtils.isEmpty(context.getGroupCodes()))
+        if (secretRank(level)
+                >= secretRank("SECRET")
+                && !CollectionUtils.isEmpty(groups))
         {
-            filter.append(" && owner_group_code in ");
-            filter.append(toQuotedList(context.getGroupCodes()));
+            filter.append(
+                    " || (security_level == \"SECRET\""
+            );
+
+            filter.append(
+                    " && group_id in "
+            );
+
+            filter.append(
+                    toQuotedList(groups)
+            );
+
+            filter.append(")");
         }
 
-        if (!CollectionUtils.isEmpty(context.getScopeCodes()))
+        if (secretRank(level)
+                >= secretRank("CONFIDENTIAL")
+                && !CollectionUtils.isEmpty(groups))
         {
-            filter.append(" && scope_code in ");
-            filter.append(toQuotedList(context.getScopeCodes()));
+            filter.append(
+                    " || (security_level == \"CONFIDENTIAL\""
+            );
+
+            filter.append(
+                    " && group_id in "
+            );
+
+            filter.append(
+                    toQuotedList(groups)
+            );
+
+            filter.append(")");
         }
+
+        filter.append(")");
 
         return filter.toString();
     }
 
     private String toQuotedList(List<String> list)
     {
-        StringBuilder builder = new StringBuilder();
+        StringBuilder builder =
+                new StringBuilder();
+
         builder.append("[");
+
         for (int i = 0; i < list.size(); i++)
         {
             if (i > 0)
             {
                 builder.append(", ");
             }
-            builder.append("'");
+
+            builder.append("\"");
             builder.append(list.get(i));
-            builder.append("'");
+            builder.append("\"");
         }
+
         builder.append("]");
+
         return builder.toString();
+    }
+
+    private String normalizeLevel(String level)
+    {
+        if ("INTERNAL".equalsIgnoreCase(level))
+        {
+            return "INTERNAL";
+        }
+
+        if ("SECRET".equalsIgnoreCase(level))
+        {
+            return "SECRET";
+        }
+
+        if ("CONFIDENTIAL".equalsIgnoreCase(level))
+        {
+            return "CONFIDENTIAL";
+        }
+
+        return "PUBLIC";
+    }
+
+    private int secretRank(String level)
+    {
+        if ("PUBLIC".equals(level))
+        {
+            return 1;
+        }
+
+        if ("INTERNAL".equals(level))
+        {
+            return 2;
+        }
+
+        if ("SECRET".equals(level))
+        {
+            return 3;
+        }
+
+        if ("CONFIDENTIAL".equals(level))
+        {
+            return 4;
+        }
+
+        return 0;
     }
 
     /**

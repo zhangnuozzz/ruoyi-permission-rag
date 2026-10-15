@@ -83,19 +83,19 @@ public class PermissionContextServiceImpl implements IPermissionContextService
             return;
         }
 
-        if (CollectionUtils.isEmpty(context.getGroups()))
-        {
-            context.setAllowAccess(false);
-            context.getDenyReasons().add("NO_GROUP_ASSIGNED");
-            return;
-        }
-
-        if (CollectionUtils.isEmpty(context.getPolicies()))
-        {
-            context.setAllowAccess(false);
-            context.getDenyReasons().add("NO_EFFECTIVE_POLICY");
-            return;
-        }
+        /*
+         * 用户组不是“是否能够使用系统”的前置条件。
+         *
+         * 没有用户组：
+         * 仍然可以访问 PUBLIC；
+         * 密级满足时仍然可以访问 INTERNAL。
+         *
+         * 用户组只在 SECRET / CONFIDENTIAL
+         * 国家秘密文档访问时作为知悉范围使用。
+         *
+         * 同样，没有附加策略并不代表拒绝访问。
+         * 策略用于进一步限制，而不是产生基础知悉权限。
+         */
 
         // 第一版仅识别简单的“非工作时间禁止访问”表达式。
         // 例如：time not in [09:00-18:00]

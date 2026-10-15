@@ -1,28 +1,25 @@
 <template>
-  <div class="app-container group-page">
-    <div class="page-header">
+  <div class="app-container group-page identity-access-page">
+    <header class="identity-header">
       <div>
-        <div class="page-title">用户组管理</div>
-        <div class="page-desc">
-          统一管理用户组、成员、知悉范围与用户组密级，成员关系不再单独维护。
-        </div>
+        <h1>用户组管理</h1>
+        <p>一个人可加入多个用户组；秘密、机密文档各绑定一个知悉组。</p>
       </div>
+      <span class="identity-count">当前筛选：{{ total }} 组</span>
+    </header>
+
+    <div class="identity-rule-note" role="note">
+      <strong>秘密、机密文档：</strong>
+      人员密级足够，且文档唯一绑定组属于人员所属组集合。用户组不提高人员密级。
     </div>
 
-    <el-alert
-      title="用户加入用户组后，将继承该用户组对应的基础访问范围。"
-      type="info"
-      :closable="false"
-      show-icon
-      class="mb20"
-    />
-
     <el-form
+      v-show="showSearch"
       ref="queryForm"
+      class="identity-filter"
       :model="queryParams"
       size="small"
       :inline="true"
-      v-show="showSearch"
     >
       <el-form-item label="用户组名称" prop="groupName">
         <el-input
@@ -36,130 +33,74 @@
       <el-form-item label="用户组编码" prop="groupCode">
         <el-input
           v-model="queryParams.groupCode"
-          placeholder="请输入用户组编码"
+          placeholder="例如 GROUP_PROJECT_A"
           clearable
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
 
-      <el-form-item label="知悉范围" prop="scopeCode">
-        <el-input
-          v-model="queryParams.scopeCode"
-          placeholder="例如 PUBLIC"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-
-      <el-form-item label="用户组密级" prop="groupSecretLevel">
-        <el-select
-          v-model="queryParams.groupSecretLevel"
-          placeholder="全部"
-          clearable
-        >
-          <el-option label="公开" value="PUBLIC" />
-          <el-option label="内部" value="INTERNAL" />
-          <el-option label="秘密" value="SECRET" />
-          <el-option label="机密" value="CONFIDENTIAL" />
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="全部" clearable>
+          <el-option label="正常" value="0" />
+          <el-option label="停用" value="1" />
         </el-select>
       </el-form-item>
 
       <el-form-item>
-        <el-button
-          type="primary"
-          icon="el-icon-search"
-          size="mini"
-          @click="handleQuery"
-        >搜索</el-button>
+        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">
+          搜索
+        </el-button>
 
-        <el-button
-          icon="el-icon-refresh"
-          size="mini"
-          @click="resetQuery"
-        >重置</el-button>
+        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
 
-    <el-row :gutter="10" class="mb8">
+    <el-row :gutter="10" class="mb8 identity-toolbar">
       <el-col :span="1.5">
         <el-button
+          v-hasPermi="['system:group:add']"
           type="primary"
           plain
           icon="el-icon-plus"
           size="mini"
           @click="handleAdd"
-          v-hasPermi="['system:group:add']"
-        >新建用户组</el-button>
+        >
+          新建用户组
+        </el-button>
       </el-col>
 
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="el-icon-download"
-          size="mini"
-          @click="handleExport"
-          v-hasPermi="['system:group:export']"
-        >导出</el-button>
-      </el-col>
-
-      <right-toolbar
-        :showSearch.sync="showSearch"
-        @queryTable="getList"
-      />
+      <right-toolbar :show-search.sync="showSearch" @queryTable="getList" />
     </el-row>
+
+    <div v-if="listError" class="identity-feedback" role="alert">
+      <i class="el-icon-warning-outline" aria-hidden="true" />
+      <span>{{ listError }}</span>
+      <el-button type="text" :disabled="loading" @click="getList">重新加载</el-button>
+    </div>
 
     <el-table
       v-loading="loading"
       :data="groupList"
-      border
-      stripe
+      size="small"
+      :empty-text="listError ? '用户组数据未能加载' : '未找到符合条件的用户组'"
     >
-      <el-table-column
-        label="用户组名称"
-        prop="groupName"
-        min-width="150"
-      />
+      <el-table-column label="用户组名称" prop="groupName" min-width="160" />
 
-      <el-table-column
-        label="用户组编码"
-        prop="groupCode"
-        min-width="150"
-      />
+      <el-table-column label="用户组编码" prop="groupCode" min-width="180" />
 
-      <el-table-column
-        label="知悉范围"
-        prop="scopeCode"
-        min-width="120"
-        align="center"
-      >
-        <template slot-scope="scope">
-          <el-tag size="mini" effect="plain">
-            {{ scope.row.scopeCode || '未配置' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        label="用户组密级"
-        width="110"
-        align="center"
-      >
+      <el-table-column label="分组用途" width="150">
         <template slot-scope="scope">
           <el-tag
             size="mini"
-            :type="secretTagType(scope.row.groupSecretLevel)"
+            :type="scope.row.groupCode === 'GROUP_PUBLIC' ? 'info' : ''"
+            effect="plain"
           >
-            {{ secretText(scope.row.groupSecretLevel) }}
+            {{ scope.row.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组' : '涉密知悉范围' }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column
-        label="成员数"
-        width="90"
-        align="center"
-      >
+      <el-table-column label="成员数" width="90" align="center">
         <template slot-scope="scope">
           <el-tag type="info" size="mini">
             {{ memberCount(scope.row.id) }}
@@ -167,56 +108,54 @@
         </template>
       </el-table-column>
 
-      <el-table-column
-        label="状态"
-        width="90"
-        align="center"
-      >
+      <el-table-column label="状态" width="90" align="center">
         <template slot-scope="scope">
-          <el-tag
-            size="mini"
-            :type="scope.row.status === '0' ? 'success' : 'info'"
-          >
+          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
             {{ scope.row.status === '0' ? '正常' : '停用' }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column
-        label="备注"
-        prop="remark"
-        min-width="150"
-        show-overflow-tooltip
-      />
+      <el-table-column label="说明" prop="remark" min-width="180" show-overflow-tooltip />
 
       <el-table-column
         label="操作"
         width="230"
-        align="center"
+        class-name="identity-actions"
         fixed="right"
+        align="center"
       >
         <template slot-scope="scope">
           <el-button
+            v-if="can('system:group:list')"
             type="text"
+            size="mini"
             icon="el-icon-user"
             @click="openMembers(scope.row)"
-            v-hasPermi="['system:group:list']"
-          >成员管理</el-button>
+          >
+            成员管理
+          </el-button>
 
           <el-button
+            v-if="can('system:group:edit') && can('system:group:query')"
             type="text"
+            size="mini"
             icon="el-icon-edit"
             @click="handleUpdate(scope.row)"
-            v-hasPermi="['system:group:edit']"
-          >编辑</el-button>
+          >
+            编辑
+          </el-button>
 
           <el-button
+            v-if="can('system:group:remove')"
             type="text"
+            size="mini"
             icon="el-icon-delete"
             class="danger-text"
             @click="handleDelete(scope.row)"
-            v-hasPermi="['system:group:remove']"
-          >删除</el-button>
+          >
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -229,108 +168,125 @@
       @pagination="getList"
     />
 
-    <!-- 用户组新增/编辑 -->
+    <!-- 新增编辑 -->
     <el-dialog
       :title="title"
       :visible.sync="open"
       width="560px"
+      :before-close="closeGroupDialog"
+      :close-on-press-escape="!saving"
       append-to-body
+      custom-class="identity-access-dialog"
+      :close-on-click-modal="false"
     >
-      <el-form
-        ref="form"
-        :model="form"
-        :rules="rules"
-        label-width="110px"
-      >
+      <el-alert
+        :title="
+          form.groupCode === 'GROUP_PUBLIC'
+            ? '此分组仅用于旧版公开数据兼容，不参与涉密知悉授权。'
+            : '用户组表示知悉范围，不设置密级，也不授予后台操作权限。'
+        "
+        type="info"
+        :closable="false"
+        show-icon
+        class="dialog-alert"
+      />
+
+      <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
+      <el-form ref="form" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="用户组名称" prop="groupName">
-          <el-input
-            v-model="form.groupName"
-            placeholder="例如：公开文档组"
-          />
+          <el-input v-model="form.groupName" placeholder="例如：A项目组" />
         </el-form-item>
 
         <el-form-item label="用户组编码" prop="groupCode">
+          <el-input v-model="form.groupCode" placeholder="例如：GROUP_PROJECT_A" />
+        </el-form-item>
+
+        <el-form-item label="业务含义">
           <el-input
-            v-model="form.groupCode"
-            placeholder="例如：GROUP_PUBLIC"
+            :value="form.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组' : '涉密知悉范围'"
+            disabled
           />
         </el-form-item>
 
-        <el-form-item label="知悉范围" prop="scopeCode">
-          <el-input
-            v-model="form.scopeCode"
-            placeholder="例如：PUBLIC"
-          />
-        </el-form-item>
-
-        <el-form-item label="用户组密级" prop="groupSecretLevel">
-          <el-select
-            v-model="form.groupSecretLevel"
-            style="width:100%"
-          >
-            <el-option label="公开" value="PUBLIC" />
-            <el-option label="内部" value="INTERNAL" />
-            <el-option label="秘密" value="SECRET" />
-            <el-option label="机密" value="CONFIDENTIAL" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="状态" prop="status">
+        <el-form-item label="状态">
           <el-radio-group v-model="form.status">
             <el-radio label="0">正常</el-radio>
             <el-radio label="1">停用</el-radio>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="备注">
+        <el-form-item label="说明">
           <el-input
             v-model="form.remark"
             type="textarea"
             :rows="3"
+            placeholder="例如：A项目秘密、机密资料知悉人员范围"
           />
         </el-form-item>
       </el-form>
 
       <div slot="footer">
-        <el-button type="primary" @click="submitForm">保存</el-button>
-        <el-button @click="cancel">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitForm">保存</el-button>
+
+        <el-button :disabled="saving" @click="cancel">取消</el-button>
       </div>
     </el-dialog>
 
-    <!-- 用户组成员管理 -->
+    <!-- 成员管理 -->
     <el-dialog
       :title="memberDialogTitle"
       :visible.sync="memberOpen"
       width="760px"
+      :before-close="closeMemberDialog"
+      :close-on-press-escape="!memberBusy"
       append-to-body
+      custom-class="identity-access-dialog"
+      :close-on-click-modal="false"
     >
+      <el-alert
+        :title="
+          currentGroup && currentGroup.groupCode === 'GROUP_PUBLIC'
+            ? '此处维护旧版兼容成员关系；公开文档访问不以加入该组为前提。'
+            : '加入该组只满足对应知悉范围，访问秘密、机密文档仍须人员密级足够。'
+        "
+        type="warning"
+        :closable="false"
+        show-icon
+        class="dialog-alert"
+      />
+
       <div v-if="currentGroup" class="member-summary">
         <div>
-          <strong>{{ currentGroup.groupName }}</strong>
+          <strong>
+            {{ currentGroup.groupName }}
+          </strong>
+
           <span class="summary-code">
             {{ currentGroup.groupCode }}
           </span>
         </div>
 
         <div>
-          知悉范围：
-          <el-tag size="mini">
-            {{ currentGroup.scopeCode || '-' }}
-          </el-tag>
+          当前成员：
+          <strong>
+            {{ memberLoading || memberError ? '待确认' : memberList.length }}
+          </strong>
         </div>
       </div>
 
-      <el-divider content-position="left">
-        添加成员
-      </el-divider>
+      <el-divider content-position="left">添加成员</el-divider>
 
-      <div class="add-member-row">
+      <div v-if="memberError" class="identity-form-feedback" role="alert">
+        {{ memberError }}
+        <el-button type="text" :disabled="memberLoading" @click="loadMembers">重试</el-button>
+      </div>
+      <div v-if="can('system:group:edit')" class="add-member-row">
         <el-select
           v-model="candidateUserId"
           filterable
           clearable
-          placeholder="选择需要加入的用户"
-          style="width:430px"
+          placeholder="选择需要加入该知悉范围的人员"
+          style="width: 470px"
         >
           <el-option
             v-for="user in candidateList"
@@ -343,81 +299,61 @@
         <el-button
           type="primary"
           icon="el-icon-plus"
-          :disabled="!candidateUserId"
+          :disabled="!candidateUserId || memberLoading || !!memberError || memberBusy"
+          :loading="memberSaving"
           @click="addMember"
         >
           加入用户组
         </el-button>
       </div>
 
-      <el-divider content-position="left">
-        当前成员
-      </el-divider>
+      <el-divider content-position="left">当前成员</el-divider>
 
-      <el-table
-        v-loading="memberLoading"
-        :data="memberList"
-        border
-      >
-        <el-table-column
-          label="用户名"
-          prop="userName"
-          min-width="130"
-        />
+      <el-table v-loading="memberLoading" :data="memberList" border>
+        <el-table-column label="用户名" prop="userName" min-width="130" />
 
-        <el-table-column
-          label="姓名"
-          prop="nickName"
-          min-width="130"
-        />
+        <el-table-column label="姓名" prop="nickName" min-width="130" />
 
-        <el-table-column
-          label="状态"
-          width="90"
-          align="center"
-        >
+        <el-table-column label="账号状态" width="100" align="center">
           <template slot-scope="scope">
-            <el-tag
-              size="mini"
-              :type="scope.row.status === '0' ? 'success' : 'info'"
-            >
+            <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
               {{ scope.row.status === '0' ? '正常' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column
-          label="加入时间"
-          width="170"
-        >
+        <el-table-column label="加入时间" width="170">
           <template slot-scope="scope">
             {{ parseTime(scope.row.joinTime, '{y}-{m}-{d} {h}:{i}:{s}') }}
           </template>
         </el-table-column>
 
-        <el-table-column
-          label="操作"
-          width="100"
-          align="center"
-        >
+        <el-table-column label="操作" width="100" align="center">
           <template slot-scope="scope">
             <el-button
+              v-if="can('system:group:edit')"
               type="text"
               class="danger-text"
+              :disabled="memberBusy || memberLoading || !!memberError"
+              :loading="memberRemovingId === scope.row.userId"
               @click="removeMember(scope.row)"
-            >移出</el-button>
+            >
+              移出
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div slot="footer">
-        <el-button @click="memberOpen = false">关闭</el-button>
+        <el-button :disabled="memberBusy" @click="memberOpen = false">关闭</el-button>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script>
+import '@/assets/styles/identity-access.scss'
+import { canUse } from '@/utils/identityAccess'
 import {
   listGroup,
   getGroup,
@@ -437,6 +373,14 @@ export default {
   data() {
     return {
       loading: true,
+      saving: false,
+      listError: '',
+      saveError: '',
+      countsLoaded: false,
+      countsError: '',
+      memberError: '',
+      memberSaving: false,
+      memberRemovingId: null,
       showSearch: true,
 
       total: 0,
@@ -450,7 +394,9 @@ export default {
 
       memberOpen: false,
       memberLoading: false,
+
       currentGroup: null,
+
       memberList: [],
       candidateList: [],
       candidateUserId: null,
@@ -458,10 +404,10 @@ export default {
       queryParams: {
         pageNum: 1,
         pageSize: 10,
+
         groupCode: null,
         groupName: null,
-        scopeCode: null,
-        groupSecretLevel: null,
+
         status: null
       },
 
@@ -473,25 +419,12 @@ export default {
             trigger: 'blur'
           }
         ],
+
         groupCode: [
           {
             required: true,
             message: '用户组编码不能为空',
             trigger: 'blur'
-          }
-        ],
-        scopeCode: [
-          {
-            required: true,
-            message: '知悉范围不能为空',
-            trigger: 'blur'
-          }
-        ],
-        groupSecretLevel: [
-          {
-            required: true,
-            message: '请选择用户组密级',
-            trigger: 'change'
           }
         ]
       }
@@ -499,12 +432,15 @@ export default {
   },
 
   computed: {
+    memberBusy() {
+      return this.memberSaving || this.memberRemovingId !== null
+    },
     memberDialogTitle() {
       if (!this.currentGroup) {
         return '用户组成员管理'
       }
 
-      return this.currentGroup.groupName + ' - 成员管理'
+      return this.currentGroup.groupName + ' - 知悉人员管理'
     }
   },
 
@@ -513,31 +449,67 @@ export default {
   },
 
   methods: {
-    getList() {
-      this.loading = true
-
-      listGroup(this.queryParams).then(response => {
-        this.groupList = response.rows || []
-        this.total = response.total || 0
-        this.loading = false
-        this.loadMemberCounts()
-      })
+    can(permission) {
+      return canUse(this.$store.getters.permissions, permission)
+    },
+    closeGroupDialog(done) {
+      if (!this.saving) {
+        done()
+      }
+    },
+    closeMemberDialog(done) {
+      if (!this.memberBusy) {
+        done()
+      }
     },
 
-    loadMemberCounts() {
-      getGroupMemberCounts().then(response => {
+    async getList() {
+      this.loading = true
+      this.listError = ''
+      const requestId = (this.groupListRequestId || 0) + 1
+      this.groupListRequestId = requestId
+      try {
+        const response = await listGroup(this.queryParams)
+        if (requestId !== this.groupListRequestId) {
+          return
+        }
+        this.groupList = Array.isArray(response.rows) ? response.rows : []
+        this.total = Number(response.total) || 0
+        this.loadMemberCounts()
+      } catch (error) {
+        if (requestId !== this.groupListRequestId) {
+          return
+        }
+        this.groupList = []
+        this.total = 0
+        this.listError = '用户组列表加载失败，请重试。'
+      } finally {
+        if (requestId === this.groupListRequestId) {
+          this.loading = false
+        }
+      }
+    },
+
+    async loadMemberCounts() {
+      this.countsLoaded = false
+      this.countsError = ''
+      try {
+        const response = await getGroupMemberCounts()
         const map = {}
-
-        ;(response.data || []).forEach(item => {
-          map[String(item.groupId)] =
-            Number(item.memberCount) || 0
+        ;(response.data || []).forEach((item) => {
+          map[String(item.groupId)] = Number(item.memberCount) || 0
         })
-
         this.memberCountMap = map
-      })
+        this.countsLoaded = true
+      } catch (error) {
+        this.countsError = '成员数加载失败'
+      }
     },
 
     memberCount(groupId) {
+      if (!this.countsLoaded) {
+        return this.countsError ? '未取得' : '加载中'
+      }
       return this.memberCountMap[String(groupId)] || 0
     },
 
@@ -552,184 +524,221 @@ export default {
     },
 
     reset() {
+      this.saveError = ''
       this.form = {
         id: null,
+
         groupCode: null,
         groupName: null,
+
+        // 旧兼容字段不再参与业务
         scopeCode: null,
-        groupSecretLevel: 'PUBLIC',
+        groupSecretLevel: null,
+
         status: '0',
         remark: null
       }
 
-      this.resetForm('form')
+      if (this.$refs.form) {
+        this.resetForm('form')
+      }
     },
 
     handleAdd() {
       this.reset()
-      this.title = '新建用户组'
+
+      this.title = '新建知悉用户组'
+
       this.open = true
     },
 
     handleUpdate(row) {
       this.reset()
 
-      getGroup(row.id).then(response => {
-        this.form = response.data
-        this.title = '编辑用户组'
-        this.open = true
+      getGroup(row.id)
+        .then((response) => {
+          this.form = response.data || {}
+
+          // 不再编辑旧 scope / groupSecretLevel
+          this.form.scopeCode = null
+          this.form.groupSecretLevel = null
+
+          this.title = '编辑知悉用户组'
+
+          this.open = true
+        })
+        .catch(() => {
+          this.$message.error('用户组详情加载失败，请重试。')
+        })
+    },
+
+    submitForm() {
+      if (this.saving) {
+        return
+      }
+      const permission = this.form.id ? 'system:group:edit' : 'system:group:add'
+      if (!this.can(permission)) {
+        return
+      }
+      this.$refs.form.validate(async(valid) => {
+        if (!valid || this.saving) {
+          return
+        }
+        this.saving = true
+        this.saveError = ''
+        const payload = {
+          id: this.form.id,
+          groupCode: this.form.groupCode,
+          groupName: this.form.groupName,
+          scopeCode: null,
+          groupSecretLevel: null,
+          status: this.form.status,
+          remark: this.form.remark
+        }
+        try {
+          await (payload.id ? updateGroup(payload) : addGroup(payload))
+          this.msgSuccess('用户组已保存')
+          this.open = false
+          this.getList()
+        } catch (error) {
+          this.saveError = '用户组保存失败，请核对后重试。'
+        } finally {
+          this.saving = false
+        }
       })
     },
 
     cancel() {
+      if (this.saving) {
+        return
+      }
       this.open = false
       this.reset()
     },
 
-    submitForm() {
-      this.$refs.form.validate(valid => {
-        if (!valid) {
-          return
-        }
-
-        const request = this.form.id
-          ? updateGroup(this.form)
-          : addGroup(this.form)
-
-        request.then(() => {
-          this.$modal.msgSuccess(
-            this.form.id ? '修改成功' : '新增成功'
-          )
-
-          this.open = false
-          this.getList()
-        })
-      })
-    },
-
     handleDelete(row) {
-      this.$modal
-        .confirm(
-          '确认删除用户组“' +
-          row.groupName +
-          '”吗？'
-        )
-        .then(() => delGroup(row.id))
+      this.$confirm('确认删除用户组“' + row.groupName + '”吗？', '警告', {
+        type: 'warning'
+      })
         .then(() => {
-          this.$modal.msgSuccess('删除成功')
+          return delGroup(row.id)
+        })
+        .then(() => {
+          this.msgSuccess('删除成功')
           this.getList()
         })
         .catch(() => {})
     },
 
-    handleExport() {
-      this.download(
-        'system/group/export',
-        {
-          ...this.queryParams
-        },
-        'group_' + new Date().getTime() + '.xlsx'
-      )
-    },
-
     openMembers(row) {
       this.currentGroup = row
+      this.memberList = []
+      this.candidateList = []
+      this.memberError = ''
       this.memberOpen = true
       this.candidateUserId = null
       this.loadMembers()
     },
 
-    loadMembers() {
+    async loadMembers() {
       if (!this.currentGroup) {
         return
       }
-
+      const groupId = this.currentGroup.id
       this.memberLoading = true
-
-      Promise.all([
-        listGroupMembers(this.currentGroup.id),
-        listGroupCandidates(this.currentGroup.id)
-      ]).then(([members, candidates]) => {
-        this.memberList = members.data || []
-        this.candidateList = candidates.data || []
-        this.memberLoading = false
+      this.memberError = ''
+      try {
+        const results = await Promise.all([
+          listGroupMembers(groupId),
+          this.can('system:group:edit')
+            ? listGroupCandidates(groupId)
+            : Promise.resolve({ data: [] })
+        ])
+        if (!this.currentGroup || this.currentGroup.id !== groupId) {
+          return
+        }
+        this.memberList = Array.isArray(results[0].data) ? results[0].data : []
+        this.candidateList = Array.isArray(results[1].data) ? results[1].data : []
         this.loadMemberCounts()
-      }).catch(() => {
-        this.memberLoading = false
-      })
+      } catch (error) {
+        if (!this.currentGroup || this.currentGroup.id !== groupId) {
+          return
+        }
+        this.memberList = []
+        this.candidateList = []
+        this.memberError = '成员资料加载失败，暂不能变更成员关系。'
+      } finally {
+        if (this.currentGroup && this.currentGroup.id === groupId) {
+          this.memberLoading = false
+        }
+      }
     },
 
-    addMember() {
-      if (!this.candidateUserId) {
+    async addMember() {
+      if (
+        !this.currentGroup ||
+        !this.candidateUserId ||
+        this.memberBusy ||
+        this.memberLoading ||
+        this.memberError ||
+        !this.can('system:group:edit')
+      ) {
         return
       }
-
-      addGroupMember({
-        groupId: this.currentGroup.id,
-        userId: this.candidateUserId
-      }).then(() => {
-        this.$modal.msgSuccess('成员添加成功')
+      const groupId = this.currentGroup.id
+      const userId = this.candidateUserId
+      this.memberSaving = true
+      try {
+        await addGroupMember({ groupId, userId })
+        this.msgSuccess('成员已加入用户组；人员密级未改变')
         this.candidateUserId = null
-        this.loadMembers()
-      })
+        await this.loadMembers()
+      } catch (error) {
+        this.$message.error('成员添加失败，请核对后重试。')
+      } finally {
+        this.memberSaving = false
+      }
     },
 
-    removeMember(user) {
-      this.$modal
-        .confirm(
-          '确认将用户“' +
-          user.userName +
-          '”移出该用户组吗？'
+    async removeMember(user) {
+      if (
+        !this.currentGroup ||
+        this.memberBusy ||
+        this.memberLoading ||
+        this.memberError ||
+        !this.can('system:group:edit')
+      ) {
+        return
+      }
+      const groupId = this.currentGroup.id
+      this.memberRemovingId = user.userId
+      try {
+        await this.$confirm(
+          '确认将“' +
+            user.userName +
+            '”移出“' +
+            this.currentGroup.groupName +
+            '”吗？该成员将失去此组对应的知悉范围。',
+          '移出用户组'
         )
-        .then(() => {
-          return removeGroupMember(
-            this.currentGroup.id,
-            user.userId
-          )
-        })
-        .then(() => {
-          this.$modal.msgSuccess('成员已移出')
-          this.loadMembers()
-        })
-        .catch(() => {})
+        await removeGroupMember(groupId, user.userId)
+        this.msgSuccess('成员关系已移除')
+        await this.loadMembers()
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          this.$message.error('成员移除失败，请刷新后核实。')
+        }
+      } finally {
+        this.memberRemovingId = null
+      }
     },
 
     userLabel(user) {
-      if (
-        user.nickName &&
-        user.nickName !== user.userName
-      ) {
-        return (
-          user.nickName +
-          '（' +
-          user.userName +
-          '）'
-        )
+      if (user.nickName && user.nickName !== user.userName) {
+        return user.nickName + '（' + user.userName + '）'
       }
 
       return user.userName
-    },
-
-    secretText(value) {
-      const map = {
-        PUBLIC: '公开',
-        INTERNAL: '内部',
-        SECRET: '秘密',
-        CONFIDENTIAL: '机密'
-      }
-
-      return map[value] || value || '未配置'
-    },
-
-    secretTagType(value) {
-      const map = {
-        PUBLIC: 'success',
-        INTERNAL: 'info',
-        SECRET: 'warning',
-        CONFIDENTIAL: 'danger'
-      }
-
-      return map[value] || 'info'
     }
   }
 }
@@ -740,33 +749,25 @@ export default {
   padding: 20px;
 }
 
-.page-header {
-  margin-bottom: 18px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.page-desc {
-  margin-top: 7px;
-  color: #909399;
-  font-size: 13px;
-}
-
 .mb20 {
   margin-bottom: 20px;
+}
+
+.dialog-alert {
+  margin-bottom: 18px;
 }
 
 .member-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f5f7fa;
+
+  margin-bottom: 10px;
   padding: 14px 16px;
+
   border-radius: 4px;
+
+  background: #f5f7fa;
 }
 
 .summary-code {

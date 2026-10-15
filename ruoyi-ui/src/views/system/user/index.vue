@@ -1,671 +1,1364 @@
 <template>
-  <div class="app-container">
+  <div class="app-container personnel-page identity-access-page">
+    <header class="identity-header">
+      <div>
+        <h1>人员权限管理</h1>
+        <p>设置人员密级与所属用户组，明确可接触的数据等级和知悉范围。</p>
+      </div>
+      <span class="identity-count">当前筛选：{{ total }} 人</span>
+    </header>
+
     <el-row :gutter="20">
-      <!--部门数据-->
+      <!-- 左侧组织机构 -->
       <el-col :span="4" :xs="24">
-        <div class="head-container">
+        <div class="org-panel">
+          <div class="panel-title">
+            <i class="el-icon-office-building" />
+            组织机构
+          </div>
+
           <el-input
             v-model="deptName"
-            placeholder="请输入部门名称"
+            placeholder="搜索部门"
             clearable
             size="small"
             prefix-icon="el-icon-search"
-            style="margin-bottom: 20px"
+            class="dept-search"
           />
-        </div>
-        <div class="head-container">
+
           <el-tree
+            ref="tree"
             :data="deptOptions"
             :props="defaultProps"
             :expand-on-click-node="false"
             :filter-node-method="filterNode"
-            ref="tree"
             default-expand-all
+            highlight-current
             @node-click="handleNodeClick"
           />
         </div>
       </el-col>
-      <!--用户数据-->
+
+      <!-- 右侧人员 -->
       <el-col :span="20" :xs="24">
-        <el-form :model="queryParams" ref="queryForm" :inline="true" v-show="showSearch" label-width="68px">
-          <el-form-item label="用户名称" prop="userName">
-            <el-input
-              v-model="queryParams.userName"
-              placeholder="请输入用户名称"
-              clearable
-              size="small"
-              style="width: 240px"
-              @keyup.enter.native="handleQuery"
-            />
-          </el-form-item>
-          <el-form-item label="手机号码" prop="phonenumber">
-            <el-input
-              v-model="queryParams.phonenumber"
-              placeholder="请输入手机号码"
-              clearable
-              size="small"
-              style="width: 240px"
-              @keyup.enter.native="handleQuery"
-            />
-          </el-form-item>
-          <el-form-item label="状态" prop="status">
-            <el-select
-              v-model="queryParams.status"
-              placeholder="用户状态"
-              clearable
-              size="small"
-              style="width: 240px"
-            >
-              <el-option
-                v-for="dict in statusOptions"
-                :key="dict.dictValue"
-                :label="dict.dictLabel"
-                :value="dict.dictValue"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="创建时间">
-            <el-date-picker
-              v-model="dateRange"
-              size="small"
-              style="width: 240px"
-              value-format="yyyy-MM-dd"
-              type="daterange"
-              range-separator="-"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-            ></el-date-picker>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="cyan" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-            <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
-
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button
-              type="primary"
-              icon="el-icon-plus"
-              size="mini"
-              @click="handleAdd"
-              v-hasPermi="['system:user:add']"
-            >新增</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button
-              type="success"
-              icon="el-icon-edit"
-              size="mini"
-              :disabled="single"
-              @click="handleUpdate"
-              v-hasPermi="['system:user:edit']"
-            >修改</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button
-              type="danger"
-              icon="el-icon-delete"
-              size="mini"
-              :disabled="multiple"
-              @click="handleDelete"
-              v-hasPermi="['system:user:remove']"
-            >删除</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button
-              type="info"
-              icon="el-icon-upload2"
-              size="mini"
-              @click="handleImport"
-              v-hasPermi="['system:user:import']"
-            >导入</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button
-              type="warning"
-              icon="el-icon-download"
-              size="mini"
-              @click="handleExport"
-              v-hasPermi="['system:user:export']"
-            >导出</el-button>
-          </el-col>
-          <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
-        </el-row>
-
-        <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
-          <el-table-column type="selection" width="50" align="center" />
-          <el-table-column label="用户编号" align="center" prop="userId" />
-          <el-table-column label="用户名称" align="center" prop="userName" :show-overflow-tooltip="true" />
-          <el-table-column label="用户昵称" align="center" prop="nickName" :show-overflow-tooltip="true" />
-          <el-table-column label="部门" align="center" prop="dept.deptName" :show-overflow-tooltip="true" />
-          <el-table-column label="手机号码" align="center" prop="phonenumber" width="120" />
-          <el-table-column label="状态" align="center">
-            <template slot-scope="scope">
-              <el-switch
-                v-model="scope.row.status"
-                active-value="0"
-                inactive-value="1"
-                @change="handleStatusChange(scope.row)"
-              ></el-switch>
-            </template>
-          </el-table-column>
-          <el-table-column label="创建时间" align="center" prop="createTime" width="160">
-            <template slot-scope="scope">
-              <span>{{ parseTime(scope.row.createTime) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="操作"
-            align="center"
-            width="160"
-            class-name="small-padding fixed-width"
+        <div class="personnel-workspace">
+          <el-form
+            v-show="showSearch"
+            ref="queryForm"
+            :model="queryParams"
+            class="identity-filter"
+            :inline="true"
+            size="small"
           >
-            <template slot-scope="scope">
-              <el-button
-                size="mini"
-                type="text"
-                icon="el-icon-edit"
-                @click="handleUpdate(scope.row)"
-                v-hasPermi="['system:user:edit']"
-              >修改</el-button>
-              <el-button
-                v-if="scope.row.userId !== 1"
-                size="mini"
-                type="text"
-                icon="el-icon-delete"
-                @click="handleDelete(scope.row)"
-                v-hasPermi="['system:user:remove']"
-              >删除</el-button>
-              <el-button
-                size="mini"
-                type="text"
-                icon="el-icon-key"
-                @click="handleResetPwd(scope.row)"
-                v-hasPermi="['system:user:resetPwd']"
-              >重置</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+            <el-form-item label="人员账号" prop="userName">
+              <el-input
+                v-model="queryParams.userName"
+                placeholder="请输入登录账号"
+                clearable
+                @keyup.enter.native="handleQuery"
+              />
+            </el-form-item>
 
-        <pagination
-          v-show="total>0"
-          :total="total"
-          :page.sync="queryParams.pageNum"
-          :limit.sync="queryParams.pageSize"
-          @pagination="getList"
-        />
+            <el-form-item label="手机号码" prop="phonenumber">
+              <el-input
+                v-model="queryParams.phonenumber"
+                placeholder="请输入手机号"
+                clearable
+                @keyup.enter.native="handleQuery"
+              />
+            </el-form-item>
+
+            <el-form-item label="人员密级" prop="secretLevel">
+              <el-select
+                v-model="queryParams.secretLevel"
+                placeholder="全部"
+                clearable
+                style="width: 170px"
+              >
+                <el-option label="公开 · 非密" value="PUBLIC" />
+                <el-option label="内部 · 工作秘密" value="INTERNAL" />
+                <el-option label="秘密 · 国家秘密" value="SECRET" />
+                <el-option label="机密 · 国家秘密" value="CONFIDENTIAL" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="账号状态" prop="status">
+              <el-select
+                v-model="queryParams.status"
+                placeholder="全部"
+                clearable
+                style="width: 130px"
+              >
+                <el-option label="正常" value="0" />
+                <el-option label="停用" value="1" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item>
+              <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">
+                搜索
+              </el-button>
+
+              <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+            </el-form-item>
+          </el-form>
+
+          <el-row :gutter="10" class="mb8 identity-toolbar">
+            <el-col :span="1.5">
+              <el-button
+                v-hasPermi="['system:user:add']"
+                type="primary"
+                plain
+                icon="el-icon-plus"
+                size="mini"
+                @click="handleAdd"
+              >
+                新增人员
+              </el-button>
+            </el-col>
+
+            <el-col :span="1.5">
+              <el-button
+                v-hasPermi="['system:user:edit']"
+                type="success"
+                plain
+                icon="el-icon-edit"
+                size="mini"
+                :disabled="single || !can('system:user:query')"
+                @click="handleUpdate"
+              >
+                修改
+              </el-button>
+            </el-col>
+
+            <el-col :span="1.5">
+              <el-button
+                v-hasPermi="['system:user:remove']"
+                type="danger"
+                plain
+                icon="el-icon-delete"
+                size="mini"
+                :disabled="multiple"
+                @click="handleDelete"
+              >
+                删除
+              </el-button>
+            </el-col>
+
+            <right-toolbar :show-search.sync="showSearch" @queryTable="getList" />
+          </el-row>
+
+          <div v-if="listError" class="identity-feedback" role="alert">
+            <span>{{ listError }}</span>
+            <el-button type="text" :disabled="loading" @click="getList">重试</el-button>
+          </div>
+          <el-table
+            v-loading="loading"
+            :data="userList"
+            size="small"
+            :empty-text="listError ? '人员数据未能加载' : '未找到符合条件的人员'"
+            @selection-change="handleSelectionChange"
+          >
+            <el-table-column type="selection" width="44" align="center" />
+            <el-table-column label="人员 / 账号" min-width="150">
+              <template slot-scope="scope">
+                <div class="identity-person-name">{{ scope.row.nickName || '未提供姓名' }}</div>
+                <div class="identity-secondary">{{ scope.row.userName }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column label="部门 / 工号" min-width="130">
+              <template slot-scope="scope">
+                <div>{{ (scope.row.dept && scope.row.dept.deptName) || '未配置部门' }}</div>
+                <div class="identity-secondary">
+                  {{ scope.row.employeeNo || '未设置工号' }}
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="人员密级" width="110">
+              <template slot-scope="scope">
+                <el-tag size="mini" :type="secretType(scope.row.secretLevel)">
+                  {{ secretText(scope.row.secretLevel) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="知悉用户组" min-width="210" show-overflow-tooltip>
+              <template slot-scope="scope">
+                <span v-if="scope.row.groupNames">{{ scope.row.groupNames }}</span>
+                <span v-else class="identity-muted">未配置知悉组</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="登录账号状态" width="120" align="center">
+              <template slot-scope="scope">
+                <el-switch
+                  v-if="can('system:user:edit')"
+                  v-model="scope.row.status"
+                  active-value="0"
+                  inactive-value="1"
+                  :disabled="statusBusyId !== null"
+                  :aria-label="'切换账号 ' + scope.row.userName + ' 的状态'"
+                  @change="handleStatusChange(scope.row)"
+                />
+                <el-tag v-else size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
+                  {{ scope.row.status === '0' ? '启用' : '停用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="145" fixed="right" align="center">
+              <template slot-scope="scope">
+                <div class="identity-operation">
+                  <el-button
+                    v-if="can('system:user:edit') && can('system:user:query')"
+                    type="text"
+                    size="mini"
+                    @click="handleUpdate(scope.row)"
+                  >
+                    配置权限
+                  </el-button>
+                  <el-dropdown
+                    v-if="
+                      can('system:user:resetPwd') ||
+                        (can('system:user:remove') && String(scope.row.userId) !== '1')
+                    "
+                    trigger="click"
+                    @command="handleRowAction($event, scope.row)"
+                  >
+                    <button
+                      type="button"
+                      class="el-button el-button--text el-button--mini"
+                      :aria-label="'更多操作：' + scope.row.userName"
+                    >
+                      更多
+                      <i class="el-icon-arrow-down el-icon--right" />
+                    </button>
+                    <el-dropdown-menu slot="dropdown">
+                      <el-dropdown-item v-if="can('system:user:resetPwd')" command="password">
+                        重置密码
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                        v-if="can('system:user:remove') && String(scope.row.userId) !== '1'"
+                        command="delete"
+                      >
+                        删除人员
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </el-dropdown>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+          <p class="identity-muted">实际访问还须通过状态、时间及附加策略校验。</p>
+
+          <pagination
+            v-show="total > 0"
+            :total="total"
+            :page.sync="queryParams.pageNum"
+            :limit.sync="queryParams.pageSize"
+            @pagination="getList"
+          />
+        </div>
       </el-col>
     </el-row>
 
-    <!-- 添加或修改参数配置对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="600px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="用户昵称" prop="nickName">
-              <el-input v-model="form.nickName" placeholder="请输入用户昵称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="归属部门" prop="deptId">
-              <treeselect v-model="form.deptId" :options="deptOptions" :show-count="true" placeholder="请选择归属部门" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="手机号码" prop="phonenumber">
-              <el-input v-model="form.phonenumber" placeholder="请输入手机号码" maxlength="11" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="form.email" placeholder="请输入邮箱" maxlength="50" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="12">
-            <el-form-item v-if="form.userId == undefined" label="用户名称" prop="userName">
-              <el-input v-model="form.userName" placeholder="请输入用户名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item v-if="form.userId == undefined" label="用户密码" prop="password">
-              <el-input v-model="form.password" placeholder="请输入用户密码" type="password" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="用户性别">
-              <el-select v-model="form.sex" placeholder="请选择">
-                <el-option
-                  v-for="dict in sexOptions"
-                  :key="dict.dictValue"
-                  :label="dict.dictLabel"
-                  :value="dict.dictValue"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="状态">
-              <el-radio-group v-model="form.status">
-                <el-radio
-                  v-for="dict in statusOptions"
-                  :key="dict.dictValue"
-                  :label="dict.dictValue"
-                >{{dict.dictLabel}}</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="岗位">
-              <el-select v-model="form.postIds" multiple placeholder="请选择">
-                <el-option
-                  v-for="item in postOptions"
-                  :key="item.postId"
-                  :label="item.postName"
-                  :value="item.postId"
-                  :disabled="item.status == 1"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="角色">
-              <el-select v-model="form.roleIds" multiple placeholder="请选择">
-                <el-option
-                  v-for="item in roleOptions"
-                  :key="item.roleId"
-                  :label="item.roleName"
-                  :value="item.roleId"
-                  :disabled="item.status == 1"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="24">
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" type="textarea" placeholder="请输入内容"></el-input>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+    <!-- 人员新增/修改 -->
+    <el-dialog
+      :title="title"
+      :visible.sync="open"
+      width="960px"
+      custom-class="identity-access-dialog"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!saving"
+      :before-close="closePersonnelDialog"
+      append-to-body
+      top="4vh"
+    >
+      <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
+      <div v-if="groupError" class="identity-form-feedback" role="alert">
+        {{ groupError }}
+        <el-button type="text" :loading="groupLoading" @click="getGroupOptions">
+          重新加载用户组
+        </el-button>
       </div>
-    </el-dialog>
+      <el-alert
+        title="人员密级决定可接触的最高数据密级；所属用户组集合决定秘密级、机密级国家秘密的知悉范围。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="dialog-alert"
+      />
 
-    <!-- 用户导入对话框 -->
-    <el-dialog :title="upload.title" :visible.sync="upload.open" width="400px" append-to-body>
-      <el-upload
-        ref="upload"
-        :limit="1"
-        accept=".xlsx, .xls"
-        :headers="upload.headers"
-        :action="upload.url + '?updateSupport=' + upload.updateSupport"
-        :disabled="upload.isUploading"
-        :on-progress="handleFileUploadProgress"
-        :on-success="handleFileSuccess"
-        :auto-upload="false"
-        drag
-      >
-        <i class="el-icon-upload"></i>
-        <div class="el-upload__text">
-          将文件拖到此处，或
-          <em>点击上传</em>
+      <el-form ref="form" :model="form" :rules="rules" label-width="105px">
+        <div class="section-title">
+          <i class="el-icon-user" />
+          人员基本信息
         </div>
-        <div class="el-upload__tip" slot="tip">
-          <el-checkbox v-model="upload.updateSupport" />是否更新已经存在的用户数据
-          <el-link type="info" style="font-size:12px" @click="importTemplate">下载模板</el-link>
+
+        <el-row :gutter="18">
+          <el-col :span="8">
+            <el-form-item label="姓名" prop="nickName">
+              <el-input v-model="form.nickName" placeholder="请输入姓名" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="人员账号" prop="userName">
+              <el-input v-model="form.userName" placeholder="登录账号" :disabled="!!form.userId" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item v-if="!form.userId" label="初始密码" prop="password">
+              <el-input v-model="form.password" type="password" show-password />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="工号">
+              <el-input v-model="form.employeeNo" placeholder="人员工号" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="归属部门" prop="deptId">
+              <treeselect
+                v-model="form.deptId"
+                :options="deptOptions"
+                :show-count="true"
+                placeholder="请选择组织部门"
+              />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="职务">
+              <el-input v-model="form.jobTitle" placeholder="例如：高级工程师" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="性别">
+              <el-select v-model="form.sex" style="width: 100%" placeholder="请选择">
+                <el-option
+                  v-for="item in sexOptions"
+                  :key="item.dictValue"
+                  :label="item.dictLabel"
+                  :value="item.dictValue"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="民族">
+              <el-input v-model="form.ethnicity" placeholder="例如：汉族" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="出生地">
+              <el-input v-model="form.birthPlace" placeholder="请输入出生地" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="12">
+            <el-form-item label="身份证">
+              <el-input v-model="form.idCardNo" placeholder="请输入身份证号码" maxlength="18" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="6">
+            <el-form-item label="手机号">
+              <el-input v-model="form.phonenumber" maxlength="11" />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="6">
+            <el-form-item label="邮箱">
+              <el-input v-model="form.email" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="section-title permission-title">
+          <i class="el-icon-lock" />
+          核心访问权限
         </div>
-        <div class="el-upload__tip" style="color:red" slot="tip">提示：仅允许导入“xls”或“xlsx”格式文件！</div>
-      </el-upload>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitFileForm">确 定</el-button>
-        <el-button @click="upload.open = false">取 消</el-button>
+
+        <el-row :gutter="18">
+          <el-col :span="8">
+            <el-form-item label="人员密级" prop="secretLevel">
+              <el-select v-model="form.secretLevel" style="width: 100%">
+                <el-option label="公开 · 非密" value="PUBLIC" />
+                <el-option label="内部 · 工作秘密" value="INTERNAL" />
+                <el-option label="秘密 · 国家秘密" value="SECRET" />
+                <el-option label="机密 · 国家秘密" value="CONFIDENTIAL" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="16">
+            <el-form-item label="知悉用户组">
+              <el-select
+                v-model="form.groupIds"
+                :loading="groupLoading"
+                :disabled="groupLoading || !!groupError"
+                multiple
+                filterable
+                clearable
+                collapse-tags
+                placeholder="可同时选择多个用户组"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="group in groupOptions"
+                  :key="group.id"
+                  :label="groupOptionLabel(group)"
+                  :disabled="group.groupCode === 'GROUP_PUBLIC'"
+                  :value="group.id"
+                />
+              </el-select>
+
+              <div class="field-help">用户组即国家秘密知悉范围。加入某组并不自动提升人员密级。</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 权限预览 -->
+        <div class="permission-preview">
+          <div class="preview-header">文档基础资格预览（不代表最终放行）</div>
+
+          <div v-for="item in permissionPreview" :key="item.level" class="preview-row">
+            <div class="preview-level">
+              <el-tag size="mini" :type="secretType(item.level)">
+                {{ item.name }}
+              </el-tag>
+            </div>
+
+            <div class="preview-result">
+              <i :class="item.allow ? 'el-icon-success allow-icon' : 'el-icon-error deny-icon'" />
+
+              <span>
+                {{ item.text }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">
+          <i class="el-icon-setting" />
+          附加访问控制
+        </div>
+
+        <el-row :gutter="18">
+          <el-col :span="8">
+            <el-form-item label="访问状态" prop="accessStatus">
+              <el-select v-model="form.accessStatus" style="width: 100%">
+                <el-option label="启用" value="ACTIVE" />
+                <el-option label="禁用" value="DISABLED" />
+                <el-option label="锁定" value="LOCKED" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="开始时间">
+              <el-time-picker
+                v-model="form.accessStartTime"
+                value-format="HH:mm:ss"
+                format="HH:mm:ss"
+                placeholder="不限制"
+                clearable
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+
+          <el-col :span="8">
+            <el-form-item label="结束时间">
+              <el-time-picker
+                v-model="form.accessEndTime"
+                value-format="HH:mm:ss"
+                format="HH:mm:ss"
+                placeholder="不限制"
+                clearable
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div v-if="runtimeAttr" class="runtime-box">
+          <div class="runtime-title">运行安全状态（系统自动维护）</div>
+
+          <el-row :gutter="20">
+            <el-col :span="6">
+              风险等级：
+              <strong>
+                {{ runtimeAttr.riskLevel || '未取得' }}
+              </strong>
+            </el-col>
+
+            <el-col :span="6">
+              失败次数：
+              <strong>
+                {{ runtimeAttr.failCount == null ? '未取得' : runtimeAttr.failCount }}
+              </strong>
+            </el-col>
+
+            <el-col :span="6">
+              最近访问 IP：
+              <strong>
+                {{ runtimeAttr.lastAccessIp || '-' }}
+              </strong>
+            </el-col>
+
+            <el-col :span="6">
+              最近访问：
+              <strong>
+                {{ runtimeAttr.lastAccessTime || '-' }}
+              </strong>
+            </el-col>
+          </el-row>
+        </div>
+
+        <el-collapse class="advanced-collapse">
+          <el-collapse-item title="系统账户高级配置">
+            <el-alert
+              title="下面角色与岗位属于若依后台系统权限，与文档密级和国家秘密知悉范围是不同概念。"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="advanced-alert"
+            />
+
+            <el-row :gutter="18">
+              <el-col :span="8">
+                <el-form-item label="账号状态">
+                  <el-radio-group v-model="form.status">
+                    <el-radio label="0">正常</el-radio>
+                    <el-radio label="1">停用</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+              </el-col>
+
+              <el-col :span="8">
+                <el-form-item label="系统岗位">
+                  <el-select v-model="form.postIds" multiple style="width: 100%">
+                    <el-option
+                      v-for="item in postOptions"
+                      :key="item.postId"
+                      :label="item.postName"
+                      :value="item.postId"
+                      :disabled="item.status == 1"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+
+              <el-col :span="8">
+                <el-form-item label="系统角色">
+                  <el-select v-model="form.roleIds" multiple style="width: 100%">
+                    <el-option
+                      v-for="item in roleOptions"
+                      :key="item.roleId"
+                      :label="item.roleName"
+                      :value="item.roleId"
+                      :disabled="item.status == 1"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-collapse-item>
+        </el-collapse>
+
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+
+      <div slot="footer">
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="creationUncertain || groupLoading || !!groupError || !can('system:user:edit')"
+          @click="submitForm"
+        >
+          保存人员与权限
+        </el-button>
+
+        <el-button :disabled="saving" @click="cancel">取消</el-button>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { listUser, getUser, delUser, addUser, updateUser, exportUser, resetUserPwd, changeUserStatus, importTemplate } from "@/api/system/user";
-import { getToken } from "@/utils/auth";
-import { treeselect } from "@/api/system/dept";
-import Treeselect from "@riophae/vue-treeselect";
-import "@riophae/vue-treeselect/dist/vue-treeselect.css";
+import '@/assets/styles/identity-access.scss'
+import { canUse } from '@/utils/identityAccess'
+import {
+  listUser,
+  getUser,
+  delUser,
+  addUser,
+  updateUser,
+  resetUserPwd,
+  changeUserStatus
+} from '@/api/system/user'
+
+import { getPersonnelAccess, savePersonnelAccess } from '@/api/system/personnelAccess'
+
+import { listGroup } from '@/api/system/group'
+
+import { treeselect } from '@/api/system/dept'
+
+import Treeselect from '@riophae/vue-treeselect'
+import '@riophae/vue-treeselect/dist/vue-treeselect.css'
 
 export default {
-  name: "User",
-  components: { Treeselect },
+  name: 'PersonnelAccess',
+
+  components: {
+    Treeselect
+  },
+
   data() {
     return {
-      // 遮罩层
       loading: true,
-      // 选中数组
+      saving: false,
+      listError: '',
+      saveError: '',
+      groupError: '',
+      groupLoading: false,
+      statusBusyId: null,
+      creationUncertain: false,
+
       ids: [],
-      // 非单个禁用
       single: true,
-      // 非多个禁用
       multiple: true,
-      // 显示搜索条件
       showSearch: true,
-      // 总条数
+
       total: 0,
-      // 用户表格数据
-      userList: null,
-      // 弹出层标题
-      title: "",
-      // 部门树选项
-      deptOptions: undefined,
-      // 是否显示弹出层
+      userList: [],
+
+      title: '',
       open: false,
-      // 部门名称
+
       deptName: undefined,
-      // 默认密码
+      deptOptions: [],
+
       initPassword: undefined,
-      // 日期范围
-      dateRange: [],
-      // 状态数据字典
-      statusOptions: [],
-      // 性别状态字典
+
       sexOptions: [],
-      // 岗位选项
       postOptions: [],
-      // 角色选项
       roleOptions: [],
-      // 表单参数
+      groupOptions: [],
+
+      runtimeAttr: null,
+
       form: {},
+
       defaultProps: {
-        children: "children",
-        label: "label"
+        children: 'children',
+        label: 'label'
       },
-      // 用户导入参数
-      upload: {
-        // 是否显示弹出层（用户导入）
-        open: false,
-        // 弹出层标题（用户导入）
-        title: "",
-        // 是否禁用上传
-        isUploading: false,
-        // 是否更新已经存在的用户数据
-        updateSupport: 0,
-        // 设置上传的请求头部
-        headers: { Authorization: "Bearer " + getToken() },
-        // 上传的地址
-        url: process.env.VUE_APP_BASE_API + "/system/user/importData"
-      },
-      // 查询参数
+
       queryParams: {
         pageNum: 1,
         pageSize: 10,
         userName: undefined,
         phonenumber: undefined,
         status: undefined,
+        secretLevel: undefined,
         deptId: undefined
       },
-      // 表单校验
+
       rules: {
         userName: [
-          { required: true, message: "用户名称不能为空", trigger: "blur" }
-        ],
-        nickName: [
-          { required: true, message: "用户昵称不能为空", trigger: "blur" }
-        ],
-        deptId: [
-          { required: true, message: "归属部门不能为空", trigger: "blur" }
-        ],
-        password: [
-          { required: true, message: "用户密码不能为空", trigger: "blur" }
-        ],
-        email: [
-          { required: true, message: "邮箱地址不能为空", trigger: "blur" },
           {
-            type: "email",
-            message: "'请输入正确的邮箱地址",
-            trigger: ["blur", "change"]
+            required: true,
+            message: '人员账号不能为空',
+            trigger: 'blur'
           }
         ],
-        phonenumber: [
-          { required: true, message: "手机号码不能为空", trigger: "blur" },
+
+        nickName: [
           {
-            pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/,
-            message: "请输入正确的手机号码",
-            trigger: "blur"
+            required: true,
+            message: '姓名不能为空',
+            trigger: 'blur'
+          }
+        ],
+
+        deptId: [
+          {
+            required: true,
+            message: '归属部门不能为空',
+            trigger: 'change'
+          }
+        ],
+
+        password: [
+          {
+            required: true,
+            message: '初始密码不能为空',
+            trigger: 'blur'
+          }
+        ],
+
+        accessStatus: [
+          {
+            required: true,
+            type: 'enum',
+            enum: ['ACTIVE', 'DISABLED', 'LOCKED'],
+            message: '请选择有效的人员访问状态',
+            trigger: 'change'
+          }
+        ],
+        secretLevel: [
+          {
+            type: 'enum',
+            enum: ['PUBLIC', 'INTERNAL', 'SECRET', 'CONFIDENTIAL'],
+            message: '请选择有效的人员密级',
+            trigger: 'change'
+          },
+          {
+            required: true,
+            message: '人员密级不能为空',
+            trigger: 'change'
           }
         ]
       }
-    };
-  },
-  watch: {
-    // 根据名称筛选部门树
-    deptName(val) {
-      this.$refs.tree.filter(val);
     }
   },
-  created() {
-    this.getList();
-    this.getTreeselect();
-    this.getDicts("sys_normal_disable").then(response => {
-      this.statusOptions = response.data;
-    });
-    this.getDicts("sys_user_sex").then(response => {
-      this.sexOptions = response.data;
-    });
-    this.getConfigKey("sys.user.initPassword").then(response => {
-      this.initPassword = response.msg;
-    });
-  },
-  methods: {
-    /** 查询用户列表 */
-    getList() {
-      this.loading = true;
-      listUser(this.addDateRange(this.queryParams, this.dateRange)).then(response => {
-          this.userList = response.rows;
-          this.total = response.total;
-          this.loading = false;
+
+  computed: {
+    selectedGroupNames() {
+      const ids = (this.form.groupIds || []).map(String)
+      return this.groupOptions
+        .filter(
+          (group) =>
+            group.groupCode !== 'GROUP_PUBLIC' &&
+            group.status === '0' &&
+            ids.indexOf(String(group.id)) !== -1
+        )
+        .map((group) => group.groupName)
+    },
+
+    permissionPreview() {
+      const rank = this.levelRank(this.form.secretLevel)
+
+      const groups = this.selectedGroupNames
+
+      const groupText = groups.length ? groups.join('、') : '尚未配置知悉用户组'
+
+      return [
+        {
+          level: 'PUBLIC',
+          name: '公开',
+          allow: true,
+          text: '不要求人员密级或知悉用户组；仍须通过请求准入检查'
+        },
+
+        {
+          level: 'INTERNAL',
+          name: '内部',
+          allow: rank >= 2,
+          text: rank >= 2 ? '密级条件满足；不要求知悉用户组' : '人员密级不足'
+        },
+
+        {
+          level: 'SECRET',
+          name: '秘密',
+          allow: rank >= 3 && groups.length > 0,
+          text:
+            rank < 3
+              ? '人员密级不足'
+              : groups.length
+                ? '密级及组条件满足；候选知悉范围：' + groupText
+                : '密级满足，但没有国家秘密知悉范围'
+        },
+
+        {
+          level: 'CONFIDENTIAL',
+          name: '机密',
+          allow: rank >= 4 && groups.length > 0,
+          text:
+            rank < 4
+              ? '人员密级不足'
+              : groups.length
+                ? '密级及组条件满足；候选知悉范围：' + groupText
+                : '密级满足，但没有国家秘密知悉范围'
         }
-      );
+      ]
+    }
+  },
+
+  watch: {
+    deptName(val) {
+      if (this.$refs.tree) {
+        this.$refs.tree.filter(val)
+      }
+    }
+  },
+
+  created() {
+    this.getList()
+    this.getTreeselect()
+    this.getGroupOptions()
+
+    this.getDicts('sys_user_sex').then((response) => {
+      this.sexOptions = response.data || []
+    })
+
+    this.getConfigKey('sys.user.initPassword').then((response) => {
+      this.initPassword = response.msg
+    })
+  },
+
+  methods: {
+    can(permission) {
+      return canUse(this.$store.getters.permissions, permission)
     },
-    /** 查询部门下拉树结构 */
+    groupOptionLabel(group) {
+      return (
+        group.groupName +
+        '（' +
+        group.groupCode +
+        (group.groupCode === 'GROUP_PUBLIC' ? '，历史兼容分组' : '') +
+        '）'
+      )
+    },
+    handleRowAction(command, row) {
+      if (command === 'password' && this.can('system:user:resetPwd')) {
+        this.handleResetPwd(row)
+      }
+      if (command === 'delete' && this.can('system:user:remove')) {
+        this.handleDelete(row)
+      }
+    },
+    closePersonnelDialog(done) {
+      if (this.saving) {
+        this.msgWarning('正在保存，请稍候。')
+        return
+      }
+      done()
+      this.reset()
+    },
+
+    async getList() {
+      this.loading = true
+      this.listError = ''
+      const requestId = (this.userListRequestId || 0) + 1
+      this.userListRequestId = requestId
+      try {
+        const response = await listUser(this.queryParams)
+        if (requestId !== this.userListRequestId) {
+          return
+        }
+        this.userList = Array.isArray(response.rows) ? response.rows : []
+        this.total = Number(response.total) || 0
+      } catch (error) {
+        if (requestId !== this.userListRequestId) {
+          return
+        }
+        this.userList = []
+        this.total = 0
+        this.listError = '人员列表加载失败，请重试。'
+      } finally {
+        if (requestId === this.userListRequestId) {
+          this.loading = false
+        }
+      }
+    },
+
     getTreeselect() {
-      treeselect().then(response => {
-        this.deptOptions = response.data;
-      });
+      treeselect().then((response) => {
+        this.deptOptions = response.data || []
+      })
     },
-    // 筛选节点
+
+    async getGroupOptions() {
+      this.groupLoading = true
+      this.groupError = ''
+      try {
+        const response = await listGroup({ pageNum: 1, pageSize: 1000, status: '0' })
+        this.groupOptions = Array.isArray(response.rows) ? response.rows : []
+        if (Number(response.total) > this.groupOptions.length) {
+          this.groupError = '用户组列表未完整加载，暂不能安全修改成员关系。'
+        }
+      } catch (error) {
+        this.groupError = '用户组列表加载失败，权限保存暂不可用。'
+      } finally {
+        this.groupLoading = false
+      }
+    },
+
     filterNode(value, data) {
-      if (!value) return true;
-      return data.label.indexOf(value) !== -1;
+      if (!value) {
+        return true
+      }
+
+      return data.label.indexOf(value) !== -1
     },
-    // 节点单击事件
+
     handleNodeClick(data) {
-      this.queryParams.deptId = data.id;
-      this.getList();
+      this.queryParams.deptId = data.id
+      this.queryParams.pageNum = 1
+      this.getList()
     },
-    // 用户状态修改
-    handleStatusChange(row) {
-      let text = row.status === "0" ? "启用" : "停用";
-      this.$confirm('确认要"' + text + '""' + row.userName + '"用户吗?', "警告", {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning"
-        }).then(function() {
-          return changeUserStatus(row.userId, row.status);
-        }).then(() => {
-          this.msgSuccess(text + "成功");
-        }).catch(function() {
-          row.status = row.status === "0" ? "1" : "0";
-        });
+
+    handleQuery() {
+      this.queryParams.pageNum = 1
+      this.getList()
     },
-    // 取消按钮
-    cancel() {
-      this.open = false;
-      this.reset();
+
+    resetQuery() {
+      this.resetForm('queryForm')
+      this.queryParams.deptId = undefined
+
+      if (this.$refs.tree) {
+        this.$refs.tree.setCurrentKey(null)
+      }
+
+      this.handleQuery()
     },
-    // 表单重置
+
     reset() {
       this.form = {
         userId: undefined,
         deptId: undefined,
+
         userName: undefined,
         nickName: undefined,
         password: undefined,
+
+        employeeNo: undefined,
+        sex: '2',
+        ethnicity: undefined,
+        idCardNo: undefined,
+        birthPlace: undefined,
+        jobTitle: undefined,
+
         phonenumber: undefined,
         email: undefined,
-        sex: undefined,
-        status: "0",
-        remark: undefined,
+
+        status: '0',
+
         postIds: [],
-        roleIds: []
-      };
-      this.resetForm("form");
+        roleIds: [],
+
+        secretLevel: 'PUBLIC',
+        groupIds: [],
+
+        accessStatus: 'ACTIVE',
+        accessStartTime: null,
+        accessEndTime: null,
+
+        remark: undefined
+      }
+
+      this.runtimeAttr = null
+      this.saveError = ''
+      this.creationUncertain = false
+
+      if (this.$refs.form) {
+        this.resetForm('form')
+      }
     },
-    /** 搜索按钮操作 */
-    handleQuery() {
-      this.queryParams.page = 1;
-      this.getList();
-    },
-    /** 重置按钮操作 */
-    resetQuery() {
-      this.dateRange = [];
-      this.resetForm("queryForm");
-      this.handleQuery();
-    },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map(item => item.userId);
-      this.single = selection.length != 1;
-      this.multiple = !selection.length;
-    },
-    /** 新增按钮操作 */
+
     handleAdd() {
-      this.reset();
-      this.getTreeselect();
-      getUser().then(response => {
-        this.postOptions = response.posts;
-        this.roleOptions = response.roles;
-        this.open = true;
-        this.title = "添加用户";
-        this.form.password = this.initPassword;
-      });
+      this.reset()
+      this.getTreeselect()
+
+      getUser()
+        .then((response) => {
+          this.postOptions = response.posts || []
+          this.roleOptions = response.roles || []
+
+          this.form.password = this.initPassword
+
+          this.title = '新增人员及权限配置'
+          this.open = true
+        })
+        .catch(() => {
+          this.$message.error('人员初始化信息加载失败，请重试。')
+        })
     },
-    /** 修改按钮操作 */
+
     handleUpdate(row) {
-      this.reset();
-      this.getTreeselect();
-      const userId = row.userId || this.ids;
-      getUser(userId).then(response => {
-        this.form = response.data;
-        this.postOptions = response.posts;
-        this.roleOptions = response.roles;
-        this.form.postIds = response.postIds;
-        this.form.roleIds = response.roleIds;
-        this.open = true;
-        this.title = "修改用户";
-        this.form.password = "";
-      });
+      this.reset()
+      this.getTreeselect()
+
+      const userId = row && row.userId ? row.userId : this.ids[0]
+
+      Promise.all([getUser(userId), getPersonnelAccess(userId)])
+        .then(([userResponse, accessResponse]) => {
+          const user = userResponse.data || {}
+
+          const access = accessResponse.data || {}
+
+          const attr = access.securityAttr || {}
+
+          this.form = Object.assign({}, this.form, user, {
+            postIds: userResponse.postIds || [],
+            roleIds: userResponse.roleIds || [],
+
+            secretLevel: attr.secretLevel || null,
+
+            groupIds: access.groupIds || [],
+
+            accessStatus: attr.accessStatus || null,
+
+            accessStartTime: attr.accessStartTime || null,
+
+            accessEndTime: attr.accessEndTime || null
+          })
+
+          this.runtimeAttr = attr
+
+          this.postOptions = userResponse.posts || []
+
+          this.roleOptions = userResponse.roles || []
+
+          this.form.password = undefined
+
+          this.title = '人员信息与权限配置'
+
+          this.open = true
+        })
+        .catch(() => {
+          this.$message.error('人员资料或权限加载失败，请重试。')
+        })
     },
-    /** 重置密码按钮操作 */
-    handleResetPwd(row) {
-      this.$prompt('请输入"' + row.userName + '"的新密码', "提示", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消"
-      }).then(({ value }) => {
-          resetUserPwd(row.userId, value).then(response => {
-            if (response.code === 200) {
-              this.msgSuccess("修改成功，新密码是：" + value);
-            }
-          });
-        }).catch(() => {});
+
+    cancel() {
+      if (this.saving) {
+        return
+      }
+      this.open = false
+      this.reset()
     },
-    /** 提交按钮 */
-    submitForm: function() {
-      this.$refs["form"].validate(valid => {
-        if (valid) {
-          if (this.form.userId != undefined) {
-            updateUser(this.form).then(response => {
-              if (response.code === 200) {
-                this.msgSuccess("修改成功");
-                this.open = false;
-                this.getList();
-              }
-            });
-          } else {
-            addUser(this.form).then(response => {
-              if (response.code === 200) {
-                this.msgSuccess("新增成功");
-                this.open = false;
-                this.getList();
-              }
-            });
-          }
+
+    buildUserPayload() {
+      return {
+        userId: this.form.userId,
+        deptId: this.form.deptId,
+
+        userName: this.form.userName,
+        nickName: this.form.nickName,
+
+        password: this.form.password,
+
+        email: this.form.email,
+        phonenumber: this.form.phonenumber,
+        sex: this.form.sex,
+
+        ethnicity: this.form.ethnicity,
+        idCardNo: this.form.idCardNo,
+        birthPlace: this.form.birthPlace,
+        jobTitle: this.form.jobTitle,
+        employeeNo: this.form.employeeNo,
+
+        status: this.form.status,
+
+        postIds: this.form.postIds || [],
+        roleIds: this.form.roleIds || [],
+
+        remark: this.form.remark
+      }
+    },
+
+    buildAccessPayload() {
+      return {
+        userName: this.form.userName,
+        nickName: this.form.nickName,
+
+        secretLevel: this.form.secretLevel,
+
+        groupIds: this.form.groupIds || [],
+
+        accessStatus: this.form.accessStatus,
+
+        accessStartTime: this.form.accessStartTime || null,
+
+        accessEndTime: this.form.accessEndTime || null
+      }
+    },
+
+    submitForm() {
+      if (this.creationUncertain || this.saving || this.groupLoading || this.groupError) {
+        return
+      }
+      if (!this.can('system:user:edit') || (!this.form.userId && !this.can('system:user:add'))) {
+        this.msgWarning('保存人员及权限需要对应的人员新增或编辑权限。')
+        return
+      }
+      this.$refs.form.validate(async(valid) => {
+        if (!valid || this.saving) {
+          return
         }
-      });
+        if (!!this.form.accessStartTime !== !!this.form.accessEndTime) {
+          this.msgWarning('访问时间请同时填写开始和结束，或同时留空。')
+          return
+        }
+        this.saving = true
+        this.saveError = ''
+        let identitySaved = false
+        const creating = !this.form.userId
+        try {
+          const userPayload = this.buildUserPayload()
+          if (this.form.userId) {
+            await updateUser(userPayload)
+          } else {
+            const response = await addUser(userPayload)
+            if (!response.data || !/^\d+$/.test(String(response.data))) {
+              this.creationUncertain = true
+              this.saveError =
+                '新增请求已返回，但没有有效人员 ID。请关闭窗口并刷新列表核实，勿重复新增。'
+              this.getList()
+              return
+            }
+            this.form.userId = response.data
+            this.form.password = undefined
+            this.title = '人员信息与权限配置'
+          }
+          identitySaved = true
+          await savePersonnelAccess(this.form.userId, this.buildAccessPayload())
+          this.msgSuccess('人员资料和权限均已保存')
+          this.open = false
+          this.getList()
+        } catch (error) {
+          if (creating && !this.form.userId) {
+            this.creationUncertain = true
+            this.saveError = '新增结果未能确认，请关闭窗口并刷新列表核实后再操作。'
+            this.getList()
+            return
+          }
+          this.saveError = identitySaved
+            ? '人员资料已保存，但权限配置失败。请保留本窗口并重试保存；不会重复新增人员。'
+            : '人员资料保存失败，请核对信息后重试。'
+        } finally {
+          this.saving = false
+        }
+      })
     },
-    /** 删除按钮操作 */
+
+    handleSelectionChange(selection) {
+      this.ids = selection.map((item) => item.userId)
+
+      this.single = selection.length !== 1
+
+      this.multiple = !selection.length
+    },
+
     handleDelete(row) {
-      const userIds = row.userId || this.ids;
-      this.$confirm('是否确认删除用户编号为"' + userIds + '"的数据项?', "警告", {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning"
-        }).then(function() {
-          return delUser(userIds);
-        }).then(() => {
-          this.getList();
-          this.msgSuccess("删除成功");
-        }).catch(function() {});
+      const userIds = row && row.userId ? row.userId : this.ids
+
+      this.$confirm('确认删除选中的人员吗？', '警告', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+        .then(() => {
+          return delUser(userIds)
+        })
+        .then(() => {
+          this.msgSuccess('删除成功')
+          this.getList()
+        })
+        .catch(() => {})
     },
-    /** 导出按钮操作 */
-    handleExport() {
-      const queryParams = this.queryParams;
-      this.$confirm('是否确认导出所有用户数据项?', "警告", {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning"
-        }).then(function() {
-          return exportUser(queryParams);
-        }).then(response => {
-          this.download(response.msg);
-        }).catch(function() {});
+
+    async handleStatusChange(row) {
+      const next = row.status
+      const previous = next === '0' ? '1' : '0'
+      if (!this.can('system:user:edit')) {
+        this.$set(row, 'status', previous)
+        return
+      }
+      this.statusBusyId = row.userId
+      try {
+        await this.$confirm(
+          '确认' +
+            (next === '0' ? '启用' : '停用') +
+            '账号“' +
+            row.userName +
+            '”吗？该操作会影响登录。',
+          '账号状态变更'
+        )
+        await changeUserStatus(row.userId, next)
+        this.msgSuccess('账号状态已更新')
+      } catch (error) {
+        this.$set(row, 'status', previous)
+      } finally {
+        this.statusBusyId = null
+      }
     },
-    /** 导入按钮操作 */
-    handleImport() {
-      this.upload.title = "用户导入";
-      this.upload.open = true;
+
+    handleResetPwd(row) {
+      this.$prompt('请输入“' + row.userName + '”的新密码', '重置密码', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      })
+        .then(({ value }) => {
+          return resetUserPwd(row.userId, value)
+        })
+        .then(() => {
+          this.msgSuccess('密码重置成功')
+        })
+        .catch(() => {})
     },
-    /** 下载模板操作 */
-    importTemplate() {
-      importTemplate().then(response => {
-        this.download(response.msg);
-      });
+
+    levelRank(level) {
+      const map = {
+        PUBLIC: 1,
+        INTERNAL: 2,
+        SECRET: 3,
+        CONFIDENTIAL: 4
+      }
+
+      return map[level] || 0
     },
-    // 文件上传中处理
-    handleFileUploadProgress(event, file, fileList) {
-      this.upload.isUploading = true;
+
+    secretText(level) {
+      const map = {
+        PUBLIC: '公开',
+        INTERNAL: '内部',
+        SECRET: '秘密',
+        CONFIDENTIAL: '机密'
+      }
+
+      return map[level] || '未配置'
     },
-    // 文件上传成功处理
-    handleFileSuccess(response, file, fileList) {
-      this.upload.open = false;
-      this.upload.isUploading = false;
-      this.$refs.upload.clearFiles();
-      this.$alert(response.msg, "导入结果", { dangerouslyUseHTMLString: true });
-      this.getList();
-    },
-    // 提交上传文件
-    submitFileForm() {
-      this.$refs.upload.submit();
+
+    secretType(level) {
+      const map = {
+        PUBLIC: 'success',
+        INTERNAL: 'info',
+        SECRET: 'warning',
+        CONFIDENTIAL: 'danger'
+      }
+
+      return map[level] || 'info'
     }
   }
-};
+}
 </script>
+
+<style scoped>
+.personnel-page {
+  padding: 20px;
+}
+
+.org-panel {
+  min-height: 620px;
+  padding: 15px;
+  border: 1px solid #ebeef5;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.panel-title {
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.dept-search {
+  margin-bottom: 15px;
+}
+
+.dialog-alert {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  margin: 8px 0 18px;
+  padding-left: 10px;
+  border-left: 3px solid #409eff;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.permission-title {
+  margin-top: 6px;
+}
+
+.field-help {
+  margin-top: 5px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.permission-preview {
+  margin: 0 0 24px 105px;
+  padding: 14px 18px;
+  border: 1px solid #ebeef5;
+  border-radius: 5px;
+  background: #fafafa;
+}
+
+.preview-header {
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.preview-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+
+.preview-level {
+  width: 90px;
+}
+
+.preview-result {
+  color: #606266;
+}
+
+.allow-icon {
+  margin-right: 6px;
+  color: #67c23a;
+}
+
+.deny-icon {
+  margin-right: 6px;
+  color: #f56c6c;
+}
+
+.runtime-box {
+  margin: 0 0 20px 105px;
+  padding: 14px 18px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 5px;
+  color: #606266;
+  background: #fafafa;
+  font-size: 13px;
+}
+
+.runtime-title {
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.advanced-collapse {
+  margin-bottom: 18px;
+}
+
+.advanced-alert {
+  margin-bottom: 18px;
+}
+
+.empty-text {
+  color: #909399;
+}
+
+.danger-text {
+  color: #f56c6c !important;
+}
+</style>

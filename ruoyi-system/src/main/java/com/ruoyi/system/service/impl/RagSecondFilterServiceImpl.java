@@ -6,32 +6,35 @@ import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.mapper.SysRagDocMapper;
 import com.ruoyi.system.service.IRagSecondFilterService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.sql.Time;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * RAG 检索结果二次过滤 Service 实现
+ * RAG 检索结果二次权限过滤。
  *
- * 严格对齐原型文档：
- * 1. 对每个文档执行 check(user, doc) -> ALLOW / DENY；
- * 2. 文档状态 doc.status == ACTIVE；
- * 3. 用户密级 >= 文档密级；
- * 4. doc.allowed_group ∈ user.user_groups；
- * 5. 用户组密级 >= 文档密级；
- * 6. doc_level >= SECRET -> 仅允许工作时间访问；
- * 7. 剔除不合规结果，并写入 blockedReason。
+ * PUBLIC：
+ * 公开非密，不检查用户组。
+ *
+ * INTERNAL：
+ * 工作秘密，只检查人员密级。
+ *
+ * SECRET / CONFIDENTIAL：
+ * 同时检查人员密级和唯一知悉用户组。
+ *
+ * scope_code、group_secret_level 不参与核心鉴权。
  */
 @Service
-public class RagSecondFilterServiceImpl implements IRagSecondFilterService
+public class RagSecondFilterServiceImpl
+        implements IRagSecondFilterService
 {
-    private static final LocalTime WORK_START = LocalTime.of(8, 0);
-    private static final LocalTime WORK_END = LocalTime.of(18, 0);
-
     @Autowired
     private SysRagDocMapper sysRagDocMapper;
 
@@ -39,44 +42,34 @@ public class RagSecondFilterServiceImpl implements IRagSecondFilterService
     private AccessDecisionMapper accessDecisionMapper;
 
     @Override
-    public List<RagSearchResult> filter(PermissionContext context, List<RagSearchResult> results)
+    public List<RagSearchResult> filter(
+            PermissionContext context,
+            List<RagSearchResult> results)
     {
-        List<RagSearchResult> filtered = new ArrayList<RagSearchResult>();
+        List<RagSearchResult> filtered =
+                new ArrayList<RagSearchResult>();
 
-        if (context == null || results == null || results.isEmpty())
+        if (results == null || results.isEmpty())
         {
             return filtered;
         }
 
-        Long userId = context.getUserId();
-        Map<String, Object> userAttr = accessDecisionMapper.selectUserSecurityAttr(userId);
+        Long userId =
+                context == null
+                        ? null
+                        : context.getUserId();
 
-        if (userAttr == null)
-        {
-            rejectAll(results, "USER_SECURITY_ATTR_NOT_FOUND", "二次过滤拒绝：用户安全属性不存在");
-            return filtered;
-        }
+        Map<String, Object> userAttr =
+                userId == null
+                        ? null
+                        : accessDecisionMapper
+                        .selectUserSecurityAttr(userId);
 
-        String userSecretLevel = toStr(userAttr.get("secret_level"));
-        String accessStatus = toStr(userAttr.get("access_status"));
-
-        if (!"ACTIVE".equalsIgnoreCase(accessStatus))
-        {
-            rejectAll(results, "USER_ACCESS_STATUS_NOT_ACTIVE", "二次过滤拒绝：用户访问状态不是 ACTIVE");
-            return filtered;
-        }
-
-        List<String> allowedScopes = context.getScopeCodes();
-        if (allowedScopes == null)
-        {
-            allowedScopes = new ArrayList<String>();
-        }
-
-        List<String> allowedGroups = context.getGroupCodes();
-        if (allowedGroups == null)
-        {
-            allowedGroups = new ArrayList<String>();
-        }
+        List<String> userGroups =
+                userId == null
+                        ? new ArrayList<String>()
+                        : accessDecisionMapper
+                        .selectUserGroupCodes(userId);
 
         for (RagSearchResult result : results)
         {
@@ -86,151 +79,363 @@ public class RagSecondFilterServiceImpl implements IRagSecondFilterService
             }
 
             SysRagDoc doc = null;
-            if (result.getDocId() != null && result.getDocId().length() > 0)
+
+            if (result.getDocId() != null
+                    && result.getDocId().length() > 0)
             {
-                doc = sysRagDocMapper.selectSysRagDocByDocId(result.getDocId());
+                doc = sysRagDocMapper
+                        .selectSysRagDocByDocId(
+                                result.getDocId()
+                        );
             }
 
             if (doc == null)
             {
-                reject(result, "DOCUMENT_METADATA_NOT_FOUND", "二次过滤拒绝：平台侧未找到该文档元数据");
+                reject(
+                        result,
+                        "DOCUMENT_METADATA_NOT_FOUND",
+                        "未找到平台文档安全元数据"
+                );
                 continue;
             }
 
             enrichResult(result, doc);
 
-            String metadataStatus = result.getMetadataStatus();
-            String scopeCode = result.getScopeCode();
-            String level = result.getLevel();
-            String ownerGroupCode = result.getOwnerGroupCode();
+            String level =
+                    normalizeLevel(
+                            result.getLevel()
+                    );
 
-            if (!isActive(metadataStatus))
+            if ("UNKNOWN".equals(level))
             {
-                reject(result, "DOCUMENT_STATUS_NOT_ACTIVE", "二次过滤拒绝：文档状态不是 ACTIVE");
+                reject(result, "INVALID_DOCUMENT_SECURITY_LEVEL", "文档密级缺失或非法");
                 continue;
             }
 
-            // PUBLIC 文档：登录用户通过基础用户状态检查后允许访问
-            if (isPublicResource(result))
+            /*
+             * 文档状态必须有效。
+             */
+            if (!isActive(
+                    result.getMetadataStatus()))
             {
-                pass(result, "check(user, doc) -> ALLOW：PUBLIC 公开文档默认允许登录用户访问");
+                reject(
+                        result,
+                        "DOCUMENT_STATUS_NOT_ACTIVE",
+                        "文档状态不是 ACTIVE"
+                );
+                continue;
+            }
+
+            /*
+             * PUBLIC：
+             * 公开非密数据。
+             */
+            if ("PUBLIC".equals(level))
+            {
+                pass(
+                        result,
+                        "PUBLIC：公开非密数据允许访问"
+                );
                 filtered.add(result);
                 continue;
             }
 
-            // 用户密级 >= 文档密级
-            if (secretRank(userSecretLevel) < secretRank(level))
+            /*
+             * 非公开数据必须存在人员安全属性。
+             */
+            if (userAttr == null)
             {
-                reject(result, "USER_SECRET_LEVEL_LOWER_THAN_DOCUMENT", "check(user, doc) -> DENY：用户密级低于文档密级");
+                reject(
+                        result,
+                        "USER_SECURITY_ATTR_NOT_FOUND",
+                        "人员安全属性不存在"
+                );
                 continue;
             }
 
-            // 高密级文档仅允许工作时间访问
-            if (secretRank(level) >= secretRank("SECRET") && !isInWorkTime())
+            String accessStatus =
+                    toStr(
+                            userAttr.get(
+                                    "access_status"
+                            )
+                    );
+
+            if (!"ACTIVE".equalsIgnoreCase(
+                    accessStatus))
             {
-                reject(result, "HIGH_SECRET_DOCUMENT_ONLY_WORK_TIME", "check(user, doc) -> DENY：高密级文档仅允许工作时间访问");
+                reject(
+                        result,
+                        "USER_ACCESS_STATUS_NOT_ACTIVE",
+                        "人员访问状态不是 ACTIVE"
+                );
                 continue;
             }
 
-            // doc.allowed_group ∈ user.user_groups
-            if (ownerGroupCode == null || ownerGroupCode.length() == 0 || !allowedGroups.contains(ownerGroupCode))
+            if (!isInAccessTimeWindow(
+                    userAttr.get(
+                            "access_start_time"
+                    ),
+                    userAttr.get(
+                            "access_end_time"
+                    )))
             {
-                reject(result, "USER_GROUP_NOT_MATCH_DOCUMENT_GROUP", "check(user, doc) -> DENY：用户不属于文档所属用户组");
+                reject(
+                        result,
+                        "OUT_OF_USER_ACCESS_TIME_WINDOW",
+                        "当前时间不在人员允许访问时间窗口内"
+                );
                 continue;
             }
 
-            // 用户组密级 >= 文档密级
-            String userGroupSecretLevel = accessDecisionMapper.selectUserGroupSecretLevel(userId, ownerGroupCode);
-            if (secretRank(userGroupSecretLevel) < secretRank(level))
+            String userLevel =
+                    normalizeLevel(
+                            toStr(
+                                    userAttr.get(
+                                            "secret_level"
+                                    )
+                            )
+                    );
+
+            /*
+             * 所有非公开数据先检查人员密级。
+             */
+            if (secretRank(userLevel)
+                    < secretRank(level))
             {
-                reject(result, "USER_GROUP_SECRET_LEVEL_LOWER_THAN_DOCUMENT", "check(user, doc) -> DENY：用户组密级低于文档密级");
+                reject(
+                        result,
+                        "USER_SECRET_LEVEL_LOWER_THAN_DOCUMENT",
+                        "人员密级低于文档密级"
+                );
                 continue;
             }
 
-            // 知悉范围标签校验
-            if (scopeCode == null || scopeCode.length() == 0 || !allowedScopes.contains(scopeCode))
+            /*
+             * INTERNAL：
+             * 工作秘密，密级满足即可。
+             */
+            if ("INTERNAL".equals(level))
             {
-                reject(result, "USER_SCOPE_NOT_MATCH_DOCUMENT_SCOPE", "check(user, doc) -> DENY：用户不具备该知悉范围");
+                pass(
+                        result,
+                        "INTERNAL：工作秘密，人员密级满足"
+                );
+                filtered.add(result);
                 continue;
             }
 
-            pass(result, "check(user, doc) -> ALLOW：文档状态、用户密级、用户组、用户组密级与知悉范围均满足要求");
+            /*
+             * SECRET / CONFIDENTIAL：
+             * 国家秘密需要唯一知悉用户组。
+             */
+            String documentGroup =
+                    result.getOwnerGroupCode();
+
+            if (documentGroup == null
+                    || documentGroup.length() == 0)
+            {
+                reject(
+                        result,
+                        "STATE_SECRET_DOCUMENT_GROUP_NOT_CONFIGURED",
+                        "国家秘密文档未配置唯一知悉用户组"
+                );
+                continue;
+            }
+
+            /*
+             * doc.group ∈ user.groups
+             */
+            if (CollectionUtils.isEmpty(userGroups)
+                    || !userGroups.contains(
+                            documentGroup))
+            {
+                reject(
+                        result,
+                        "USER_NOT_IN_DOCUMENT_KNOWLEDGE_GROUP",
+                        "人员不属于文档唯一知悉用户组"
+                );
+                continue;
+            }
+
+            /*
+             * 不检查：
+             * scope_code
+             * group_secret_level
+             */
+            pass(
+                    result,
+                    "国家秘密：人员密级和知悉用户组均满足"
+            );
+
             filtered.add(result);
         }
 
         return filtered;
     }
 
-    private void enrichResult(RagSearchResult result, SysRagDoc doc)
+    private void enrichResult(
+            RagSearchResult result,
+            SysRagDoc doc)
     {
-        result.setDocId(doc.getDocId());
-        result.setTitle(doc.getDocName());
-        result.setScopeCode(doc.getScopeCode());
-        result.setLevel(doc.getSecurityLevel());
-        result.setOwnerGroupCode(doc.getOwnerGroupCode());
-        result.setOwnerGroupName(doc.getOwnerGroupName());
-        result.setMetadataStatus(doc.getMetadataStatus());
+        result.setDocId(
+                doc.getDocId()
+        );
+
+        result.setTitle(
+                doc.getDocName()
+        );
+
+        result.setScopeCode(
+                doc.getScopeCode()
+        );
+
+        result.setLevel(
+                doc.getSecurityLevel()
+        );
+
+        result.setOwnerGroupCode(
+                doc.getOwnerGroupCode()
+        );
+
+        result.setOwnerGroupName(
+                doc.getOwnerGroupName()
+        );
+
+        result.setMetadataStatus(
+                doc.getMetadataStatus()
+        );
     }
 
-    private void rejectAll(List<RagSearchResult> results, String blockedReason, String reason)
-    {
-        for (RagSearchResult result : results)
-        {
-            if (result != null)
-            {
-                reject(result, blockedReason, reason);
-            }
-        }
-    }
-
-    private void pass(RagSearchResult result, String reason)
+    private void pass(
+            RagSearchResult result,
+            String reason)
     {
         result.setPassed(true);
         result.setBlockedReason("");
         result.setFilterReason(reason);
     }
 
-    private void reject(RagSearchResult result, String blockedReason, String reason)
+    private void reject(
+            RagSearchResult result,
+            String blockedReason,
+            String reason)
     {
         result.setPassed(false);
         result.setBlockedReason(blockedReason);
         result.setFilterReason(reason);
     }
 
-    private boolean isActive(String metadataStatus)
+    private boolean isActive(String status)
     {
-        return "ACTIVE".equalsIgnoreCase(metadataStatus);
+        return "ACTIVE".equalsIgnoreCase(
+                status
+        );
     }
 
-    private boolean isPublicResource(RagSearchResult result)
+    private String normalizeLevel(String level)
     {
-        if (result == null)
+        String value = level == null ? "" : level.trim();
+        if ("PUBLIC".equalsIgnoreCase(value)
+                || "INTERNAL".equalsIgnoreCase(value)
+                || "SECRET".equalsIgnoreCase(value)
+                || "CONFIDENTIAL".equalsIgnoreCase(value))
         {
-            return false;
+            return value.toUpperCase(java.util.Locale.ROOT);
         }
-
-        return "PUBLIC".equalsIgnoreCase(result.getScopeCode())
-                || "PUBLIC".equalsIgnoreCase(result.getLevel())
-                || "GROUP_PUBLIC".equalsIgnoreCase(result.getOwnerGroupCode());
-    }
-
-    private boolean isInWorkTime()
-    {
-        LocalTime now = LocalTime.now();
-        return !now.isBefore(WORK_START) && !now.isAfter(WORK_END);
+        return "UNKNOWN";
     }
 
     private int secretRank(String level)
     {
-        if ("PUBLIC".equalsIgnoreCase(level)) return 1;
-        if ("INTERNAL".equalsIgnoreCase(level)) return 2;
-        if ("SECRET".equalsIgnoreCase(level)) return 3;
-        if ("CONFIDENTIAL".equalsIgnoreCase(level)) return 4;
+        if ("PUBLIC".equals(level))
+        {
+            return 1;
+        }
+
+        if ("INTERNAL".equals(level))
+        {
+            return 2;
+        }
+
+        if ("SECRET".equals(level))
+        {
+            return 3;
+        }
+
+        if ("CONFIDENTIAL".equals(level))
+        {
+            return 4;
+        }
+
         return 0;
     }
 
-    private String toStr(Object obj)
+    private boolean isInAccessTimeWindow(
+            Object startObj,
+            Object endObj)
     {
-        return obj == null ? null : String.valueOf(obj);
+        if (startObj == null || endObj == null)
+        {
+            return true;
+        }
+
+        LocalTime start =
+                toLocalTime(startObj);
+
+        LocalTime end =
+                toLocalTime(endObj);
+
+        if (start == null
+                || end == null
+                || start.equals(end))
+        {
+            return true;
+        }
+
+        LocalTime now =
+                LocalTime.now();
+
+        if (start.isBefore(end))
+        {
+            return !now.isBefore(start)
+                    && !now.isAfter(end);
+        }
+
+        return !now.isBefore(start)
+                || !now.isAfter(end);
+    }
+
+    private LocalTime toLocalTime(Object value)
+    {
+        if (value instanceof Time)
+        {
+            return ((Time) value)
+                    .toLocalTime();
+        }
+
+        try
+        {
+            String text =
+                    String.valueOf(value);
+
+            if (text.length() >= 8)
+            {
+                text =
+                        text.substring(0, 8);
+            }
+
+            return LocalTime.parse(text);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    private String toStr(Object value)
+    {
+        return value == null
+                ? null
+                : String.valueOf(value);
     }
 }

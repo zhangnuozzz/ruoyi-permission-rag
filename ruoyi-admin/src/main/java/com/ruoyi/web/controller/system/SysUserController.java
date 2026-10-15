@@ -137,7 +137,15 @@ public class SysUserController extends BaseController
         }
         user.setCreateBy(SecurityUtils.getUsername());
         user.setPassword(SecurityUtils.encryptPassword(user.getPassword()));
-        return toAjax(userService.insertUser(user));
+
+        int rows = userService.insertUser(user);
+
+        if (rows > 0)
+        {
+            return AjaxResult.success(user.getUserId());
+        }
+
+        return AjaxResult.error("新增用户失败");
     }
 
     /**

@@ -29,6 +29,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,10 +42,11 @@ import org.springframework.web.multipart.MultipartFile;
  * 平台侧职责：
  * 1. 上传前安全校验；
  * 2. 多格式识别；
- * 3. 文档密级、知悉范围、用户组绑定；
- * 4. 文件密级 <= 用户组密级；
- * 5. 将安全元数据同步写入 sys_rag_file / sys_rag_doc；
- * 6. 不支持解析的格式不允许假装入库成功。
+ * 3. 文档密级与国家秘密唯一知悉用户组校验；
+ * 4. PUBLIC 不受用户组限制，INTERNAL 只做密级控制；
+ * 5. SECRET / CONFIDENTIAL 必须绑定唯一知悉用户组；
+ * 6. 将安全元数据同步写入 sys_rag_file / sys_rag_doc；
+ * 7. 不支持解析的格式不允许假装入库成功。
  *
  * RAG Server职责：
  * 1. 原文件备份到 MinIO；
@@ -81,12 +83,143 @@ public class RagFileProxyController
                              @RequestParam(value = "groupCode", required = false) String groupCode,
                              HttpServletRequest request) throws IOException
     {
+        return performUpload(file, securityLevel, scopeCode, groupCode, request, false);
+    }
+
+    /** 公开文档无需用户组，内部文档只校验人员密级，国家秘密需本人所属知悉用户组。 */
+    @PostMapping("/mine/upload")
+    public AjaxResult uploadMine(@RequestParam("file") MultipartFile file,
+                                 @RequestParam("securityLevel") String securityLevel,
+                                 @RequestParam(value = "groupCode", required = false) String groupCode,
+                                 HttpServletRequest request) throws IOException
+    {
+        String level = normalizeCode(securityLevel);
+        if (!isSupportedLevel(level))
+        {
+            return AjaxResult.error("请选择有效的文档密级");
+        }
+
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        if (!"PUBLIC".equals(level))
+        {
+            List<String> userLevels = jdbcTemplate.queryForList(
+                    "select secret_level from sys_user_security_attr " +
+                    "where user_id = ? and access_status = 'ACTIVE' limit 1",
+                    String.class, userId);
+            if (userLevels.isEmpty() || secretRank(level) > secretRank(userLevels.get(0)))
+            {
+                return AjaxResult.error("人员密级不足或访问状态未激活");
+            }
+        }
+
+        if ("PUBLIC".equals(level) || "INTERNAL".equals(level))
+        {
+            return performUpload(file, level, level, "", request, true);
+        }
+
+        String selectedGroup = normalizeCode(groupCode);
+        if (isBlank(selectedGroup) || "GROUP_PUBLIC".equals(selectedGroup))
+        {
+            return AjaxResult.error("秘密级、机密级文档必须选择本人所属的唯一知悉用户组");
+        }
+        Long memberships = jdbcTemplate.queryForObject(
+                "select count(*) from sys_user_group_rel r join sys_group g on g.id = r.group_id " +
+                "where r.user_id = ? and g.group_code = ? and g.status = '0' and g.del_flag = '0'",
+                Long.class, userId, selectedGroup);
+        if (memberships == null || memberships == 0)
+        {
+            return AjaxResult.error("只能选择本人所属的有效知悉用户组");
+        }
+        return performUpload(file, level, selectedGroup, selectedGroup, request, true);
+    }
+
+    /** 返回当前人员密级与国家秘密可用的知悉用户组。 */
+    @GetMapping("/mine/groups")
+    public AjaxResult mineGroups()
+    {
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        List<String> levels = jdbcTemplate.queryForList(
+                "select secret_level from sys_user_security_attr " +
+                "where user_id = ? and access_status = 'ACTIVE' limit 1",
+                String.class, userId);
+        List<Map<String, Object>> groups = jdbcTemplate.queryForList(
+                "select g.group_code groupCode, g.group_name groupName " +
+                "from sys_user_group_rel r join sys_group g on g.id = r.group_id " +
+                "where r.user_id = ? and g.status = '0' and g.del_flag = '0' " +
+                "and g.group_code <> 'GROUP_PUBLIC' order by g.id",
+                userId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("userSecretLevel", levels.isEmpty() ? "PUBLIC" : normalizeCode(levels.get(0)));
+        result.put("groups", groups);
+        return AjaxResult.success(result);
+    }
+
+    /** 只列出本人上传的文件，不泄露 MinIO 对象名和其他用户文件。 */
+    @GetMapping("/mine/list")
+    public AjaxResult mineList(@RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
+                               @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize)
+    {
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        int page = Math.max(1, Math.min(100000, pageNum == null ? 1 : pageNum));
+        int size = Math.max(1, Math.min(50, pageSize == null ? 10 : pageSize));
+        Long total = jdbcTemplate.queryForObject(
+                "select count(*) from sys_rag_file where upload_user_id = ?", Long.class, userId);
+        List<Map<String, Object>> files = jdbcTemplate.queryForList(
+                "select f.file_id fileId, f.file_name fileName, f.file_type fileType, " +
+                "f.security_level securityLevel, f.scope_code scopeCode, f.group_name groupName, " +
+                "f.chunk_count chunkCount, f.embedding_status embeddingStatus, " +
+                "case when d.doc_id is null then 'UNAVAILABLE' " +
+                "else coalesce(d.metadata_status, f.doc_status, 'ACTIVE') end metadataStatus, " +
+                "date_format(f.create_time, '%Y-%m-%d %H:%i') createTime " +
+                "from sys_rag_file f left join sys_rag_doc d on d.doc_id = f.file_id and d.del_flag = '0' " +
+                "where f.upload_user_id = ? order by f.create_time desc, f.file_id desc limit ? offset ?",
+                userId, size, (page - 1) * size);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("total", total == null ? 0L : total);
+        result.put("rows", files);
+        return AjaxResult.success(result);
+    }
+
+    /** 停用后平台二次权限过滤立即拒绝该文档；仅所有者可操作。 */
+    @Transactional(rollbackFor = Exception.class)
+    @PostMapping("/mine/status")
+    public AjaxResult changeMineStatus(@RequestParam("fileId") String fileId,
+                                       @RequestParam("enabled") Boolean enabled)
+    {
+        if (isBlank(fileId) || enabled == null)
+        {
+            return AjaxResult.error("文件或操作状态无效");
+        }
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        String status = enabled ? "ACTIVE" : "DISABLED";
+        int updated = jdbcTemplate.update(
+                "update sys_rag_doc d join sys_rag_file f on f.file_id = d.doc_id " +
+                "set d.metadata_status = ?, d.status = ? " +
+                "where f.file_id = ? and f.upload_user_id = ? and d.del_flag = '0'",
+                status, enabled ? "0" : "1", fileId, userId);
+        if (updated == 0)
+        {
+            return AjaxResult.error("文档不存在、无操作权限或权限标签未同步");
+        }
+        jdbcTemplate.update("update sys_rag_file set doc_status = ? where file_id = ? and upload_user_id = ?",
+                status, fileId, userId);
+        return AjaxResult.success("文档状态已更新");
+    }
+
+    private AjaxResult performUpload(MultipartFile file, String securityLevel, String scopeCode,
+                                     String groupCode, HttpServletRequest request, boolean personal) throws IOException
+    {
         long startTime = System.currentTimeMillis();
 
         String fileName = file == null ? "" : file.getOriginalFilename();
         String normalizedSecurityLevel = normalizeLevel(securityLevel);
         String normalizedScopeCode = normalizeCode(scopeCode);
         FileTypeDecision fileDecision = decideFileType(fileName);
+
+        if (!isSupportedLevel(normalizeCode(securityLevel)))
+        {
+            return AjaxResult.error("请选择有效的文档密级");
+        }
 
         if (file == null || file.isEmpty())
         {
@@ -163,6 +296,18 @@ public class RagFileProxyController
             syncRagDoc(responseBody, groupDecision);
             syncRagFileVectorMetadata(responseBody, fileDecision, groupDecision);
 
+            if (personal)
+            {
+                Map<String, Object> uploaded = extractData(responseBody);
+                String uploadedId = uploaded == null ? null : getString(uploaded, "fileId");
+                Long synced = jdbcTemplate.queryForObject(
+                        "select count(*) from sys_rag_doc where doc_id = ? and del_flag = '0'", Long.class, uploadedId);
+                if (synced == null || synced == 0)
+                {
+                    return AjaxResult.error("文件已上传，但权限标签同步失败，请联系管理员处理，避免重复上传");
+                }
+            }
+
             recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
                     responseBody, null, System.currentTimeMillis() - startTime);
             return AjaxResult.success(responseBody);
@@ -182,9 +327,16 @@ public class RagFileProxyController
     @GetMapping("/groups")
     public AjaxResult groups()
     {
-        String sql = "select id, group_code groupCode, group_name groupName, scope_code scopeCode, " +
-                "group_secret_level groupSecretLevel, status " +
-                "from sys_group where del_flag = '0' and status = '0' order by id asc";
+        String sql =
+                "select " +
+                "id, " +
+                "group_code groupCode, " +
+                "group_name groupName, " +
+                "status " +
+                "from sys_group " +
+                "where del_flag = '0' " +
+                "and status = '0' " +
+                "order by id asc";
         return AjaxResult.success(jdbcTemplate.queryForList(sql));
     }
 
@@ -289,6 +441,9 @@ public class RagFileProxyController
             doc.setScopeCode(isBlank(scopeCode) ? groupDecision.scopeCode : scopeCode);
             doc.setSecurityLevel(isBlank(securityLevel) ? groupDecision.securityLevel : securityLevel);
             doc.setOwnerGroupCode(groupDecision.groupCode);
+            doc.setUploadUserId(SecurityUtils.getLoginUser().getUser().getUserId());
+            doc.setUploadUserName(SecurityUtils.getUsername());
+            doc.setMetadataStatus("ACTIVE");
             doc.setStatus("0");
             doc.setDelFlag("0");
             doc.setCreateBy(SecurityUtils.getUsername());
@@ -409,53 +564,119 @@ public class RagFileProxyController
     }
 
     /**
-     * 解析并校验文档绑定用户组。
+     * 根据新权限模型处理文档用户组。
+     *
+     * PUBLIC：
+     * 不需要知悉用户组；
+     * GROUP_PUBLIC 仅作为历史兼容元数据。
+     *
+     * INTERNAL：
+     * 工作秘密，不绑定知悉用户组。
+     *
+     * SECRET / CONFIDENTIAL：
+     * 国家秘密必须绑定唯一有效用户组。
+     *
+     * 用户组密级不参与文档准入判断。
      */
-    private GroupDecision resolveAndCheckGroup(String securityLevel, String scopeCode, String groupCode)
+    private GroupDecision resolveAndCheckGroup(
+            String securityLevel,
+            String scopeCode,
+            String groupCode)
     {
-        String finalSecurityLevel = normalizeLevel(securityLevel);
-        String finalScopeCode = normalizeCode(scopeCode);
-        String finalGroupCode = normalizeCode(groupCode);
+        String finalSecurityLevel =
+                normalizeLevel(securityLevel);
 
+        String finalGroupCode =
+                normalizeCode(groupCode);
+
+        /*
+         * PUBLIC
+         */
         if ("PUBLIC".equals(finalSecurityLevel))
         {
-            finalScopeCode = "PUBLIC";
-            finalGroupCode = "GROUP_PUBLIC";
+            return GroupDecision.allow(
+                    finalSecurityLevel,
+                    "PUBLIC",
+                    "GROUP_PUBLIC",
+                    "公开文档组",
+                    null
+            );
         }
 
+        /*
+         * INTERNAL
+         *
+         * 工作秘密只依赖人员密级，
+         * 不需要知悉用户组。
+         */
+        if ("INTERNAL".equals(finalSecurityLevel))
+        {
+            return GroupDecision.allow(
+                    finalSecurityLevel,
+                    "INTERNAL",
+                    "",
+                    "",
+                    null
+            );
+        }
+
+        /*
+         * SECRET / CONFIDENTIAL
+         */
         if (isBlank(finalGroupCode))
         {
-            return GroupDecision.deny("非公开文件必须选择唯一绑定用户组");
+            return GroupDecision.deny(
+                    "秘密级、机密级国家秘密必须选择唯一知悉用户组"
+            );
         }
 
-        List<Map<String, Object>> groups = jdbcTemplate.queryForList(
-                "select group_code, group_name, scope_code, group_secret_level " +
-                        "from sys_group where group_code=? and status='0' and del_flag='0' limit 1",
-                finalGroupCode
-        );
+        if ("GROUP_PUBLIC".equals(finalGroupCode))
+        {
+            return GroupDecision.deny("公开文档兼容组不能作为国家秘密知悉用户组");
+        }
+
+        List<Map<String, Object>> groups =
+                jdbcTemplate.queryForList(
+                        "select group_code, group_name " +
+                        "from sys_group " +
+                        "where group_code=? " +
+                        "and status='0' " +
+                        "and del_flag='0' " +
+                        "limit 1",
+                        finalGroupCode
+                );
 
         if (groups == null || groups.isEmpty())
         {
-            return GroupDecision.deny("用户组不存在或未启用：" + finalGroupCode);
+            return GroupDecision.deny(
+                    "用户组不存在或未启用："
+                    + finalGroupCode
+            );
         }
 
-        Map<String, Object> group = groups.get(0);
-        String groupName = getString(group, "group_name");
-        String groupScopeCode = getString(group, "scope_code");
-        String groupSecretLevel = getString(group, "group_secret_level");
+        Map<String, Object> group =
+                groups.get(0);
 
-        if (!"PUBLIC".equals(finalSecurityLevel) && !isBlank(groupScopeCode))
-        {
-            finalScopeCode = groupScopeCode;
-        }
+        String groupName =
+                getString(
+                        group,
+                        "group_name"
+                );
 
-        if (secretRank(groupSecretLevel) < secretRank(finalSecurityLevel))
-        {
-            return GroupDecision.deny("文件密级不能高于所绑定用户组密级：fileLevel="
-                    + finalSecurityLevel + "，groupLevel=" + groupSecretLevel);
-        }
-
-        return GroupDecision.allow(finalSecurityLevel, finalScopeCode, finalGroupCode, groupName, groupSecretLevel);
+        /*
+         * 国家秘密的知悉范围直接就是唯一用户组。
+         *
+         * scope_code 只保留兼容值，
+         * 直接等于 groupCode，
+         * 不再存在另一套映射关系。
+         */
+        return GroupDecision.allow(
+                finalSecurityLevel,
+                finalGroupCode,
+                finalGroupCode,
+                groupName,
+                null
+        );
     }
 
     /**
@@ -608,6 +829,12 @@ public class RagFileProxyController
             return v;
         }
         return "INTERNAL";
+    }
+
+    private boolean isSupportedLevel(String value)
+    {
+        return "PUBLIC".equals(value) || "INTERNAL".equals(value)
+                || "SECRET".equals(value) || "CONFIDENTIAL".equals(value);
     }
 
     private String normalizeCode(String value)

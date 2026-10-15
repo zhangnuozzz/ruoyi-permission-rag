@@ -14,45 +14,46 @@ import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.service.IAccessDecisionService;
 
 /**
- * VACP 访问控制决策服务实现
+ * 向量库访问控制系统核心文档访问决策。
  *
- * 严格对齐原型文档：
- * 1. Token 解析后取得 user_id；
- * 2. user.status == ACTIVE；
- * 3. current_time ∈ user.access_time_window；
- * 4. doc.status == ACTIVE；
- * 5. 用户密级 >= 文档密级；
- * 6. doc.allowed_group ∈ user.user_groups；
- * 7. 用户在共同用户组上的组密级 >= 文档密级；
- * 8. doc_level >= SECRET 时仅允许工作时间访问；
- * 9. 输出 ALLOW / DENY / LIMITED + risk_score + user_groups。
+ * 核心规则：
+ *
+ * PUBLIC：
+ * 公开非密数据，不检查密级、不检查知悉用户组。
+ *
+ * INTERNAL：
+ * 工作秘密，只检查人员密级。
+ *
+ * SECRET / CONFIDENTIAL：
+ * 国家秘密，同时检查：
+ * 1. 人员密级 >= 文档密级；
+ * 2. 文档唯一用户组属于人员用户组集合。
+ *
+ * scope_code 和 group_secret_level 不再参与核心鉴权。
  */
 @Service
 public class AccessDecisionServiceImpl implements IAccessDecisionService
 {
-    private static final LocalTime WORK_START = LocalTime.of(8, 0);
-    private static final LocalTime WORK_END = LocalTime.of(18, 0);
-
     @Autowired
     private AccessDecisionMapper accessDecisionMapper;
 
     @Override
-    public AccessDecisionResult decide(Long userId, String userName, Boolean admin, String docId)
+    public AccessDecisionResult decide(
+            Long userId,
+            String userName,
+            Boolean admin,
+            String docId)
     {
         AccessDecisionResult result = new AccessDecisionResult();
+
         result.setUserId(userId);
         result.setUserName(userName);
         result.setDocId(docId);
-        result.setPolicyHit("ABAC+TBAC+BBAC");
+        result.setPolicyHit("SECURITY_LEVEL+KNOWLEDGE_GROUP+ADDITIONAL_SECURITY");
 
-        Map<String, Object> userAttr = accessDecisionMapper.selectUserSecurityAttr(userId);
-        if (userAttr == null)
-        {
-            deny(result, "USER_SECURITY_ATTR_NOT_FOUND");
-            return result;
-        }
+        Map<String, Object> doc =
+                accessDecisionMapper.selectDocMetadata(docId);
 
-        Map<String, Object> doc = accessDecisionMapper.selectDocMetadata(docId);
         if (doc == null)
         {
             deny(result, "DOCUMENT_METADATA_NOT_FOUND");
@@ -62,99 +63,293 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         result.setDocId(toStr(doc.get("doc_id")));
         result.setDocName(toStr(doc.get("doc_name")));
 
-        String userSecretLevel = toStr(userAttr.get("secret_level"));
-        String accessStatus = toStr(userAttr.get("access_status"));
-        String riskLevel = toStr(userAttr.get("risk_level"));
-        Integer failCount = toInt(userAttr.get("fail_count"));
+        String docLevel =
+                normalizeLevel(toStr(doc.get("security_level")));
 
-        String docSecurityLevel = toStr(doc.get("security_level"));
-        String ownerGroupCode = firstNotEmpty(toStr(doc.get("doc_group_id")), toStr(doc.get("owner_group_code")));
-        String metadataStatus = toStr(doc.get("metadata_status"));
-        String oldStatus = toStr(doc.get("status"));
-
-        int riskScore = calculateRiskScore(riskLevel, failCount);
-        result.setRiskScore(riskScore);
-
-        // 1. 用户状态检查：user.status == ACTIVE
-        if (!"ACTIVE".equalsIgnoreCase(accessStatus))
+        if ("UNKNOWN".equals(docLevel))
         {
-            deny(result, "USER_ACCESS_STATUS_NOT_ACTIVE");
+            deny(result, "INVALID_DOCUMENT_SECURITY_LEVEL");
             return result;
         }
 
-        // 2. 用户访问时间窗口：current_time ∈ user.access_time_window
-        if (!isInAccessTimeWindow(userAttr.get("access_start_time"), userAttr.get("access_end_time")))
-        {
-            deny(result, "OUT_OF_USER_ACCESS_TIME_WINDOW");
-            return result;
-        }
+        String ownerGroupCode =
+                firstNotEmpty(
+                        toStr(doc.get("doc_group_id")),
+                        toStr(doc.get("owner_group_code"))
+                );
 
-        // 3. 文档状态检查：doc.status == ACTIVE
+        String metadataStatus =
+                toStr(doc.get("metadata_status"));
+
+        String oldStatus =
+                toStr(doc.get("status"));
+
+        // 文档必须有效
         if (!isDocActive(metadataStatus, oldStatus))
         {
             deny(result, "DOCUMENT_STATUS_NOT_ACTIVE");
             return result;
         }
 
-        // 4. PUBLIC 文档：登录用户通过基础状态与时间校验后可访问
-        if (isPublic(docSecurityLevel, ownerGroupCode))
+        /*
+         * PUBLIC：
+         * 公开非密数据，不依赖人员密级和用户组。
+         */
+        if ("PUBLIC".equals(docLevel))
         {
-            if (riskScore >= 80)
+            allow(result, "PUBLIC_NON_SECRET_ACCESS_ALLOWED");
+            result.setMetadataFilter(
+                    "security_level == \"PUBLIC\""
+            );
+            return result;
+        }
+
+        /*
+         * INTERNAL / SECRET / CONFIDENTIAL
+         * 均需要存在人员安全属性。
+         */
+        Map<String, Object> userAttr =
+                accessDecisionMapper.selectUserSecurityAttr(userId);
+
+        if (userAttr == null)
+        {
+            deny(result, "USER_SECURITY_ATTR_NOT_FOUND");
+            return result;
+        }
+
+        String userLevel =
+                normalizeLevel(toStr(userAttr.get("secret_level")));
+
+        String accessStatus =
+                toStr(userAttr.get("access_status"));
+
+        String riskLevel =
+                toStr(userAttr.get("risk_level"));
+
+        Integer failCount =
+                toInt(userAttr.get("fail_count"));
+
+        int riskScore =
+                calculateRiskScore(riskLevel, failCount);
+
+        result.setRiskScore(riskScore);
+
+        // 附加安全限制：人员访问状态
+        if (!"ACTIVE".equalsIgnoreCase(accessStatus))
+        {
+            deny(result, "USER_ACCESS_STATUS_NOT_ACTIVE");
+            return result;
+        }
+
+        // 附加安全限制：人员访问时间窗口
+        if (!isInAccessTimeWindow(
+                userAttr.get("access_start_time"),
+                userAttr.get("access_end_time")))
+        {
+            deny(result, "OUT_OF_USER_ACCESS_TIME_WINDOW");
+            return result;
+        }
+
+        /*
+         * 所有非公开数据首先检查人员密级。
+         */
+        if (secretRank(userLevel) < secretRank(docLevel))
+        {
+            deny(
+                    result,
+                    "USER_SECRET_LEVEL_LOWER_THAN_DOCUMENT"
+            );
+            return result;
+        }
+
+        /*
+         * INTERNAL：
+         * 工作秘密。
+         *
+         * 密级满足即可，不检查：
+         * - 用户组
+         * - scope_code
+         * - group_secret_level
+         */
+        if ("INTERNAL".equals(docLevel))
+        {
+            if (isHighRisk(riskLevel, riskScore))
             {
-                limited(result, "PUBLIC_DOCUMENT_HIGH_RISK_LIMITED");
+                limited(
+                        result,
+                        "INTERNAL_DOCUMENT_HIGH_RISK_LIMITED"
+                );
             }
             else
             {
-                allow(result, "PUBLIC_DOCUMENT_ACCESS_ALLOWED");
+                allow(
+                        result,
+                        "INTERNAL_WORK_SECRET_LEVEL_ALLOWED"
+                );
             }
-            result.setMetadataFilter(buildMetadataFilter(userSecretLevel, "GROUP_PUBLIC"));
+
+            result.setMetadataFilter(
+                    "security_level == \"PUBLIC\""
+                    + " || security_level == \"INTERNAL\""
+            );
+
             return result;
         }
 
-        // 5. 用户密级比较：用户密级 >= 文档密级
-        if (secretRank(userSecretLevel) < secretRank(docSecurityLevel))
+        /*
+         * SECRET / CONFIDENTIAL：
+         * 国家秘密必须具有唯一知悉用户组。
+         */
+        if (ownerGroupCode == null
+                || ownerGroupCode.length() == 0)
         {
-            deny(result, "USER_SECRET_LEVEL_LOWER_THAN_DOCUMENT");
+            deny(
+                    result,
+                    "STATE_SECRET_DOCUMENT_GROUP_NOT_CONFIGURED"
+            );
             return result;
         }
 
-        // 6. 高密级数据时间限制：doc_level >= SECRET -> 仅允许工作时间访问
-        if (secretRank(docSecurityLevel) >= secretRank("SECRET") && !isInWorkTime())
+        List<String> userGroupCodes =
+                accessDecisionMapper.selectUserGroupCodes(userId);
+
+        /*
+         * 知悉范围判定：
+         *
+         * 文档唯一用户组 ∈ 用户所属用户组集合
+         */
+        if (CollectionUtils.isEmpty(userGroupCodes)
+                || !userGroupCodes.contains(ownerGroupCode))
         {
-            deny(result, "HIGH_SECRET_DOCUMENT_ONLY_WORK_TIME");
+            deny(
+                    result,
+                    "USER_NOT_IN_DOCUMENT_KNOWLEDGE_GROUP"
+            );
             return result;
         }
 
-        // 7. 用户必须属于文档所属组：doc.allowed_group ∈ user.user_groups
-        List<String> userGroupCodes = accessDecisionMapper.selectUserGroupCodes(userId);
-        if (CollectionUtils.isEmpty(userGroupCodes) || ownerGroupCode == null || !userGroupCodes.contains(ownerGroupCode))
+        /*
+         * 不再检查 group_secret_level。
+         *
+         * 用户组代表知悉范围，
+         * 人员密级代表安全许可等级。
+         */
+
+        if (isHighRisk(riskLevel, riskScore))
         {
-            deny(result, "USER_GROUP_NOT_MATCH_DOCUMENT_GROUP");
-            return result;
+            limited(
+                    result,
+                    "STATE_SECRET_HIGH_RISK_LIMITED"
+            );
         }
-
-        // 8. 用户组密级比较：共同用户组的密级 >= 文档密级
-        String userGroupSecretLevel = accessDecisionMapper.selectUserGroupSecretLevel(userId, ownerGroupCode);
-        if (secretRank(userGroupSecretLevel) < secretRank(docSecurityLevel))
+        else
         {
-            deny(result, "USER_GROUP_SECRET_LEVEL_LOWER_THAN_DOCUMENT");
-            return result;
+            allow(
+                    result,
+                    "STATE_SECRET_LEVEL_AND_GROUP_ALLOWED"
+            );
         }
 
-        // 9. 高风险用户 LIMITED
-        if ("HIGH".equalsIgnoreCase(riskLevel) || riskScore >= 80)
-        {
-            limited(result, "HIGH_RISK_USER_LIMITED_ACCESS");
-            result.setMetadataFilter(buildMetadataFilter(userSecretLevel, ownerGroupCode));
-            return result;
-        }
+        result.setMetadataFilter(
+                buildDocumentFilter(userLevel, userGroupCodes)
+        );
 
-        allow(result, "CHECK_USER_DOC_ALLOW");
-        result.setMetadataFilter(buildMetadataFilter(userSecretLevel, ownerGroupCode));
         return result;
     }
 
-    private void deny(AccessDecisionResult result, String reason)
+    private String buildDocumentFilter(
+            String userLevel,
+            List<String> groups)
+    {
+        StringBuilder filter = new StringBuilder();
+
+        filter.append(
+                "(security_level == \"PUBLIC\""
+        );
+
+        if (secretRank(userLevel)
+                >= secretRank("INTERNAL"))
+        {
+            filter.append(
+                    " || security_level == \"INTERNAL\""
+            );
+        }
+
+        if (secretRank(userLevel)
+                >= secretRank("SECRET")
+                && groups != null
+                && !groups.isEmpty())
+        {
+            filter.append(
+                    " || (security_level == \"SECRET\""
+            );
+
+            filter.append(
+                    " && group_id in "
+            );
+
+            filter.append(toQuotedList(groups));
+
+            filter.append(")");
+        }
+
+        if (secretRank(userLevel)
+                >= secretRank("CONFIDENTIAL")
+                && groups != null
+                && !groups.isEmpty())
+        {
+            filter.append(
+                    " || (security_level == \"CONFIDENTIAL\""
+            );
+
+            filter.append(
+                    " && group_id in "
+            );
+
+            filter.append(toQuotedList(groups));
+
+            filter.append(")");
+        }
+
+        filter.append(")");
+
+        return filter.toString();
+    }
+
+    private String toQuotedList(List<String> list)
+    {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("[");
+
+        for (int i = 0; i < list.size(); i++)
+        {
+            if (i > 0)
+            {
+                builder.append(", ");
+            }
+
+            builder.append("\"");
+            builder.append(list.get(i));
+            builder.append("\"");
+        }
+
+        builder.append("]");
+
+        return builder.toString();
+    }
+
+    private boolean isHighRisk(
+            String riskLevel,
+            int riskScore)
+    {
+        return "HIGH".equalsIgnoreCase(riskLevel)
+                || riskScore >= 80;
+    }
+
+    private void deny(
+            AccessDecisionResult result,
+            String reason)
     {
         result.setDecision("DENY");
         result.setAllowAccess(false);
@@ -162,7 +357,9 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         result.getReasons().add(reason);
     }
 
-    private void allow(AccessDecisionResult result, String reason)
+    private void allow(
+            AccessDecisionResult result,
+            String reason)
     {
         result.setDecision("ALLOW");
         result.setAllowAccess(true);
@@ -170,7 +367,9 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         result.getReasons().add(reason);
     }
 
-    private void limited(AccessDecisionResult result, String reason)
+    private void limited(
+            AccessDecisionResult result,
+            String reason)
     {
         result.setDecision("LIMITED");
         result.setAllowAccess(true);
@@ -180,67 +379,105 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
 
     private int secretRank(String level)
     {
-        if ("PUBLIC".equalsIgnoreCase(level)) return 1;
-        if ("INTERNAL".equalsIgnoreCase(level)) return 2;
-        if ("SECRET".equalsIgnoreCase(level)) return 3;
-        if ("CONFIDENTIAL".equalsIgnoreCase(level)) return 4;
+        if ("PUBLIC".equals(level))
+        {
+            return 1;
+        }
+
+        if ("INTERNAL".equals(level))
+        {
+            return 2;
+        }
+
+        if ("SECRET".equals(level))
+        {
+            return 3;
+        }
+
+        if ("CONFIDENTIAL".equals(level))
+        {
+            return 4;
+        }
+
         return 0;
     }
 
-    private boolean isPublic(String docSecurityLevel, String ownerGroupCode)
+    private String normalizeLevel(String level)
     {
-        return "PUBLIC".equalsIgnoreCase(docSecurityLevel)
-                || "GROUP_PUBLIC".equalsIgnoreCase(ownerGroupCode);
+        String value = level == null ? "" : level.trim();
+        if ("PUBLIC".equalsIgnoreCase(value)
+                || "INTERNAL".equalsIgnoreCase(value)
+                || "SECRET".equalsIgnoreCase(value)
+                || "CONFIDENTIAL".equalsIgnoreCase(value))
+        {
+            return value.toUpperCase(java.util.Locale.ROOT);
+        }
+        return "UNKNOWN";
     }
 
-    private boolean isDocActive(String metadataStatus, String oldStatus)
+    private boolean isDocActive(
+            String metadataStatus,
+            String oldStatus)
     {
-        if (metadataStatus != null && !"".equals(metadataStatus))
+        if (metadataStatus != null
+                && metadataStatus.length() > 0)
         {
-            return "ACTIVE".equalsIgnoreCase(metadataStatus);
+            return "ACTIVE".equalsIgnoreCase(
+                    metadataStatus
+            );
         }
+
         return "0".equals(oldStatus);
     }
 
-    private boolean isInAccessTimeWindow(Object startObj, Object endObj)
+    private boolean isInAccessTimeWindow(
+            Object startObj,
+            Object endObj)
     {
         if (startObj == null || endObj == null)
         {
             return true;
         }
 
-        LocalTime now = LocalTime.now();
         LocalTime start = toLocalTime(startObj);
         LocalTime end = toLocalTime(endObj);
 
-        if (start == null || end == null || start.equals(end))
+        if (start == null
+                || end == null
+                || start.equals(end))
         {
             return true;
         }
 
+        LocalTime now = LocalTime.now();
+
         if (start.isBefore(end))
         {
-            return !now.isBefore(start) && !now.isAfter(end);
+            return !now.isBefore(start)
+                    && !now.isAfter(end);
         }
 
-        return !now.isBefore(start) || !now.isAfter(end);
+        return !now.isBefore(start)
+                || !now.isAfter(end);
     }
 
-    private boolean isInWorkTime()
+    private LocalTime toLocalTime(Object value)
     {
-        LocalTime now = LocalTime.now();
-        return !now.isBefore(WORK_START) && !now.isAfter(WORK_END);
-    }
-
-    private LocalTime toLocalTime(Object obj)
-    {
-        if (obj instanceof Time)
+        if (value instanceof Time)
         {
-            return ((Time) obj).toLocalTime();
+            return ((Time) value).toLocalTime();
         }
+
         try
         {
-            return LocalTime.parse(String.valueOf(obj).substring(0, 8));
+            String text = String.valueOf(value);
+
+            if (text.length() >= 8)
+            {
+                text = text.substring(0, 8);
+            }
+
+            return LocalTime.parse(text);
         }
         catch (Exception e)
         {
@@ -248,7 +485,9 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         }
     }
 
-    private int calculateRiskScore(String riskLevel, Integer failCount)
+    private int calculateRiskScore(
+            String riskLevel,
+            Integer failCount)
     {
         int score = 10;
 
@@ -263,35 +502,49 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
 
         if (failCount != null && failCount > 0)
         {
-            score += Math.min(failCount * 5, 20);
+            score += Math.min(
+                    failCount * 5,
+                    20
+            );
         }
 
         return Math.min(score, 100);
     }
 
-    private String buildMetadataFilter(String userSecretLevel, String ownerGroupCode)
+    private String firstNotEmpty(
+            String first,
+            String second)
     {
-        return "metadata_status == 'ACTIVE' && security_level <= '" + userSecretLevel
-                + "' && owner_group_code == '" + ownerGroupCode + "'";
+        return first != null
+                && first.length() > 0
+                ? first
+                : second;
     }
 
-    private String firstNotEmpty(String a, String b)
+    private String toStr(Object value)
     {
-        return a != null && a.length() > 0 ? a : b;
+        return value == null
+                ? null
+                : String.valueOf(value);
     }
 
-    private String toStr(Object obj)
+    private Integer toInt(Object value)
     {
-        return obj == null ? null : String.valueOf(obj);
-    }
+        if (value == null)
+        {
+            return 0;
+        }
 
-    private Integer toInt(Object obj)
-    {
-        if (obj == null) return 0;
-        if (obj instanceof Number) return ((Number) obj).intValue();
+        if (value instanceof Number)
+        {
+            return ((Number) value).intValue();
+        }
+
         try
         {
-            return Integer.parseInt(String.valueOf(obj));
+            return Integer.parseInt(
+                    String.valueOf(value)
+            );
         }
         catch (Exception e)
         {

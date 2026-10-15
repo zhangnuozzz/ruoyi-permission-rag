@@ -21,7 +21,12 @@
         新建对话
       </el-button>
 
-      <div class="sidebar-section">
+      <div class="sidebar-navigation">
+        <div class="navigation-item" :class="{ active: activeView === 'chat' }" @click="activeView = 'chat'"><i class="el-icon-chat-dot-round" />知识问答</div>
+        <div class="navigation-item" :class="{ active: activeView === 'library' }" @click="activeView = 'library'"><i class="el-icon-folder-opened" />我的知识库</div>
+      </div>
+
+      <div v-if="activeView === 'chat'" class="sidebar-section">
         <div class="section-caption">最近使用</div>
 
         <div
@@ -108,7 +113,12 @@
               </div>
 
               <div class="permission-row">
-                <span>所属用户组</span>
+                <span>人员密级</span>
+                <strong>{{ securityLevelName(userContext.userSecretLevel) }}</strong>
+              </div>
+
+              <div class="permission-row">
+                <span>国家秘密知悉用户组</span>
                 <div class="permission-tags">
                   <el-tag
                     v-for="group in userContext.groupCodes || []"
@@ -128,30 +138,8 @@
                 </div>
               </div>
 
-              <div class="permission-row">
-                <span>可访问范围</span>
-                <div class="permission-tags">
-                  <el-tag
-                    v-for="scope in userContext.scopeCodes || []"
-                    :key="scope"
-                    size="mini"
-                    type="success"
-                    effect="plain"
-                  >
-                    {{ scope }}
-                  </el-tag>
-
-                  <span
-                    v-if="!userContext.scopeCodes || userContext.scopeCodes.length === 0"
-                    class="muted"
-                  >
-                    -
-                  </span>
-                </div>
-              </div>
-
               <div class="permission-note">
-                实际文档访问结果仍由服务端权限策略实时判定。
+                公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。
               </div>
             </div>
 
@@ -168,7 +156,7 @@
       </header>
 
       <!-- 消息区域 -->
-      <section ref="messageArea" class="message-area">
+      <section v-show="activeView === 'chat'" ref="messageArea" class="message-area">
         <!-- 欢迎页 -->
         <div v-if="messages.length === 0" class="welcome">
           <div class="welcome-icon">
@@ -202,24 +190,6 @@
             </div>
           </div>
 
-          <div class="welcome-security">
-            <span>
-              <i class="el-icon-circle-check"></i>
-              统一身份认证
-            </span>
-            <span>
-              <i class="el-icon-circle-check"></i>
-              权限过滤
-            </span>
-            <span>
-              <i class="el-icon-circle-check"></i>
-              安全向量检索
-            </span>
-            <span>
-              <i class="el-icon-circle-check"></i>
-              全程审计
-            </span>
-          </div>
         </div>
 
         <!-- 对话 -->
@@ -396,8 +366,10 @@
         </div>
       </section>
 
+      <MyLibrary v-if="activeView === 'library'" class="library-container" />
+
       <!-- 输入区 -->
-      <footer class="composer-wrapper">
+      <footer v-if="activeView === 'chat'" class="composer-wrapper">
         <div class="composer">
           <el-input
             ref="questionInput"
@@ -437,13 +409,17 @@ import {
   ragSearch,
   getRagUserContext
 } from '@/api/rag/search'
+import { listMyUploadGroups } from '@/api/rag/myKnowledge'
+import MyLibrary from './MyLibrary'
 
 export default {
   name: 'KnowledgePortal',
+  components: { MyLibrary },
 
   data() {
     return {
       question: '',
+      activeView: 'chat',
       loading: false,
       messages: [],
       userContext: {},
@@ -456,7 +432,7 @@ export default {
         },
         {
           title: '我的可访问内容',
-          question: '查看当前账号的用户组、知悉范围和授权信息',
+          question: '查看当前账号的人员密级和知悉用户组',
           icon: 'el-icon-lock',
           type: 'permission'
         },
@@ -466,9 +442,10 @@ export default {
           icon: 'el-icon-folder-opened'
         },
         {
-          title: '安全规范查询',
-          question: '查询与信息安全相关的规范和要求',
-          icon: 'el-icon-circle-check'
+          title: '上传知识文件',
+          question: '添加文档并管理我的知识库',
+          icon: 'el-icon-upload2',
+          type: 'library'
         }
       ]
     }
@@ -483,6 +460,10 @@ export default {
       return this.userName
         ? this.userName.substring(0, 1).toUpperCase()
         : 'U'
+    },
+
+    historyStorageKey() {
+      return 'vectorKnowledgeQuestionHistory:' + this.userName
     },
 
     isAdmin() {
@@ -500,18 +481,26 @@ export default {
     loadContext() {
       getRagUserContext()
         .then(response => {
-          this.userContext = response.data || {}
+          this.userContext = Object.assign({}, this.userContext, response.data || {})
         })
-        .catch(() => {
-          this.userContext = {}
+        .catch(() => {})
+      listMyUploadGroups()
+        .then(response => {
+          this.userContext = Object.assign({}, this.userContext, {
+            userSecretLevel: (response.data || {}).userSecretLevel || 'PUBLIC'
+          })
         })
+        .catch(() => {})
+    },
+
+    securityLevelName(level) {
+      const names = { PUBLIC: '公开', INTERNAL: '内部', SECRET: '秘密', CONFIDENTIAL: '机密' }
+      return names[level] || '未获取'
     },
 
     loadHistory() {
       try {
-        const value = localStorage.getItem(
-          'vectorKnowledgeQuestionHistory'
-        )
+        const value = localStorage.getItem(this.historyStorageKey)
 
         this.history = value
           ? JSON.parse(value)
@@ -538,13 +527,11 @@ export default {
         )
       ].slice(0, 8)
 
-      localStorage.setItem(
-        'vectorKnowledgeQuestionHistory',
-        JSON.stringify(this.history)
-      )
+      localStorage.setItem(this.historyStorageKey, JSON.stringify(this.history))
     },
 
     useHistory(item) {
+      this.activeView = 'chat'
       this.question = item.query
 
       this.$nextTick(() => {
@@ -553,6 +540,7 @@ export default {
     },
 
     newConversation() {
+      this.activeView = 'chat'
       this.messages = []
       this.question = ''
 
@@ -562,6 +550,10 @@ export default {
     },
 
     selectQuickQuestion(item) {
+      if (item.type === 'library') {
+        this.activeView = 'library'
+        return
+      }
       if (item.type === 'permission') {
         this.showPermissionSummary()
         return
@@ -582,23 +574,18 @@ export default {
       this.saveHistory(query)
       this.scrollToBottom()
 
-      getRagUserContext()
-        .then(response => {
-          const context = response.data || {}
+      Promise.all([getRagUserContext(), listMyUploadGroups()])
+        .then(([contextResponse, accessResponse]) => {
+          const context = contextResponse.data || {}
+          const userSecretLevel = (accessResponse.data || {}).userSecretLevel || 'PUBLIC'
 
-          this.userContext = context
+          this.userContext = Object.assign({}, context, { userSecretLevel })
 
           const groups =
             context.groupCodes &&
             context.groupCodes.length
               ? context.groupCodes.join('、')
-              : '暂无用户组'
-
-          const scopes =
-            context.scopeCodes &&
-            context.scopeCodes.length
-              ? context.scopeCodes.join('、')
-              : '暂无可访问范围'
+              : '暂无国家秘密知悉用户组'
 
           const policyCount =
             context.policyCount === undefined ||
@@ -611,16 +598,16 @@ export default {
             '当前用户：' +
             (context.userName || this.userName) +
             '\n' +
-            '所属用户组：' +
-            groups +
+            '人员密级：' +
+            this.securityLevelName(userSecretLevel) +
             '\n' +
-            '可访问范围：' +
-            scopes +
+            '国家秘密知悉用户组：' +
+            groups +
             '\n' +
             '已关联策略：' +
             policyCount +
             ' 条\n\n' +
-            '实际文档访问权限会在每次检索时由服务端根据当前身份、用户组、知悉范围和安全策略实时判定。'
+            '公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。附加安全策略仍由服务端实时判定。'
 
           this.messages.push({
             role: 'assistant',
@@ -879,6 +866,13 @@ export default {
   min-height: 0;
 }
 
+.sidebar-navigation { margin-top: 21px; display: flex; flex-direction: column; gap: 5px; }
+.navigation-item { padding: 11px 13px; border-radius: 8px; color: #aebed0; font-size: 13px; cursor: pointer; transition: background .2s, color .2s; }
+.navigation-item i { margin-right: 12px; font-size: 16px; }
+.navigation-item:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+.navigation-item.active { background: rgba(65, 143, 235, .17); color: #8fc3ff; }
+.library-container { flex: 1; min-height: 0; }
+
 .section-caption {
   padding: 0 10px 9px;
   font-size: 12px;
@@ -922,6 +916,7 @@ export default {
 
 .sidebar-user {
   height: 60px;
+  margin-top: auto;
   padding: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
@@ -1133,20 +1128,6 @@ export default {
 .quick-arrow {
   margin-left: auto;
   color: #bec8d2;
-}
-
-.welcome-security {
-  margin-top: 28px;
-  color: #8c9bab;
-  font-size: 11px;
-  display: flex;
-  justify-content: center;
-  gap: 26px;
-}
-
-.welcome-security i {
-  margin-right: 4px;
-  color: #47b98a;
 }
 
 .conversation {
