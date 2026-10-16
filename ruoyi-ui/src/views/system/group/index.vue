@@ -276,6 +276,15 @@
 
       <el-divider content-position="left">添加成员</el-divider>
 
+      <el-alert
+        v-if="currentGroup && currentGroup.status !== '0'"
+        title="此用户组已停用，不能新增成员；可查看或移出现有成员。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="mb20"
+      />
+
       <div v-if="memberError" class="identity-form-feedback" role="alert">
         {{ memberError }}
         <el-button type="text" :disabled="memberLoading" @click="loadMembers">重试</el-button>
@@ -283,6 +292,7 @@
       <div v-if="can('system:group:edit')" class="add-member-row">
         <el-select
           v-model="candidateUserId"
+          :disabled="!canAddMembers || memberLoading || memberBusy || !!memberError"
           filterable
           clearable
           placeholder="选择需要加入该知悉范围的人员"
@@ -299,7 +309,7 @@
         <el-button
           type="primary"
           icon="el-icon-plus"
-          :disabled="!candidateUserId || memberLoading || !!memberError || memberBusy"
+          :disabled="!canAddMembers || !candidateUserId || memberLoading || !!memberError || memberBusy"
           :loading="memberSaving"
           @click="addMember"
         >
@@ -324,7 +334,7 @@
 
         <el-table-column label="加入时间" width="170">
           <template slot-scope="scope">
-            {{ parseTime(scope.row.joinTime, '{y}-{m}-{d} {h}:{i}:{s}') }}
+            {{ formatJoinTime(scope.row.joinTime) }}
           </template>
         </el-table-column>
 
@@ -432,6 +442,9 @@ export default {
   },
 
   computed: {
+    canAddMembers() {
+      return !!this.currentGroup && this.currentGroup.status === '0' && this.can('system:group:edit')
+    },
     memberBusy() {
       return this.memberSaving || this.memberRemovingId !== null
     },
@@ -650,7 +663,7 @@ export default {
       try {
         const results = await Promise.all([
           listGroupMembers(groupId),
-          this.can('system:group:edit')
+          this.canAddMembers
             ? listGroupCandidates(groupId)
             : Promise.resolve({ data: [] })
         ])
@@ -681,7 +694,7 @@ export default {
         this.memberBusy ||
         this.memberLoading ||
         this.memberError ||
-        !this.can('system:group:edit')
+        !this.canAddMembers
       ) {
         return
       }
@@ -731,6 +744,30 @@ export default {
       } finally {
         this.memberRemovingId = null
       }
+    },
+
+    formatJoinTime(value) {
+      if (value === null || value === undefined || String(value).trim() === '') {
+        return '未记录'
+      }
+      let source = typeof value === 'string' ? value.trim() : value
+      if (typeof source === 'string' && /^\d+$/.test(source)) {
+        source = Number(source)
+      }
+      if (typeof source === 'number' && String(source).length === 10) {
+        source *= 1000
+      }
+      // ISO 日期保留时区信息；无时区的数据库日期沿用本地时间解释。
+      if (typeof source === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(source)) {
+        source = source.replace(/-/g, '/')
+      }
+      if (typeof source !== 'string' && typeof source !== 'number' && !(source instanceof Date)) {
+        return '时间格式异常'
+      }
+      const date = source instanceof Date ? source : new Date(source)
+      return Number.isNaN(date.getTime())
+        ? '时间格式异常'
+        : this.parseTime(date, '{y}-{m}-{d} {h}:{i}:{s}')
     },
 
     userLabel(user) {

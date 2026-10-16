@@ -16,3 +16,23 @@ export function savePersonnelAccess(userId, data) {
     data: data
   })
 }
+
+// 新增人员资料及访问配置，服务端在同一事务内保存
+export function createPersonnel(data) {
+  return request({
+    url: '/system/personnelAccess',
+    method: 'post',
+    data: data,
+    returnErrorData: true
+  })
+}
+
+// 更新人员资料及访问配置，服务端在同一事务内保存
+export function updatePersonnel(userId, data) {
+  return request({
+    url: '/system/personnelAccess/save/' + userId,
+    method: 'put',
+    data: data,
+    returnErrorData: true
+  })
+}

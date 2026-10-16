@@ -144,6 +144,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			<if test="status != null and status != ''">status,</if>
  			<if test="createBy != null and createBy != ''">create_by,</if>
  			<if test="remark != null and remark != ''">remark,</if>
+            <if test="ethnicity != null">ethnicity,</if>
+            <if test="idCardNo != null">id_card_no,</if>
+            <if test="birthPlace != null">birth_place,</if>
+            <if test="jobTitle != null">job_title,</if>
+            <if test="employeeNo != null">employee_no,</if>
  			create_time
  		)values(
  			<if test="userId != null and userId != ''">#{userId},</if>
@@ -158,6 +163,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			<if test="status != null and status != ''">#{status},</if>
  			<if test="createBy != null and createBy != ''">#{createBy},</if>
  			<if test="remark != null and remark != ''">#{remark},</if>
+            <if test="ethnicity != null">#{ethnicity},</if>
+            <if test="idCardNo != null">#{idCardNo},</if>
+            <if test="birthPlace != null">#{birthPlace},</if>
+            <if test="jobTitle != null">#{jobTitle},</if>
+            <if test="employeeNo != null">#{employeeNo},</if>
  			sysdate()
  		)
 	</insert>
@@ -168,8 +178,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			<if test="deptId != null and deptId != 0">dept_id = #{deptId},</if>
  			<if test="userName != null and userName != ''">user_name = #{userName},</if>
  			<if test="nickName != null and nickName != ''">nick_name = #{nickName},</if>
- 			<if test="email != null and email != ''">email = #{email},</if>
- 			<if test="phonenumber != null and phonenumber != ''">phonenumber = #{phonenumber},</if>
+			<if test="email != null">email = #{email},</if>
+			<if test="phonenumber != null">phonenumber = #{phonenumber},</if>
  			<if test="sex != null and sex != ''">sex = #{sex},</if>
  			<if test="avatar != null and avatar != ''">avatar = #{avatar},</if>
  			<if test="password != null and password != ''">password = #{password},</if>
@@ -178,6 +188,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			<if test="loginDate != null">login_date = #{loginDate},</if>
  			<if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
  			<if test="remark != null">remark = #{remark},</if>
+            <if test="ethnicity != null">ethnicity = #{ethnicity},</if>
+            <if test="idCardNo != null">id_card_no = #{idCardNo},</if>
+            <if test="birthPlace != null">birth_place = #{birthPlace},</if>
+            <if test="jobTitle != null">job_title = #{jobTitle},</if>
+            <if test="employeeNo != null">employee_no = #{employeeNo},</if>
  			update_time = sysdate()
  		</set>
  		where user_id = #{userId}

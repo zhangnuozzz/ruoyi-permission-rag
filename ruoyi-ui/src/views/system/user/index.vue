@@ -412,12 +412,12 @@
                   v-for="group in groupOptions"
                   :key="group.id"
                   :label="groupOptionLabel(group)"
-                  :disabled="group.groupCode === 'GROUP_PUBLIC'"
+                  :disabled="groupOptionDisabled(group)"
                   :value="group.id"
                 />
               </el-select>
 
-              <div class="field-help">用户组即国家秘密知悉范围。加入某组并不自动提升人员密级。</div>
+              <div class="field-help">用户组表示知悉范围，不提升人员密级。停用组可保留或移出，不参与访问判断；重新启用后按保留的成员关系生效。</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -599,13 +599,11 @@ import {
   listUser,
   getUser,
   delUser,
-  addUser,
-  updateUser,
   resetUserPwd,
   changeUserStatus
 } from '@/api/system/user'
 
-import { getPersonnelAccess, savePersonnelAccess } from '@/api/system/personnelAccess'
+import { getPersonnelAccess, createPersonnel, updatePersonnel } from '@/api/system/personnelAccess'
 
 import { listGroup } from '@/api/system/group'
 
@@ -652,6 +650,7 @@ export default {
       postOptions: [],
       roleOptions: [],
       groupOptions: [],
+      originalGroupIds: [],
 
       runtimeAttr: null,
 
@@ -825,8 +824,15 @@ export default {
         '（' +
         group.groupCode +
         (group.groupCode === 'GROUP_PUBLIC' ? '，历史兼容分组' : '') +
+        (group.status === '1' ? '，已停用，不生效' : group.status !== '0' ? '，状态异常，不生效' : '') +
         '）'
       )
+    },
+    groupOptionDisabled(group) {
+      if (group.groupCode === 'GROUP_PUBLIC') {
+        return true
+      }
+      return group.status !== '0' && !this.originalGroupIds.some((id) => String(id) === String(group.id))
     },
     handleRowAction(command, row) {
       if (command === 'password' && this.can('system:user:resetPwd')) {
@@ -881,9 +887,10 @@ export default {
       this.groupLoading = true
       this.groupError = ''
       try {
-        const response = await listGroup({ pageNum: 1, pageSize: 1000, status: '0' })
-        this.groupOptions = Array.isArray(response.rows) ? response.rows : []
-        if (Number(response.total) > this.groupOptions.length) {
+        const response = await listGroup({ pageNum: 1, pageSize: 1000 })
+        const rows = Array.isArray(response.rows) ? response.rows : []
+        this.groupOptions = rows.filter((group) => group.delFlag === '0')
+        if (Number(response.total) > rows.length) {
           this.groupError = '用户组列表未完整加载，暂不能安全修改成员关系。'
         }
       } catch (error) {
@@ -958,6 +965,7 @@ export default {
       }
 
       this.runtimeAttr = null
+      this.originalGroupIds = []
       this.saveError = ''
       this.creationUncertain = false
 
@@ -970,8 +978,8 @@ export default {
       this.reset()
       this.getTreeselect()
 
-      getUser()
-        .then((response) => {
+      Promise.all([getUser(), this.getGroupOptions()])
+        .then(([response]) => {
           this.postOptions = response.posts || []
           this.roleOptions = response.roles || []
 
@@ -991,13 +999,31 @@ export default {
 
       const userId = row && row.userId ? row.userId : this.ids[0]
 
-      Promise.all([getUser(userId), getPersonnelAccess(userId)])
+      Promise.all([getUser(userId), getPersonnelAccess(userId), this.getGroupOptions()])
         .then(([userResponse, accessResponse]) => {
           const user = userResponse.data || {}
 
           const access = accessResponse.data || {}
 
           const attr = access.securityAttr || {}
+          this.originalGroupIds = (access.groupIds || []).slice()
+          // 以人员配置回读的组状态校正已选项，避免把停用归属当成有效知悉范围。
+          const assignedGroups = access.groups || []
+          assignedGroups.forEach((group) => {
+            const option = {
+              id: group.groupId,
+              groupCode: group.groupCode,
+              groupName: group.groupName,
+              status: group.groupStatus,
+              delFlag: '0'
+            }
+            const index = this.groupOptions.findIndex((item) => String(item.id) === String(option.id))
+            if (index === -1) {
+              this.groupOptions.push(option)
+            } else {
+              this.$set(this.groupOptions, index, option)
+            }
+          })
 
           this.form = Object.assign({}, this.form, user, {
             postIds: userResponse.postIds || [],
@@ -1103,40 +1129,43 @@ export default {
         }
         this.saving = true
         this.saveError = ''
-        let identitySaved = false
         const creating = !this.form.userId
         try {
-          const userPayload = this.buildUserPayload()
-          if (this.form.userId) {
-            await updateUser(userPayload)
-          } else {
-            const response = await addUser(userPayload)
-            if (!response.data || !/^\d+$/.test(String(response.data))) {
+          const payload = { user: this.buildUserPayload(), access: this.buildAccessPayload() }
+          const response = creating
+            ? await createPersonnel(payload)
+            : await updatePersonnel(this.form.userId, payload)
+          if (Number(response.code) !== 200) {
+            if (creating && response.saveStatus !== 'REJECTED') {
               this.creationUncertain = true
-              this.saveError =
-                '新增请求已返回，但没有有效人员 ID。请关闭窗口并刷新列表核实，勿重复新增。'
+              this.saveError = '新增结果未能确认，请关闭窗口并刷新列表核实后再操作。'
+              this.getList()
+            } else {
+              this.saveError = response.msg || '保存未成功，请核对信息后重试。'
+            }
+            return
+          }
+          if (creating) {
+            if (!response.data || !/^\d+$/.test(String(response.data)) || Number(response.data) <= 0) {
+              this.creationUncertain = true
+              this.saveError = '新增请求已返回，但人员编号未能确认。请刷新列表核实，勿重复新增。'
               this.getList()
               return
             }
             this.form.userId = response.data
             this.form.password = undefined
-            this.title = '人员信息与权限配置'
           }
-          identitySaved = true
-          await savePersonnelAccess(this.form.userId, this.buildAccessPayload())
           this.msgSuccess('人员资料和权限均已保存')
           this.open = false
           this.getList()
         } catch (error) {
-          if (creating && !this.form.userId) {
+          if (creating) {
             this.creationUncertain = true
             this.saveError = '新增结果未能确认，请关闭窗口并刷新列表核实后再操作。'
             this.getList()
-            return
+          } else {
+            this.saveError = '保存结果未能确认，请刷新列表并重新打开人员配置核对后再操作。'
           }
-          this.saveError = identitySaved
-            ? '人员资料已保存，但权限配置失败。请保留本窗口并重试保存；不会重复新增人员。'
-            : '人员资料保存失败，请核对信息后重试。'
         } finally {
           this.saving = false
         }
