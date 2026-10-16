@@ -114,7 +114,7 @@
         </template>
       </el-table-column>
     </el-table>
-    
+
     <pagination
       v-show="total>0"
       :total="total"
@@ -125,11 +125,19 @@
 
     <!-- 添加或修改策略绑定管理对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
+      <el-alert
+        v-if="form.id"
+        title="已有绑定仅维护状态与备注；更换策略或适用对象请取消后重新添加。"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px"
+      />
       <el-form ref="form" :model="form" :rules="rules" label-width="100px">
         <el-row>
           <el-col :span="24">
             <el-form-item label="策略ID" prop="policyId">
-              <el-input v-model="form.policyId" placeholder="请输入策略ID" />
+              <el-input v-model="form.policyId" :disabled="!!form.id" placeholder="请输入策略ID" />
             </el-form-item>
           </el-col>
 
@@ -139,19 +147,17 @@
                 v-model="form.bindType"
                 placeholder="请选择绑定类型"
                 style="width: 100%"
+                :disabled="!!form.id"
                 filterable
-                allow-create
               >
                 <el-option label="用户" value="USER" />
                 <el-option label="用户组" value="GROUP" />
-                <el-option label="文档" value="DOC" />
-                <el-option label="目录" value="DIRECTORY" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="绑定目标ID" prop="bindTargetId">
-              <el-input v-model="form.bindTargetId" placeholder="请输入绑定目标ID" />
+              <el-input v-model="form.bindTargetId" :disabled="!!form.id" placeholder="请输入绑定目标ID" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -165,7 +171,7 @@
 
           <el-col :span="24">
             <el-form-item label="备注" prop="remark">
-              <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
+              <el-input v-model="form.remark" type="textarea" :maxlength="500" placeholder="请输入内容" />
             </el-form-item>
           </el-col>
         </el-row>

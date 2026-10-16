@@ -3,7 +3,7 @@
 PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.system.mapper.SysPolicyBindMapper">
-    
+
     <resultMap type="SysPolicyBind" id="SysPolicyBindResult">
         <result property="id"    column="id"    />
         <result property="policyId"    column="policy_id"    />
@@ -21,14 +21,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectSysPolicyBindList" parameterType="SysPolicyBind" resultMap="SysPolicyBindResult">
         <include refid="selectSysPolicyBindVo"/>
-        <where>  
+        <where>
             <if test="policyId != null "> and policy_id = #{policyId}</if>
             <if test="bindType != null  and bindType != ''"> and bind_type = #{bindType}</if>
             <if test="bindTargetId != null "> and bind_target_id = #{bindTargetId}</if>
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
-    
+
     <select id="selectSysPolicyBindById" parameterType="Long" resultMap="SysPolicyBindResult">
         <include refid="selectSysPolicyBindVo"/>
         where id = #{id}
@@ -58,15 +58,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <update id="updateSysPolicyBind" parameterType="SysPolicyBind">
         update sys_policy_bind
-        <trim prefix="SET" suffixOverrides=",">
-            <if test="policyId != null">policy_id = #{policyId},</if>
-            <if test="bindType != null and bindType != ''">bind_type = #{bindType},</if>
-            <if test="bindTargetId != null">bind_target_id = #{bindTargetId},</if>
-            <if test="status != null and status != ''">status = #{status},</if>
-            <if test="remark != null">remark = #{remark},</if>
-            <if test="createBy != null">create_by = #{createBy},</if>
-            <if test="createTime != null">create_time = #{createTime},</if>
-        </trim>
+        set status = #{status}, remark = #{remark}
         where id = #{id}
     </update>
 
@@ -75,7 +67,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </delete>
 
     <delete id="deleteSysPolicyBindByIds" parameterType="String">
-        delete from sys_policy_bind where id in 
+        delete from sys_policy_bind where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>

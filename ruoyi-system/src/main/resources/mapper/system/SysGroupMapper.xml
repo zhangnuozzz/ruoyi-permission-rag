@@ -3,7 +3,7 @@
 PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.system.mapper.SysGroupMapper">
-    
+
     <resultMap type="SysGroup" id="SysGroupResult">
         <result property="id"    column="id"    />
         <result property="groupCode"    column="group_code"    />
@@ -25,7 +25,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectSysGroupList" parameterType="SysGroup" resultMap="SysGroupResult">
         <include refid="selectSysGroupVo"/>
-        <where>  
+        <where>
+            del_flag = '0'
             <if test="groupCode != null  and groupCode != ''"> and group_code = #{groupCode}</if>
             <if test="groupName != null  and groupName != ''"> and group_name like concat('%', #{groupName}, '%')</if>
             <if test="scopeCode != null  and scopeCode != ''"> and scope_code = #{scopeCode}</if>
@@ -33,10 +34,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
-    
+
     <select id="selectSysGroupById" parameterType="Long" resultMap="SysGroupResult">
         <include refid="selectSysGroupVo"/>
-        where id = #{id}
+        where id = #{id} and del_flag = '0'
     </select>
 
     <insert id="insertSysGroup" parameterType="SysGroup" useGeneratedKeys="true" keyProperty="id">
@@ -71,20 +72,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <update id="updateSysGroup" parameterType="SysGroup">
         update sys_group
-        <trim prefix="SET" suffixOverrides=",">
-            <if test="groupCode != null and groupCode != ''">group_code = #{groupCode},</if>
-            <if test="groupName != null and groupName != ''">group_name = #{groupName},</if>
-            <if test="scopeCode != null">scope_code = #{scopeCode},</if>
-            <if test="groupSecretLevel != null and groupSecretLevel != ''">group_secret_level = #{groupSecretLevel},</if>
-            <if test="status != null and status != ''">status = #{status},</if>
-            <if test="remark != null">remark = #{remark},</if>
-            <if test="createBy != null">create_by = #{createBy},</if>
-            <if test="createTime != null">create_time = #{createTime},</if>
-            <if test="updateBy != null">update_by = #{updateBy},</if>
-            <if test="updateTime != null">update_time = #{updateTime},</if>
-            <if test="delFlag != null">del_flag = #{delFlag},</if>
-        </trim>
-        where id = #{id}
+        set group_name = #{groupName}, status = #{status}, remark = #{remark},
+            update_by = #{updateBy}, update_time = #{updateTime}
+        where id = #{id} and del_flag = '0'
     </update>
 
     <delete id="deleteSysGroupById" parameterType="Long">
@@ -92,7 +82,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </delete>
 
     <delete id="deleteSysGroupByIds" parameterType="String">
-        delete from sys_group where id in 
+        delete from sys_group where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>

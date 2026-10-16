@@ -72,10 +72,11 @@
       <right-toolbar :show-search.sync="showSearch" @queryTable="getList" />
     </el-row>
 
-    <div v-if="listError" class="identity-feedback" role="alert">
+    <div v-if="listError || deleteError" class="identity-feedback" role="alert">
       <i class="el-icon-warning-outline" aria-hidden="true" />
-      <span>{{ listError }}</span>
-      <el-button type="text" :disabled="loading" @click="getList">重新加载</el-button>
+      <span>{{ listError || deleteError }}</span>
+      <el-button v-if="listError" type="text" :disabled="loading" @click="getList">重新加载</el-button>
+      <el-button v-else type="text" @click="deleteError = ''">知道了</el-button>
     </div>
 
     <el-table
@@ -152,6 +153,9 @@
             size="mini"
             icon="el-icon-delete"
             class="danger-text"
+            :disabled="deletingId !== null || scope.row.groupCode === 'GROUP_PUBLIC'"
+            :loading="deletingId === scope.row.id"
+            :title="scope.row.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组保留历史归属，不能删除' : '仅可删除无引用的用户组'"
             @click="handleDelete(scope.row)"
           >
             删除
@@ -194,11 +198,17 @@
       <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
       <el-form ref="form" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="用户组名称" prop="groupName">
-          <el-input v-model="form.groupName" placeholder="例如：A项目组" />
+          <el-input v-model.trim="form.groupName" :maxlength="128" placeholder="例如：A项目组" />
         </el-form-item>
 
         <el-form-item label="用户组编码" prop="groupCode">
-          <el-input v-model="form.groupCode" placeholder="例如：GROUP_PROJECT_A" />
+          <el-input
+            v-model.trim="form.groupCode"
+            :disabled="!!form.id"
+            :maxlength="64"
+            placeholder="大写字母、数字或下划线，以字母开头"
+          />
+          <span v-if="form.id" class="identity-help">编码用于文档归属，创建后固定。</span>
         </el-form-item>
 
         <el-form-item label="业务含义">
@@ -220,6 +230,7 @@
             v-model="form.remark"
             type="textarea"
             :rows="3"
+            :maxlength="500"
             placeholder="例如：A项目秘密、机密资料知悉人员范围"
           />
         </el-form-item>
@@ -385,6 +396,8 @@ export default {
       loading: true,
       saving: false,
       listError: '',
+      deleteError: '',
+      deletingId: null,
       saveError: '',
       countsLoaded: false,
       countsError: '',
@@ -479,6 +492,7 @@ export default {
     async getList() {
       this.loading = true
       this.listError = ''
+      this.deleteError = ''
       const requestId = (this.groupListRequestId || 0) + 1
       this.groupListRequestId = requestId
       try {
@@ -629,18 +643,28 @@ export default {
       this.reset()
     },
 
-    handleDelete(row) {
-      this.$confirm('确认删除用户组“' + row.groupName + '”吗？', '警告', {
-        type: 'warning'
-      })
-        .then(() => {
-          return delGroup(row.id)
+    async handleDelete(row) {
+      if (this.deletingId !== null || !this.can('system:group:remove') || row.groupCode === 'GROUP_PUBLIC') {
+        return
+      }
+      this.deletingId = row.id
+      this.deleteError = ''
+      try {
+        await this.$confirm('确认删除用户组“' + row.groupName + '”吗？有成员、文档或策略引用时将拒绝删除。', '警告', {
+          type: 'warning'
         })
-        .then(() => {
-          this.msgSuccess('删除成功')
-          this.getList()
-        })
-        .catch(() => {})
+        await delGroup(row.id)
+        this.msgSuccess('删除成功')
+        await this.getList()
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          this.deleteError = error && error.message
+            ? error.message
+            : '删除未完成，请刷新核对；仍有引用的用户组须先解除关联。'
+        }
+      } finally {
+        this.deletingId = null
+      }
     },
 
     openMembers(row) {

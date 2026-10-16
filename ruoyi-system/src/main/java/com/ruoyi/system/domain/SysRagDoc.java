@@ -7,7 +7,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
  * 文档权限标签对象 sys_rag_doc
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-06
  */
@@ -34,63 +34,60 @@ public class SysRagDoc extends BaseEntity
     @Excel(name = "上传人用户名")
     private String uploadUserName;
 
-    /** 知悉范围编码 */
-    @Excel(name = "知悉范围编码")
+    /** 兼容范围字段，由文档密级与唯一知悉组确定，不独立授权。 */
     private String scopeCode;
 
     /** 文档密级 */
-    @Excel(name = "文档密级")
+    @Excel(name = "文档密级编码")
     private String securityLevel;
 
     /** 所属用户组编码 */
-    @Excel(name = "所属用户组编码")
+    @Excel(name = "文档归属组编码")
     private String ownerGroupCode;
 
     /** 所属用户组名称 */
-    @Excel(name = "所属用户组名称")
+    @Excel(name = "文档归属组名称")
     private String ownerGroupName;
 
-    /** 所属用户组密级 */
-    @Excel(name = "所属用户组密级", readConverterExp = "PUBLIC=公开,INTERNAL=内部,SECRET=秘密,CONFIDENTIAL=机密")
+    /** 历史兼容字段，不作为用户组属性或文档访问条件。 */
     private String ownerGroupSecretLevel;
 
     /** 文档元数据访问状态 */
-    @Excel(name = "文档访问状态", readConverterExp = "ACTIVE=启用,DISABLED=禁用,ARCHIVED=归档")
+    @Excel(name = "文档访问状态编码")
     private String metadataStatus;
 
-    /** 状态（0正常 1停用） */
-    @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
+    /** 兼容状态（0正常 1停用），由文档访问状态确定。 */
     private String status;
 
     /** 删除标志（0存在 2删除） */
     private String delFlag;
 
-    public void setId(Long id) 
+    public void setId(Long id)
     {
         this.id = id;
     }
 
-    public Long getId() 
+    public Long getId()
     {
         return id;
     }
 
-    public void setDocId(String docId) 
+    public void setDocId(String docId)
     {
         this.docId = docId;
     }
 
-    public String getDocId() 
+    public String getDocId()
     {
         return docId;
     }
 
-    public void setDocName(String docName) 
+    public void setDocName(String docName)
     {
         this.docName = docName;
     }
 
-    public String getDocName() 
+    public String getDocName()
     {
         return docName;
     }
@@ -115,32 +112,32 @@ public class SysRagDoc extends BaseEntity
         return uploadUserName;
     }
 
-    public void setScopeCode(String scopeCode) 
+    public void setScopeCode(String scopeCode)
     {
         this.scopeCode = scopeCode;
     }
 
-    public String getScopeCode() 
+    public String getScopeCode()
     {
         return scopeCode;
     }
 
-    public void setSecurityLevel(String securityLevel) 
+    public void setSecurityLevel(String securityLevel)
     {
         this.securityLevel = securityLevel;
     }
 
-    public String getSecurityLevel() 
+    public String getSecurityLevel()
     {
         return securityLevel;
     }
 
-    public void setOwnerGroupCode(String ownerGroupCode) 
+    public void setOwnerGroupCode(String ownerGroupCode)
     {
         this.ownerGroupCode = ownerGroupCode;
     }
 
-    public String getOwnerGroupCode() 
+    public String getOwnerGroupCode()
     {
         return ownerGroupCode;
     }
@@ -175,22 +172,22 @@ public class SysRagDoc extends BaseEntity
         return metadataStatus;
     }
 
-    public void setStatus(String status) 
+    public void setStatus(String status)
     {
         this.status = status;
     }
 
-    public String getStatus() 
+    public String getStatus()
     {
         return status;
     }
 
-    public void setDelFlag(String delFlag) 
+    public void setDelFlag(String delFlag)
     {
         this.delFlag = delFlag;
     }
 
-    public String getDelFlag() 
+    public String getDelFlag()
     {
         return delFlag;
     }

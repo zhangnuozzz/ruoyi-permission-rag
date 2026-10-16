@@ -326,7 +326,7 @@
       :close-on-click-modal="false"
     >
       <el-alert
-        title="策略绑定到用户或用户组后，才会进入对应用户的权限上下文。"
+        title="启用的策略通过有效绑定进入对应人员的权限上下文；停用用户组不传递组策略。"
         type="info"
         :closable="false"
         show-icon
@@ -340,6 +340,9 @@
         </el-button>
       </div>
       <p class="identity-help">用户组绑定会把本策略应用于该组成员，不代表只限制绑定组的文档。</p>
+      <p v-if="currentPolicy && currentPolicy.status !== '0'" class="identity-help">
+        当前策略已停用，可查看或取消已有绑定，不能新增绑定。
+      </p>
       <div v-if="can('system:policyBind:add')" class="binding-add-row">
         <el-select
           v-model="newBinding.bindType"
@@ -361,8 +364,9 @@
           <el-option
             v-for="group in groupOptions"
             :key="group.id"
-            :label="group.groupName + '（' + group.groupCode + '）'"
+            :label="group.groupName + '（' + group.groupCode + '）' + (isBindingTargetAvailable(group) ? '' : ' · 不可新增')"
             :value="group.id"
+            :disabled="!isBindingTargetAvailable(group)"
           />
         </el-select>
 
@@ -377,8 +381,9 @@
           <el-option
             v-for="user in userOptions"
             :key="user.userId"
-            :label="userLabel(user)"
+            :label="userLabel(user) + (isBindingTargetAvailable(user) ? '' : ' · 不可新增')"
             :value="user.userId"
+            :disabled="!isBindingTargetAvailable(user)"
           />
         </el-select>
 
@@ -387,6 +392,9 @@
           icon="el-icon-plus"
           :disabled="
             !newBinding.bindTargetId ||
+              !currentPolicy ||
+              currentPolicy.status !== '0' ||
+              referenceLoading ||
               bindingBusy ||
               bindingsLoading ||
               !!bindingsError ||
@@ -533,6 +541,7 @@ export default {
       bindingsLoading: false,
       bindingError: '',
       referenceError: '',
+      referenceLoading: false,
       bindingSaving: false,
       bindingRemovingId: null,
       showSearch: true,
@@ -674,6 +683,9 @@ export default {
     },
 
     async loadReferenceData() {
+      const requestId = (this.referenceRequestId || 0) + 1
+      this.referenceRequestId = requestId
+      this.referenceLoading = true
       this.referenceError = ''
       const groupRequest = this.can('system:group:list')
         ? listGroup({ pageNum: 1, pageSize: 1000 })
@@ -683,8 +695,11 @@ export default {
         : Promise.resolve({ rows: [] })
       try {
         const results = await Promise.all([groupRequest, userRequest])
-        this.groupOptions = results[0].rows || []
-        this.userOptions = results[1].rows || []
+        if (requestId !== this.referenceRequestId) {
+          return
+        }
+        this.groupOptions = Array.isArray(results[0].rows) ? results[0].rows : []
+        this.userOptions = Array.isArray(results[1].rows) ? results[1].rows : []
         if (
           Number(results[0].total) > this.groupOptions.length ||
           Number(results[1].total) > this.userOptions.length
@@ -692,7 +707,13 @@ export default {
           this.referenceError = '对象选项尚未完整加载，请联系管理员核对。'
         }
       } catch (error) {
-        this.referenceError = '人员或用户组选项加载失败，暂不能新增绑定。'
+        if (requestId === this.referenceRequestId) {
+          this.referenceError = '人员或用户组选项加载失败，暂不能新增绑定。'
+        }
+      } finally {
+        if (requestId === this.referenceRequestId) {
+          this.referenceLoading = false
+        }
       }
     },
 
@@ -868,12 +889,15 @@ export default {
       this.newBinding = { bindType: 'GROUP', bindTargetId: null }
       this.bindingError = ''
       this.bindingOpen = true
+      this.loadReferenceData()
       this.refreshBindings()
     },
 
     async addBinding() {
       if (
         !this.currentPolicy ||
+        this.currentPolicy.status !== '0' ||
+        this.referenceLoading ||
         !this.newBinding.bindTargetId ||
         this.bindingBusy ||
         this.bindingsLoading ||
@@ -885,7 +909,9 @@ export default {
       }
       const options = this.newBinding.bindType === 'GROUP' ? this.groupOptions : this.userOptions
       const key = this.newBinding.bindType === 'GROUP' ? 'id' : 'userId'
-      if (!options.some((item) => String(item[key]) === String(this.newBinding.bindTargetId))) {
+      if (!options.some((item) =>
+        String(item[key]) === String(this.newBinding.bindTargetId) && this.isBindingTargetAvailable(item)
+      )) {
         this.$message.warning('请选择当前可用的人员或用户组。')
         return
       }
@@ -945,6 +971,10 @@ export default {
       } finally {
         this.bindingRemovingId = null
       }
+    },
+
+    isBindingTargetAvailable(target) {
+      return !!target && target.status === '0' && (!target.delFlag || target.delFlag === '0')
     },
 
     bindingTypeText(type) {
