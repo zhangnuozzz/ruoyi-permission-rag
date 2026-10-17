@@ -143,9 +143,11 @@
         <el-form-item>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-          <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
+          <el-button v-hasPermi="['system:log:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
+
+      <el-alert v-if="loadError || actionError" :title="loadError || actionError" type="error" :closable="false" show-icon class="tips-alert" />
 
       <el-table v-loading="loading" :data="logList" border>
         <el-table-column type="selection" width="55" align="center" />
@@ -278,6 +280,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="响应JSON" name="response">
+          <div class="page-subtitle">新记录与对应账号的接口响应一致；历史记录可能包含内部诊断字段。</div>
           <pre class="json-viewer">{{ formatJson(jsonDetail.responseJson) }}</pre>
         </el-tab-pane>
       </el-tabs>
@@ -290,13 +293,19 @@
 </template>
 
 <script>
-import { listLog, delLog, exportLog } from '@/api/system/log'
+import { listLog, delLog } from '@/api/system/log'
+import { exportTable } from '@/utils/tableExport'
+import { canUse } from '@/utils/identityAccess'
 
 export default {
   name: 'RagAuditLog',
   data() {
     return {
       loading: true,
+      listRequestId: 0,
+      loadError: '',
+      actionError: '',
+      exporting: false,
       ids: [],
       showSearch: true,
       total: 0,
@@ -335,13 +344,35 @@ export default {
     this.getList()
   },
   methods: {
-    getList() {
+    buildQueryParams() {
+      const query = { ...this.queryParams }
+      const dates = this.daterangeCreateTime
+      query.beginTime = undefined
+      query.endTime = undefined
+      if (Array.isArray(dates) && dates.length === 2 && dates[0] && dates[1]) {
+        query.beginTime = dates[0] + ' 00:00:00'
+        query.endTime = dates[1] + ' 23:59:59'
+      }
+      return query
+    },
+
+    async getList() {
+      const requestId = ++this.listRequestId
       this.loading = true
-      listLog(this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')).then(response => {
+      this.loadError = ''
+      try {
+        const response = await listLog(this.buildQueryParams())
+        if (requestId !== this.listRequestId) return
         this.logList = response.rows || []
         this.total = response.total || 0
-        this.loading = false
-      })
+      } catch (error) {
+        if (requestId !== this.listRequestId) return
+        this.logList = []
+        this.total = 0
+        this.loadError = (error && error.message) || '审计日志加载失败，请重试。'
+      } finally {
+        if (requestId === this.listRequestId) this.loading = false
+      }
     },
 
     handleQuery() {
@@ -355,17 +386,17 @@ export default {
       this.handleQuery()
     },
 
-    handleExport() {
-      const queryParams = this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')
-      this.$confirm('是否确认导出当前筛选条件下的 RAG 检索审计日志？', '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(function() {
-        return exportLog(queryParams)
-      }).then(response => {
-        this.download(response.msg)
-      })
+    async handleExport() {
+      if (this.exporting || !canUse(this.$store.getters.permissions, 'system:log:export')) return
+      this.exporting = true
+      this.actionError = ''
+      try {
+        await exportTable('/system/log/export', this.buildQueryParams())
+      } catch (error) {
+        this.actionError = (error && error.message) || '审计日志导出失败，请重试。'
+      } finally {
+        this.exporting = false
+      }
     },
 
     handleViewJson(row) {

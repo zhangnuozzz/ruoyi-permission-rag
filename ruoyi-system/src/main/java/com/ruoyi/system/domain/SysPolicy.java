@@ -7,7 +7,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
  * 权限策略定义对象 sys_policy
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-05
  */
@@ -31,7 +31,7 @@ public class SysPolicy extends BaseEntity
     private String effect;
 
     /** 主体类型（USER/GROUP） */
-    @Excel(name = "主体类型", readConverterExp = "U=SER/GROUP")
+    @Excel(name = "主体类型编码")
     private String subjectType;
 
     /** 主体条件表达式 */
@@ -57,112 +57,112 @@ public class SysPolicy extends BaseEntity
     /** 删除标志（0存在 2删除） */
     private String delFlag;
 
-    public void setId(Long id) 
+    public void setId(Long id)
     {
         this.id = id;
     }
 
-    public Long getId() 
+    public Long getId()
     {
         return id;
     }
 
-    public void setPolicyCode(String policyCode) 
+    public void setPolicyCode(String policyCode)
     {
         this.policyCode = policyCode;
     }
 
-    public String getPolicyCode() 
+    public String getPolicyCode()
     {
         return policyCode;
     }
 
-    public void setPolicyName(String policyName) 
+    public void setPolicyName(String policyName)
     {
         this.policyName = policyName;
     }
 
-    public String getPolicyName() 
+    public String getPolicyName()
     {
         return policyName;
     }
 
-    public void setEffect(String effect) 
+    public void setEffect(String effect)
     {
         this.effect = effect;
     }
 
-    public String getEffect() 
+    public String getEffect()
     {
         return effect;
     }
 
-    public void setSubjectType(String subjectType) 
+    public void setSubjectType(String subjectType)
     {
         this.subjectType = subjectType;
     }
 
-    public String getSubjectType() 
+    public String getSubjectType()
     {
         return subjectType;
     }
 
-    public void setSubjectExpr(String subjectExpr) 
+    public void setSubjectExpr(String subjectExpr)
     {
         this.subjectExpr = subjectExpr;
     }
 
-    public String getSubjectExpr() 
+    public String getSubjectExpr()
     {
         return subjectExpr;
     }
 
-    public void setResourceExpr(String resourceExpr) 
+    public void setResourceExpr(String resourceExpr)
     {
         this.resourceExpr = resourceExpr;
     }
 
-    public String getResourceExpr() 
+    public String getResourceExpr()
     {
         return resourceExpr;
     }
 
-    public void setEnvExpr(String envExpr) 
+    public void setEnvExpr(String envExpr)
     {
         this.envExpr = envExpr;
     }
 
-    public String getEnvExpr() 
+    public String getEnvExpr()
     {
         return envExpr;
     }
 
-    public void setPriority(Integer priority) 
+    public void setPriority(Integer priority)
     {
         this.priority = priority;
     }
 
-    public Integer getPriority() 
+    public Integer getPriority()
     {
         return priority;
     }
 
-    public void setStatus(String status) 
+    public void setStatus(String status)
     {
         this.status = status;
     }
 
-    public String getStatus() 
+    public String getStatus()
     {
         return status;
     }
 
-    public void setDelFlag(String delFlag) 
+    public void setDelFlag(String delFlag)
     {
         this.delFlag = delFlag;
     }
 
-    public String getDelFlag() 
+    public String getDelFlag()
     {
         return delFlag;
     }

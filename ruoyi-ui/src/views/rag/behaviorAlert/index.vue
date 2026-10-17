@@ -46,7 +46,7 @@
         </el-col>
       </el-row>
 
-      <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="90px">
+      <el-form ref="queryForm" :model="queryParams" size="small" :inline="true" label-width="90px">
         <el-form-item label="用户名" prop="userName">
           <el-input
             v-model="queryParams.userName"
@@ -91,13 +91,15 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="danger" icon="el-icon-cpu" size="mini" @click="handleAnalyze">重新分析</el-button>
+          <el-button v-hasPermi="['system:behaviorAlert:analyze']" type="danger" icon="el-icon-cpu" size="mini" @click="handleAnalyze">重新分析</el-button>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-          <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
-          <el-button type="info" plain icon="el-icon-document" size="mini" @click="handleSyslogExport">导出 Syslog</el-button>
+          <el-button v-hasPermi="['system:behaviorAlert:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" :disabled="syslogExporting" @click="handleExport">导出</el-button>
+          <el-button v-hasPermi="['system:behaviorAlert:export']" type="info" plain icon="el-icon-document" size="mini" :loading="syslogExporting" :disabled="exporting" @click="handleSyslogExport">导出 Syslog</el-button>
         </el-form-item>
       </el-form>
+
+      <el-alert v-if="loadError || actionError" :title="loadError || actionError" type="error" :closable="false" show-icon class="tips-alert" />
 
       <el-table v-loading="loading" :data="alertList" border>
         <el-table-column type="selection" width="55" align="center" />
@@ -147,12 +149,13 @@
             <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
             <el-button
               v-if="!isHandledStatus(scope.row.status)"
+              v-hasPermi="['system:behaviorAlert:analyze']"
               size="mini"
               type="text"
               icon="el-icon-check"
               @click="openHandleDialog(scope.row)"
             >处理</el-button>
-            <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['system:behaviorAlert:remove']" size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -280,13 +283,20 @@
 </template>
 
 <script>
-import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlert, exportBehaviorAlertSyslog } from '@/api/rag/behaviorAlert'
+import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlertSyslog } from '@/api/rag/behaviorAlert'
+import { exportTable } from '@/utils/tableExport'
+import { canUse } from '@/utils/identityAccess'
 
 export default {
   name: 'BehaviorAlert',
   data() {
     return {
       loading: true,
+      listRequestId: 0,
+      loadError: '',
+      actionError: '',
+      exporting: false,
+      syslogExporting: false,
       total: 0,
       alertList: [],
       detailOpen: false,
@@ -327,13 +337,23 @@ export default {
     this.getList()
   },
   methods: {
-    getList() {
+    async getList() {
+      const requestId = ++this.listRequestId
       this.loading = true
-      listBehaviorAlert(this.queryParams).then(response => {
+      this.loadError = ''
+      try {
+        const response = await listBehaviorAlert({ ...this.queryParams })
+        if (requestId !== this.listRequestId) return
         this.alertList = response.rows || []
         this.total = response.total || 0
-        this.loading = false
-      })
+      } catch (error) {
+        if (requestId !== this.listRequestId) return
+        this.alertList = []
+        this.total = 0
+        this.loadError = (error && error.message) || '行为告警加载失败，请重试。'
+      } finally {
+        if (requestId === this.listRequestId) this.loading = false
+      }
     },
 
     handleQuery() {
@@ -359,29 +379,43 @@ export default {
       })
     },
 
-    handleExport() {
-      this.$confirm('是否确认导出 RAG 行为分析告警数据？', '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(function() {
-        return exportBehaviorAlert({})
-      }).then(response => {
-        this.download(response.msg)
-      })
+    async handleExport() {
+      if (this.exporting || this.syslogExporting || !canUse(this.$store.getters.permissions, 'system:behaviorAlert:export')) return
+      this.exporting = true
+      this.actionError = ''
+      try {
+        await exportTable('/system/behaviorAlert/export', { ...this.queryParams })
+      } catch (error) {
+        this.actionError = (error && error.message) || '行为告警导出失败，请重试。'
+      } finally {
+        this.exporting = false
+      }
     },
 
-    handleSyslogExport() {
-      exportBehaviorAlertSyslog(this.queryParams).then(response => {
-        const text = response.syslog || ''
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
+    async handleSyslogExport() {
+      if (this.exporting || this.syslogExporting || !canUse(this.$store.getters.permissions, 'system:behaviorAlert:export')) return
+      this.syslogExporting = true
+      this.actionError = ''
+      let url
+      let link
+      try {
+        const response = await exportBehaviorAlertSyslog({ ...this.queryParams })
+        if (!response || response.code !== 200 || typeof response.syslog !== 'string') {
+          throw new Error('告警导出未返回有效的 Syslog 内容，请重试。')
+        }
+        url = window.URL.createObjectURL(new Blob([response.syslog], { type: 'text/plain;charset=utf-8' }))
+        link = document.createElement('a')
         link.href = url
         link.download = 'vacp-rag-alert-syslog.log'
+        document.body.appendChild(link)
         link.click()
-        window.URL.revokeObjectURL(url)
-      })
+      } catch (error) {
+        this.actionError = (error && error.message) || 'Syslog 导出失败，请重试。'
+      } finally {
+        if (link && link.parentNode) link.parentNode.removeChild(link)
+        if (url) window.URL.revokeObjectURL(url)
+        this.syslogExporting = false
+      }
     },
 
     handleView(row) {
@@ -394,12 +428,13 @@ export default {
         id: row.id,
         alertType: row.alertType,
         action: 'CONFIRM',
-        handleRemark: '已核查该告警，系统安全策略与二次过滤结果符合预期，已完成处置。'
+        handleRemark: ''
       }
       this.handleOpen = true
     },
 
     submitHandle() {
+      if (this.handleLoading) return
       if (!this.handleForm.handleRemark || this.handleForm.handleRemark.trim().length === 0) {
         this.$message.warning('请输入处理说明')
         return

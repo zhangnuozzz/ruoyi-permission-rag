@@ -95,6 +95,7 @@
           plain
           icon="el-icon-download"
           size="mini"
+          :loading="exporting"
           @click="handleExport"
         >导出</el-button>
       </el-col>
@@ -273,6 +274,7 @@
 </template>
 
 <script>
+import { exportTable } from '@/utils/tableExport'
 import { listRagDoc, getRagDoc, delRagDoc, addRagDoc, updateRagDoc } from '@/api/system/ragDoc'
 import { listGroup } from '@/api/system/group'
 import { canUse } from '@/utils/identityAccess'
@@ -285,6 +287,7 @@ export default {
   data() {
     return {
       loading: true,
+      exporting: false,
       detailLoading: false,
       saving: false,
       deleting: false,
@@ -588,8 +591,17 @@ export default {
         this.deleting = false
       }
     },
-    handleExport() {
-      this.download('system/ragDoc/export', { ...this.queryParams }, 'ragDoc_' + Date.now() + '.xlsx')
+    async handleExport() {
+      if (this.exporting || !this.can('system:ragDoc:export')) return
+      this.exporting = true
+      this.actionError = ''
+      try {
+        await exportTable('/system/ragDoc/export', this.queryParams)
+      } catch (error) {
+        this.actionError = (error && error.message) || '导出失败，请稍后重试。'
+      } finally {
+        this.exporting = false
+      }
     }
   }
 }

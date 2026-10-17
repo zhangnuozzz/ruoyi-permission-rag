@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * RAG 文档模拟检索 Service 实现
@@ -36,8 +37,13 @@ public class RagDocMockSearchServiceImpl implements IRagDocMockSearchService
             return results;
         }
 
+        String keyword = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         for (SysRagDoc doc : docs)
         {
+            if (doc == null || !matchesKeyword(doc, keyword))
+            {
+                continue;
+            }
             RagSearchResult result = new RagSearchResult();
             result.setDocId(doc.getDocId());
             result.setTitle(doc.getDocName());
@@ -53,6 +59,19 @@ public class RagDocMockSearchServiceImpl implements IRagDocMockSearchService
         }
 
         return results;
+    }
+
+    /** 演示模式按文档 ID 或名称匹配；不承担真实向量召回。 */
+    private boolean matchesKeyword(SysRagDoc doc, String keyword)
+    {
+        return keyword.isEmpty()
+                || containsKeyword(doc.getDocId(), keyword)
+                || containsKeyword(doc.getDocName(), keyword);
+    }
+
+    private boolean containsKeyword(String value, String keyword)
+    {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(keyword);
     }
 
     /**

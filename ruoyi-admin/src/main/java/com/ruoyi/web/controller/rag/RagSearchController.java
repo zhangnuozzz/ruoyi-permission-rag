@@ -20,6 +20,8 @@ import com.ruoyi.system.service.IRagSecondFilterService;
 import com.ruoyi.system.service.IRagRemoteSearchService;
 import com.ruoyi.system.service.IRagAnswerService;
 import com.ruoyi.system.service.ISecureQueryContextService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,6 +41,8 @@ import java.util.Map;
 @RequestMapping("/rag")
 public class RagSearchController
 {
+    private static final Logger log = LoggerFactory.getLogger(RagSearchController.class);
+
     @Autowired
     private IPermissionContextService permissionContextService;
 
@@ -85,29 +89,85 @@ public class RagSearchController
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("userId", context.getUserId());
         result.put("userName", context.getUserName());
-        result.put("admin", context.getAdmin());
-        result.put("groupCodes", context.getGroupCodes());
-        result.put("scopeCodes", context.getScopeCodes());
-        result.put(
-                "policyCount",
-                context.getPolicies() == null ? 0 : context.getPolicies().size()
-        );
-        result.put("requestTime", context.getRequestTime());
+        List<String> knowledgeGroups = new ArrayList<String>();
+        if (context.getGroupCodes() != null)
+        {
+            for (String code : context.getGroupCodes())
+            {
+                if (code != null && !"GROUP_PUBLIC".equalsIgnoreCase(code.trim()))
+                {
+                    knowledgeGroups.add(code);
+                }
+            }
+        }
+        result.put("groupCodes", knowledgeGroups);
 
         return AjaxResult.success(result);
     }
 
-    /**
-     * RAG 安全检索入口。
-     *
-     * 当前版本暂不真正调用向量数据库和大模型。
-     * 先从 sys_rag_doc 表读取文档权限标签，模拟候选检索结果。
-     *
-     * @param request 检索请求
-     * @return 预处理、策略决策与二次过滤结果
-     */
+    /** 普通问答只返回业务结果；管理端保留诊断与审计能力。 */
     @PostMapping("/search")
     public AjaxResult search(@RequestBody RagSearchRequest request)
+    {
+        boolean diagnostic = SecurityUtils.isAdmin(SecurityUtils.getLoginUser().getUser().getUserId());
+        if (!diagnostic && request != null)
+        {
+            // 普通用户不能通过请求参数启用管理端的演示检索。
+            request.setUseRemote(true);
+        }
+        try
+        {
+            AjaxResult response = executeSearch(request);
+            return diagnostic ? response : toKnowledgeResponse(response);
+        }
+        catch (RuntimeException exception)
+        {
+            if (diagnostic)
+            {
+                throw exception;
+            }
+            log.warn("知识检索失败，用户ID：{}", SecurityUtils.getLoginUser().getUser().getUserId(), exception);
+            return AjaxResult.error("知识服务暂时不可用，请稍后重试或联系管理员。");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private AjaxResult toKnowledgeResponse(AjaxResult response)
+    {
+        Map<String, Object> source = (Map<String, Object>) response.get(AjaxResult.DATA_TAG);
+        boolean allowed = source != null && Boolean.TRUE.equals(source.get("allowAccess"));
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> documents = new ArrayList<Map<String, Object>>();
+        if (allowed && source.get("filteredResults") instanceof List)
+        {
+            for (RagSearchResult item : (List<RagSearchResult>) source.get("filteredResults"))
+            {
+                Map<String, Object> document = new LinkedHashMap<String, Object>();
+                document.put("docId", item.getDocId());
+                document.put("title", item.getTitle());
+                document.put("content", item.getContent());
+                document.put("level", item.getLevel());
+                documents.add(document);
+            }
+        }
+        data.put("allowAccess", allowed);
+        data.put("filteredResults", documents);
+        data.put("filteredResultCount", documents.size());
+        data.put("costTime", source == null ? 0L : source.get("costTime"));
+        String answer = "当前请求暂时无法完成，请稍后重试或联系管理员。";
+        if (allowed)
+        {
+            answer = Boolean.TRUE.equals(source.get("answerEnabled"))
+                    ? String.valueOf(source.get("answer") == null ? "" : source.get("answer"))
+                    : documents.isEmpty() ? "未找到可供当前账号使用的相关资料。"
+                    : "已找到相关资料，请查看下方的授权引用内容。";
+        }
+        data.put("answer", answer);
+        return new AjaxResult((Integer) response.get(AjaxResult.CODE_TAG),
+                allowed ? "操作成功" : "当前请求暂时无法完成，请稍后重试或联系管理员。", data);
+    }
+
+    private AjaxResult executeSearch(RagSearchRequest request)
     {
         long startTime = System.currentTimeMillis();
 
@@ -381,7 +441,13 @@ public class RagSearchController
         auditLog.setRawResultsJson(JSON.toJSONString(rawResults));
         auditLog.setPassedResultsJson(JSON.toJSONString(filteredResults));
         auditLog.setBlockedResultsJson(JSON.toJSONString(rejectedResults));
-        auditLog.setResponseJson(JSON.toJSONString(responseObject));
+        // 响应记录与当前账号实际收到的字段一致；内部诊断保存在独立审计字段。
+        Object clientResponse = responseObject;
+        if (!Boolean.TRUE.equals(context.getAdmin()) && responseObject instanceof AjaxResult)
+        {
+            clientResponse = toKnowledgeResponse((AjaxResult) responseObject);
+        }
+        auditLog.setResponseJson(JSON.toJSONString(clientResponse));
         auditLog.setAllowAccess(Boolean.TRUE.equals(decision.getAllowAccess()) ? "1" : "0");
         auditLog.setDenyReasons(joinList(decision.getDenyReasons()));
 

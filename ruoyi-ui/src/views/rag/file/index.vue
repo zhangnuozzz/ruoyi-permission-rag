@@ -47,13 +47,13 @@
         </el-col>
       </el-row>
 
-      <el-form ref="form" :model="form" label-width="110px" size="small" class="upload-form">
+      <el-form ref="form" :model="form" :disabled="uploading" label-width="110px" size="small" class="upload-form">
         <el-form-item label="选择文件">
           <el-upload
             ref="upload"
             action="#"
             :auto-upload="false"
-            :limit="1"
+            :disabled="uploading"
             :on-change="handleFileChange"
             :on-remove="handleFileRemove"
             :file-list="fileList"
@@ -422,14 +422,18 @@ export default {
   },
   methods: {
     handleFileChange(file, fileList) {
+      if (this.uploading) return
+      this.uploadResult = null
       this.fileList = fileList.slice(-1)
       this.selectedFile = file.raw
     },
     handleFileRemove() {
+      if (this.uploading) return
       this.fileList = []
       this.selectedFile = null
     },
     resetUpload() {
+      if (this.uploading) return
       this.fileList = []
       this.selectedFile = null
       this.form.securityLevel = 'INTERNAL'
@@ -478,6 +482,7 @@ export default {
     },
 
     handleUpload() {
+      if (this.uploading) return
       if (!this.selectedFile) {
         this.$modal.msgWarning('请先选择文件')
         return
@@ -540,9 +545,12 @@ export default {
       )
 
       this.uploading = true
-      uploadRagFile(data).then(response => {
+      return uploadRagFile(data).then(response => {
         this.uploadResult = response.data || response
-        this.$modal.msgSuccess('文件上传入库成功，三端列表已自动刷新')
+        this.fileList = []
+        this.selectedFile = null
+        if (this.$refs.upload) this.$refs.upload.clearFiles()
+        this.$modal.msgSuccess('文件上传入库成功')
         this.refreshAll()
       }).catch(error => {
         this.uploadResult = null

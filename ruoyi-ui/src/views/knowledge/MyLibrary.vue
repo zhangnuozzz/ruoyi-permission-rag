@@ -193,7 +193,7 @@ export default {
       this.uploading = true
       try {
         const response = await uploadMyKnowledge(data)
-        const uploadResult = response.data && response.data.data
+        const uploadResult = response.data
         const chunkCount = uploadResult && Number(uploadResult.chunkCount)
         if (uploadResult && !Number.isNaN(chunkCount) && chunkCount === 0) {
           this.$message.warning('文件已保存，但未生成向量切块，请检查文件内容')

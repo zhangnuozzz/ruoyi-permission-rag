@@ -7,7 +7,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
  * 策略绑定管理对象 sys_policy_bind
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-05
  */
@@ -23,7 +23,7 @@ public class SysPolicyBind extends BaseEntity
     private Long policyId;
 
     /** 绑定类型（USER/GROUP） */
-    @Excel(name = "绑定类型", readConverterExp = "U=SER/GROUP")
+    @Excel(name = "绑定类型编码")
     private String bindType;
 
     /** 绑定目标ID */
@@ -34,52 +34,52 @@ public class SysPolicyBind extends BaseEntity
     @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
     private String status;
 
-    public void setId(Long id) 
+    public void setId(Long id)
     {
         this.id = id;
     }
 
-    public Long getId() 
+    public Long getId()
     {
         return id;
     }
 
-    public void setPolicyId(Long policyId) 
+    public void setPolicyId(Long policyId)
     {
         this.policyId = policyId;
     }
 
-    public Long getPolicyId() 
+    public Long getPolicyId()
     {
         return policyId;
     }
 
-    public void setBindType(String bindType) 
+    public void setBindType(String bindType)
     {
         this.bindType = bindType;
     }
 
-    public String getBindType() 
+    public String getBindType()
     {
         return bindType;
     }
 
-    public void setBindTargetId(Long bindTargetId) 
+    public void setBindTargetId(Long bindTargetId)
     {
         this.bindTargetId = bindTargetId;
     }
 
-    public Long getBindTargetId() 
+    public Long getBindTargetId()
     {
         return bindTargetId;
     }
 
-    public void setStatus(String status) 
+    public void setStatus(String status)
     {
         this.status = status;
     }
 
-    public String getStatus() 
+    public String getStatus()
     {
         return status;
     }

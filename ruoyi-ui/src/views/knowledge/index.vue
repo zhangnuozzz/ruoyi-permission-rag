@@ -94,7 +94,7 @@
         <div class="topbar-right">
           <div class="security-state">
             <span class="security-dot"></span>
-            安全连接
+            身份已验证
           </div>
 
           <el-popover
@@ -266,16 +266,7 @@
                           type="warning"
                           effect="plain"
                         >
-                          {{ source.level }}
-                        </el-tag>
-
-                        <el-tag
-                          v-if="source.scopeCode"
-                          size="mini"
-                          type="success"
-                          effect="plain"
-                        >
-                          {{ source.scopeCode }}
+                          {{ securityLevelName(source.level) }}
                         </el-tag>
 
                         <el-tag
@@ -326,13 +317,6 @@
                   <div class="security-summary-right">
                     <span v-if="message.security.passed !== undefined">
                       授权结果 {{ message.security.passed }} 条
-                    </span>
-
-                    <span
-                      v-if="message.security.blocked > 0"
-                      class="blocked-count"
-                    >
-                      已过滤 {{ message.security.blocked }} 条
                     </span>
 
                     <span v-if="message.security.costTime">
@@ -587,12 +571,6 @@ export default {
               ? context.groupCodes.join('、')
               : '暂无国家秘密知悉用户组'
 
-          const policyCount =
-            context.policyCount === undefined ||
-            context.policyCount === null
-              ? 0
-              : context.policyCount
-
           const content =
             '已读取当前账号的权限摘要：\n\n' +
             '当前用户：' +
@@ -603,11 +581,8 @@ export default {
             '\n' +
             '国家秘密知悉用户组：' +
             groups +
-            '\n' +
-            '已关联策略：' +
-            policyCount +
-            ' 条\n\n' +
-            '公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。附加安全策略仍由服务端实时判定。'
+            '\n\n' +
+            '公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。具体文档以本次访问校验结果为准。'
 
           this.messages.push({
             role: 'assistant',
@@ -674,7 +649,7 @@ export default {
 
           if (blocked) {
             content =
-              '当前问题涉及您现有授权范围之外的内容。系统已完成权限校验，未授权知识不会向您展示。'
+              '当前请求暂时无法完成，请稍后重试或联系管理员。'
           } else {
             content =
               data.answer ||
@@ -693,8 +668,6 @@ export default {
               item.level ||
               item.securityLevel ||
               item.docLevel,
-            scopeCode:
-              item.scopeCode,
             content:
               item.content || ''
           }))
@@ -707,27 +680,10 @@ export default {
             security: {
               passed:
                 data.filteredResultCount || 0,
-              blocked:
-                data.rejectedResultCount || 0,
               costTime:
                 data.costTime || 0
             }
           })
-
-          if (data.groupCodes || data.scopeCodes) {
-            this.userContext = Object.assign(
-              {},
-              this.userContext,
-              {
-                groupCodes:
-                  data.groupCodes ||
-                  this.userContext.groupCodes,
-                scopeCodes:
-                  data.scopeCodes ||
-                  this.userContext.scopeCodes
-              }
-            )
-          }
         })
         .catch(() => {
           this.messages.push({

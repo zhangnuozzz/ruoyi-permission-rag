@@ -49,7 +49,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="allowAccess != null  and allowAccess != ''"> and allow_access = #{allowAccess}</if>
             <if test="blockedReasons != null  and blockedReasons != ''"> and blocked_reasons like concat('%', #{blockedReasons}, '%')</if>
             <if test="limitedQuery != null  and limitedQuery != ''"> and limited_query = #{limitedQuery}</if>
-            <if test="params.beginCreateTime != null and params.beginCreateTime != '' and params.endCreateTime != null and params.endCreateTime != ''"> and create_time between #{params.beginCreateTime} and #{params.endCreateTime}</if>
+            <choose>
+                <when test="beginTime != null and beginTime != '' and endTime != null and endTime != ''">
+                    and create_time between #{beginTime} and #{endTime}
+                </when>
+                <otherwise>
+                    <if test="params.beginCreateTime != null and params.beginCreateTime != '' and params.endCreateTime != null and params.endCreateTime != ''">
+                        and create_time between #{params.beginCreateTime} and #{params.endCreateTime}
+                    </if>
+                </otherwise>
+            </choose>
         </where>
         order by create_time desc, id desc
     </select>

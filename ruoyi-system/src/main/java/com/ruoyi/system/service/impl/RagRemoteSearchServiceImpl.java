@@ -7,7 +7,6 @@ import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.service.IRagRemoteSearchService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -16,13 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RAG Server 远程真实检索 Service 实现
- *
- * 说明：
- * 1. 平台侧会生成完整 VACP metadataFilter，用于审计与二次过滤；
- * 2. fufu RAG Server 当前 Milvus collection 暂时不包含 metadata_status、security_level 等字段；
- * 3. 因此发给 8081 的 metadataFilter 使用 Milvus 已存在字段 scope_code 做粗过滤；
- * 4. 平台 8080 再继续执行精细二次过滤，保证安全链路完整。
+ * 将真实检索结果转换为平台文档片段。
+ * 检索前传递密级与知悉组过滤条件，检索后仍需执行平台文档鉴权。
+ * 片段正文与诊断字段分别保存，避免诊断信息进入问答依据。
  */
 @Service
 public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
@@ -140,25 +135,9 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             result.setOwnerGroupName(firstNotEmpty(item, "ownerGroupName", "owner_group_name", "groupName", "group_name"));
             result.setMetadataStatus(firstNotEmpty(item, "metadataStatus", "metadata_status"));
 
-            // RAG Server 返回 chunkId / score 时，先合并到内容里，方便前端和审计观察。
-            String chunkId = firstNotEmpty(item, "chunkId", "chunk_id");
-            String score = firstNotEmpty(item, "score", "distance");
-            if (chunkId != null || score != null)
-            {
-                String content = result.getContent() == null ? "" : result.getContent();
-                StringBuilder builder = new StringBuilder();
-                builder.append(content);
-                builder.append("\n\n[RemoteRagMeta]");
-                if (chunkId != null)
-                {
-                    builder.append(" chunkId=").append(chunkId);
-                }
-                if (score != null)
-                {
-                    builder.append(" score=").append(score);
-                }
-                result.setContent(builder.toString());
-            }
+            // 诊断字段独立存储，不能拼入授权正文或模型输入。
+            result.setChunkId(firstNotEmpty(item, "chunkId", "chunk_id"));
+            result.setScore(firstNotEmpty(item, "score", "distance"));
 
             result.setPassed(false);
             result.setFilterReason("");
@@ -167,35 +146,6 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
         }
 
         return results;
-    }
-
-    /**
-     * 构建 fufu RAG Server 当前 Milvus collection 可识别的过滤表达式。
-     */
-    private String buildMilvusCompatibleFilter(PermissionContext context)
-    {
-        if (context == null || CollectionUtils.isEmpty(context.getScopeCodes()))
-        {
-            return "chunk_id != \"\"";
-        }
-
-        StringBuilder builder = new StringBuilder();
-        builder.append("scope_code in [");
-
-        List<String> scopes = context.getScopeCodes();
-        for (int i = 0; i < scopes.size(); i++)
-        {
-            if (i > 0)
-            {
-                builder.append(", ");
-            }
-            builder.append("\"");
-            builder.append(scopes.get(i));
-            builder.append("\"");
-        }
-
-        builder.append("]");
-        return builder.toString();
     }
 
     private Object firstList(Map<String, Object> map, String... keys)

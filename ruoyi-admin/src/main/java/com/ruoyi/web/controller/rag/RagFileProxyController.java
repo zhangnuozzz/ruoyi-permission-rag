@@ -30,6 +30,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,6 +73,9 @@ public class RagFileProxyController
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     /**
      * 代理上传文件到 RAG Server
@@ -279,10 +284,11 @@ public class RagFileProxyController
 
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<MultiValueMap<String, Object>>(body, headers);
 
+        Object responseBody = null;
         try
         {
             ResponseEntity<Object> response = restTemplate.postForEntity(url, requestEntity, Object.class);
-            Object responseBody = response.getBody();
+            responseBody = response.getBody();
 
             String ragErrorMessage = extractRagErrorMessage(responseBody);
             if (!isBlank(ragErrorMessage))
@@ -290,34 +296,43 @@ public class RagFileProxyController
                 RuntimeException exception = new RuntimeException(ragErrorMessage);
                 recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
                         responseBody, exception, System.currentTimeMillis() - startTime);
-                return AjaxResult.error("RAG文件服务处理失败：" + ragErrorMessage);
+                return AjaxResult.error(personal ? "文档处理失败，请稍后重试或联系管理员。"
+                        : "RAG文件服务处理失败：" + ragErrorMessage);
             }
 
-            syncRagDoc(responseBody, groupDecision);
-            syncRagFileVectorMetadata(responseBody, fileDecision, groupDecision);
-
-            if (personal)
-            {
-                Map<String, Object> uploaded = extractData(responseBody);
-                String uploadedId = uploaded == null ? null : getString(uploaded, "fileId");
-                Long synced = jdbcTemplate.queryForObject(
-                        "select count(*) from sys_rag_doc where doc_id = ? and del_flag = '0'", Long.class, uploadedId);
-                if (synced == null || synced == 0)
-                {
-                    return AjaxResult.error("文件已上传，但权限标签同步失败，请联系管理员处理，避免重复上传");
-                }
-            }
+            final Object completedUpload = responseBody;
+            // 远程入库完成后，在同一平台事务中登记文件与权限标签。
+            new TransactionTemplate(transactionManager).execute(status -> {
+                syncRagFileVectorMetadata(completedUpload, fileDecision, groupDecision);
+                syncRagDoc(completedUpload, groupDecision);
+                return null;
+            });
 
             recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
                     responseBody, null, System.currentTimeMillis() - startTime);
+            if (personal)
+            {
+                return personalUploadResponse(responseBody);
+            }
             return AjaxResult.success(responseBody);
         }
         catch (Exception e)
         {
             recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
-                    null, e, System.currentTimeMillis() - startTime);
-            return AjaxResult.error("调用RAG文件服务失败：" + e.getMessage());
+                    responseBody, e, System.currentTimeMillis() - startTime);
+            return AjaxResult.error(personal ? "文件处理未完成，请联系管理员核对，避免重复上传。"
+                    : "文件入库流程未完成：" + e.getMessage());
         }
+    }
+
+    /** 用户上传仅返回文件标识与处理结果，不透传存储服务元数据。 */
+    private AjaxResult personalUploadResponse(Object responseBody)
+    {
+        Map<String, Object> uploaded = extractData(responseBody);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("fileId", uploaded == null ? null : uploaded.get("fileId"));
+        result.put("chunkCount", uploaded == null ? null : uploaded.get("chunkCount"));
+        return AjaxResult.success(result);
     }
 
     /**
@@ -401,124 +416,93 @@ public class RagFileProxyController
         }
     }
 
-    /**
-     * 上传成功后，将 RAG Server 返回的文件元数据同步写入本平台 sys_rag_doc。
-     */
-    @SuppressWarnings("unchecked")
+    /** 平台权限标签与文件记录共用外层事务，任一失败均回滚。 */
     private void syncRagDoc(Object responseBody, GroupDecision groupDecision)
     {
-        try
+        Map<String, Object> data = extractData(responseBody);
+        String fileId = getString(data, "fileId");
+        String fileName = getString(data, "fileName");
+        List<String> registered = jdbcTemplate.queryForList(
+                "select doc_id from sys_rag_doc where doc_id = ? for update", String.class, fileId);
+        if (!registered.isEmpty())
         {
-            Map<String, Object> data = extractData(responseBody);
-            if (data == null)
-            {
-                return;
-            }
-
-            String fileId = getString(data, "fileId");
-            String fileName = getString(data, "fileName");
-            String securityLevel = getString(data, "securityLevel");
-            String scopeCode = getString(data, "scopeCode");
-            String minioObjectName = getString(data, "minioObjectName");
-            String chunkCount = getString(data, "chunkCount");
-
-            if (isBlank(fileId) || isBlank(fileName))
-            {
-                return;
-            }
-
-            SysRagDoc query = new SysRagDoc();
-            query.setDocId(fileId);
-            List<SysRagDoc> exists = sysRagDocService.selectSysRagDocList(query);
-            if (exists != null && !exists.isEmpty())
-            {
-                return;
-            }
-
-            SysRagDoc doc = new SysRagDoc();
-            doc.setDocId(fileId);
-            doc.setDocName(fileName);
-            doc.setScopeCode(isBlank(scopeCode) ? groupDecision.scopeCode : scopeCode);
-            doc.setSecurityLevel(isBlank(securityLevel) ? groupDecision.securityLevel : securityLevel);
-            doc.setOwnerGroupCode(groupDecision.groupCode);
-            doc.setUploadUserId(SecurityUtils.getLoginUser().getUser().getUserId());
-            doc.setUploadUserName(SecurityUtils.getUsername());
-            doc.setMetadataStatus("ACTIVE");
-            doc.setStatus("0");
-            doc.setDelFlag("0");
-            doc.setCreateBy(SecurityUtils.getUsername());
-            doc.setRemark("RAG文件入库自动生成；MinIO对象：" + minioObjectName
-                    + "；切块数：" + chunkCount
-                    + "；doc_level=" + groupDecision.securityLevel
-                    + "；doc_group=" + groupDecision.groupCode
-                    + "；status=ACTIVE");
-
-            sysRagDocService.insertSysRagDoc(doc);
+            throw new IllegalStateException("文件标识已登记，请检查已有文件记录，避免重复入库");
         }
-        catch (Exception e)
+        SysRagDoc doc = new SysRagDoc();
+        doc.setDocId(fileId);
+        doc.setDocName(fileName);
+        doc.setScopeCode(groupDecision.scopeCode);
+        doc.setSecurityLevel(groupDecision.securityLevel);
+        doc.setOwnerGroupCode(groupDecision.groupCode);
+        doc.setUploadUserId(SecurityUtils.getLoginUser().getUser().getUserId());
+        doc.setUploadUserName(SecurityUtils.getUsername());
+        doc.setMetadataStatus("ACTIVE");
+        doc.setStatus("0");
+        doc.setDelFlag("0");
+        doc.setCreateBy(SecurityUtils.getUsername());
+        doc.setRemark("文件入库登记；原文件对象：" + getString(data, "minioObjectName")
+                + "；切块数：" + getString(data, "chunkCount"));
+        if (sysRagDocService.insertSysRagDoc(doc) != 1)
         {
-            // 回写平台侧文档标签失败时，不影响 RAG Server 文件入库主链路
+            throw new IllegalStateException("平台文档权限标签登记失败");
         }
     }
 
-    /**
-     * 回写 sys_rag_file 增强向量化元数据。
-     */
+    /** 支持文件服务使用独立数据库；平台自行登记本人文件列表所需元数据。 */
     private void syncRagFileVectorMetadata(Object responseBody, FileTypeDecision fileDecision, GroupDecision groupDecision)
     {
-        try
+        Map<String, Object> data = extractData(responseBody);
+        String fileId = getString(data, "fileId");
+        String fileName = getString(data, "fileName");
+        String objectName = getString(data, "minioObjectName");
+        String rawChunks = getString(data, "chunkCount");
+        if (isBlank(fileId) || fileId.length() > 64 || isBlank(fileName) || isBlank(objectName)
+                || rawChunks == null || !rawChunks.matches("[0-9]+"))
         {
-            Map<String, Object> data = extractData(responseBody);
-            if (data == null)
-            {
-                return;
-            }
-
-            String fileId = getString(data, "fileId");
-            String chunkCount = getString(data, "chunkCount");
-            if (isBlank(fileId))
-            {
-                return;
-            }
-
-            Integer chunks = parseInt(chunkCount);
-
-            Map<String, Object> metadata = new LinkedHashMap<String, Object>();
-            metadata.put("doc_level", groupDecision.securityLevel);
-            metadata.put("doc_group", groupDecision.groupCode);
-            metadata.put("status", "ACTIVE");
-            metadata.put("scope_code", groupDecision.scopeCode);
-            metadata.put("file_type", fileDecision.fileType);
-            metadata.put("parse_method", fileDecision.parseMethod);
-            metadata.put("embedding_status", "SUCCESS");
-            metadata.put("vector_index_type", "AUTOINDEX");
-            metadata.put("metadata_index_status", "READY");
-
-            jdbcTemplate.update(
-                    "update sys_rag_file set group_id=?, group_name=?, scope_code=?, security_level=?, " +
-                            "file_type=?, parse_method=?, chunk_count=?, embedding_status=?, " +
-                            "vector_index_type=?, metadata_index_status=?, doc_level=?, doc_group=?, doc_status=?, metadata_json=? " +
-                            "where file_id=?",
-                    groupDecision.groupCode,
-                    groupDecision.groupName,
-                    groupDecision.scopeCode,
-                    groupDecision.securityLevel,
-                    fileDecision.fileType,
-                    fileDecision.parseMethod,
-                    chunks,
-                    "SUCCESS",
-                    "AUTOINDEX",
-                    "READY",
-                    groupDecision.securityLevel,
-                    groupDecision.groupCode,
-                    "ACTIVE",
-                    JSON.toJSONString(metadata),
-                    fileId
-            );
+            throw new IllegalStateException("文件服务返回的入库元数据不完整");
         }
-        catch (Exception e)
+        int chunks = Integer.parseInt(rawChunks);
+        Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+        String userName = SecurityUtils.getUsername();
+        jdbcTemplate.update("insert into sys_rag_file "
+                + "(file_id, file_name, upload_user_id, upload_user_name, security_level, scope_code, "
+                + "group_id, group_name, minio_object_name, create_by, create_time) "
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now()) "
+                + "on duplicate key update file_id = values(file_id)",
+                fileId, fileName, userId, userName, groupDecision.securityLevel, groupDecision.scopeCode,
+                groupDecision.groupCode, groupDecision.groupName, objectName, userName);
+        Long ownerId = jdbcTemplate.queryForObject(
+                "select upload_user_id from sys_rag_file where file_id = ? for update", Long.class, fileId);
+        if (!userId.equals(ownerId))
         {
-            // 增强元数据回写失败不影响主流程，但审计日志仍可定位问题
+            throw new IllegalStateException("文件标识与现有上传人不一致，已停止同步");
+        }
+        String actualMethod = getString(data, "parseMethod");
+        String parseMethod = isBlank(actualMethod) ? fileDecision.parseMethod : actualMethod;
+        String embeddingStatus = chunks > 0 ? "SUCCESS" : "EMPTY";
+        String indexStatus = chunks > 0 ? "READY" : "EMPTY";
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put("doc_level", groupDecision.securityLevel);
+        metadata.put("doc_group", groupDecision.groupCode);
+        metadata.put("status", "ACTIVE");
+        metadata.put("scope_code", groupDecision.scopeCode);
+        metadata.put("file_type", fileDecision.fileType);
+        metadata.put("parse_method", parseMethod);
+        metadata.put("embedding_status", embeddingStatus);
+        metadata.put("vector_index_type", "AUTOINDEX");
+        metadata.put("metadata_index_status", indexStatus);
+        int changed = jdbcTemplate.update(
+                "update sys_rag_file set file_name=?, upload_user_name=?, minio_object_name=?, "
+                + "group_id=?, group_name=?, scope_code=?, security_level=?, file_type=?, parse_method=?, "
+                + "chunk_count=?, embedding_status=?, vector_index_type=?, metadata_index_status=?, "
+                + "doc_level=?, doc_group=?, doc_status=?, metadata_json=? where file_id=? and upload_user_id=?",
+                fileName, userName, objectName, groupDecision.groupCode, groupDecision.groupName,
+                groupDecision.scopeCode, groupDecision.securityLevel, fileDecision.fileType, parseMethod, chunks,
+                embeddingStatus, "AUTOINDEX", indexStatus, groupDecision.securityLevel, groupDecision.groupCode,
+                "ACTIVE", JSON.toJSONString(metadata), fileId, userId);
+        if (changed != 1)
+        {
+            throw new IllegalStateException("平台文件元数据登记失败");
         }
     }
 
@@ -707,26 +691,26 @@ public class RagFileProxyController
             log.setCostTime(costTime == null ? 0L : costTime);
             log.setCreateTime(DateUtils.getNowDate());
 
+            String fileId = "";
+            String minioObjectName = "";
+            String chunkCount = "";
+
+            if (responseBody instanceof Map)
+            {
+                Map<String, Object> outer = (Map<String, Object>) responseBody;
+                Object dataObj = outer.get("data");
+                if (dataObj instanceof Map)
+                {
+                    Map<String, Object> data = (Map<String, Object>) dataObj;
+                    fileId = getString(data, "fileId");
+                    minioObjectName = getString(data, "minioObjectName");
+                    chunkCount = getString(data, "chunkCount");
+                }
+            }
+
             if (exception == null)
             {
                 log.setStatus("0");
-
-                String fileId = "";
-                String minioObjectName = "";
-                String chunkCount = "";
-
-                if (responseBody instanceof Map)
-                {
-                    Map<String, Object> outer = (Map<String, Object>) responseBody;
-                    Object dataObj = outer.get("data");
-                    if (dataObj instanceof Map)
-                    {
-                        Map<String, Object> data = (Map<String, Object>) dataObj;
-                        fileId = getString(data, "fileId");
-                        minioObjectName = getString(data, "minioObjectName");
-                        chunkCount = getString(data, "chunkCount");
-                    }
-                }
 
                 log.setErrorMsg("RAG_FILE_UPLOAD_SUCCESS"
                         + "；fileName=" + fileName
@@ -741,6 +725,8 @@ public class RagFileProxyController
                 log.setStatus("1");
                 log.setErrorMsg("RAG_FILE_UPLOAD_FAIL"
                         + "；fileName=" + fileName
+                        + "；fileId=" + fileId
+                        + "；minioObjectName=" + minioObjectName
                         + "；securityLevel=" + securityLevel
                         + "；scopeCode=" + scopeCode
                         + "；error=" + exception.getMessage());
@@ -807,18 +793,6 @@ public class RagFileProxyController
     {
         Object value = map.get(key);
         return value == null ? null : String.valueOf(value);
-    }
-
-    private Integer parseInt(String value)
-    {
-        try
-        {
-            return Integer.parseInt(value);
-        }
-        catch (Exception e)
-        {
-            return 0;
-        }
     }
 
     private String normalizeLevel(String value)

@@ -62,12 +62,15 @@
           plain
           icon="el-icon-download"
           size="mini"
+          :loading="exporting"
           @click="handleExport"
           v-hasPermi="['system:policyBind:export']"
         >导出</el-button>
       </el-col>
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
+
+    <el-alert v-if="exportError" :title="exportError" type="error" :closable="false" show-icon class="mb8" />
 
     <el-table v-loading="loading" :data="policyBindList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
@@ -185,6 +188,8 @@
 </template>
 
 <script>
+import { exportTable } from '@/utils/tableExport'
+import { canUse } from '@/utils/identityAccess'
 import { listPolicyBind, getPolicyBind, delPolicyBind, addPolicyBind, updatePolicyBind } from "@/api/system/policyBind"
 
 export default {
@@ -193,6 +198,8 @@ export default {
     return {
       // 遮罩层
       loading: true,
+      exporting: false,
+      exportError: '',
       // 选中数组
       ids: [],
       // 非单个禁用
@@ -332,10 +339,17 @@ export default {
       }).catch(() => {})
     },
     /** 导出按钮操作 */
-    handleExport() {
-      this.download('system/policyBind/export', {
-        ...this.queryParams
-      }, `policyBind_${new Date().getTime()}.xlsx`)
+    async handleExport() {
+      if (this.exporting || !canUse(this.$store.getters.permissions, 'system:policyBind:export')) return
+      this.exporting = true
+      this.exportError = ''
+      try {
+        await exportTable('/system/policyBind/export', this.queryParams)
+      } catch (error) {
+        this.exportError = (error && error.message) || '导出失败，请稍后重试。'
+      } finally {
+        this.exporting = false
+      }
     }
   }
 }

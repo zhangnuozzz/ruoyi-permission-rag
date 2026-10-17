@@ -38,6 +38,8 @@ import org.bytedeco.tesseract.TessBaseAPI;
 import org.ofdrw.reader.ContentExtractor;
 import org.ofdrw.reader.OFDReader;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 
@@ -45,6 +47,7 @@ import static org.bytedeco.leptonica.global.leptonica.pixDestroy;
 import static org.bytedeco.leptonica.global.leptonica.pixReadMem;
 import static org.bytedeco.tesseract.global.tesseract.OEM_LSTM_ONLY;
 import static org.bytedeco.tesseract.global.tesseract.PSM_AUTO;
+import static org.bytedeco.tesseract.global.tesseract.PSM_RAW_LINE;
 import static org.bytedeco.tesseract.global.tesseract.TessDeleteText;
 
 /**
@@ -56,6 +59,8 @@ import static org.bytedeco.tesseract.global.tesseract.TessDeleteText;
 @Service
 public class RagFileTextExtractionService
 {
+    private static final Logger log = LoggerFactory.getLogger(RagFileTextExtractionService.class);
+
     private static final Set<String> TEXT_EXTENSIONS = new HashSet<>(
             Arrays.asList("TXT", "MD", "CSV", "JSON", "LOG"));
     private static final Set<String> TIKA_TEXT_EXTENSIONS = new HashSet<>(
@@ -292,49 +297,119 @@ public class RagFileTextExtractionService
     private String extractImageByPortableTesseract(byte[] rawContent)
     {
         Path tessDataPath = resolveTessDataPath();
-        TessBaseAPI api = new TessBaseAPI();
-        PIX pix = null;
-        BytePointer text = null;
-        try
+        try (TessBaseAPI api = new TessBaseAPI())
         {
             if (api.Init(tessDataPath.toString(), properties.getOcrLanguage(), OEM_LSTM_ONLY) != 0)
             {
                 throw new ServiceException("OCR初始化失败，请检查tessdata语言模型：" + properties.getOcrLanguage());
             }
-            api.SetPageSegMode(PSM_AUTO);
-            api.SetVariable("debug_file", "/dev/null");
+            try
+            {
+                api.SetVariable("debug_file", "/dev/null");
+                String baseline = recognizeImage(api, rawContent, PSM_AUTO);
+                if (!properties.isOcrLineOptimizationEnabled() || !supportsChineseLineRecognition(baseline))
+                {
+                    return baseline;
+                }
+                try (OcrPageLayout layout = OcrPageLayout.detect(rawContent))
+                {
+                    if (layout == null)
+                    {
+                        return baseline;
+                    }
+                    api.End();
+                    if (api.Init(tessDataPath.toString(), "chi_sim", OEM_LSTM_ONLY) != 0)
+                    {
+                        return baseline;
+                    }
+                    api.SetVariable("debug_file", "/dev/null");
+                    StringBuilder result = new StringBuilder();
+                    for (int i = 0; i < layout.lineCount(); i++)
+                    {
+                        BufferedImage line = layout.renderLine(i);
+                        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream())
+                        {
+                            ImageIO.write(line, "png", buffer);
+                            String text = recognizeImage(api, buffer.toByteArray(), PSM_RAW_LINE);
+                            if (StringUtils.isBlank(text))
+                            {
+                                return baseline;
+                            }
+                            result.append(text.trim()).append('\n');
+                        }
+                        finally
+                        {
+                            line.flush();
+                        }
+                    }
+                    String optimized = result.toString();
+                    return visibleCharacterCount(optimized) >= visibleCharacterCount(baseline) * 0.9
+                            ? optimized : baseline;
+                }
+                catch (IOException | RuntimeException exception)
+                {
+                    log.warn("OCR版面优化未完成，沿用基础识别结果", exception);
+                    return baseline;
+                }
+            }
+            finally
+            {
+                api.End();
+            }
+        }
+        catch (ServiceException exception)
+        {
+            throw exception;
+        }
+        catch (Exception exception)
+        {
+            throw new ServiceException("图片OCR失败：" + exception.getMessage());
+        }
+    }
 
-            pix = pixReadMem(rawContent, rawContent.length);
-            if (pix == null || pix.isNull())
+    private String recognizeImage(TessBaseAPI api, byte[] content, int pageSegMode) throws IOException
+    {
+        PIX image = null;
+        BytePointer text = null;
+        try
+        {
+            image = pixReadMem(content, content.length);
+            if (image == null || image.isNull())
             {
                 throw new ServiceException("图片格式无法被OCR引擎读取");
             }
-
-            api.SetImage(pix);
+            api.SetPageSegMode(pageSegMode);
+            api.SetImage(image);
             text = api.GetUTF8Text();
             return text == null || text.isNull() ? "" : text.getString(StandardCharsets.UTF_8.name());
         }
-        catch (ServiceException e)
-        {
-            throw e;
-        }
-        catch (Exception e)
-        {
-            throw new ServiceException("图片OCR失败：" + e.getMessage());
-        }
         finally
         {
-            if (text != null)
+            if (text != null && !text.isNull())
             {
                 TessDeleteText(text);
             }
-            if (pix != null && !pix.isNull())
+            api.Clear();
+            if (image != null && !image.isNull())
             {
-                pixDestroy(pix);
+                pixDestroy(image);
             }
-            api.End();
-            api.close();
         }
+    }
+
+    private boolean supportsChineseLineRecognition(String baseline)
+    {
+        boolean configured = Arrays.stream(properties.getOcrLanguage().split("\\+"))
+                .anyMatch(language -> "chi_sim".equals(language.trim()));
+        long chinese = baseline.codePoints()
+                .filter(character -> Character.UnicodeScript.of(character) == Character.UnicodeScript.HAN).count();
+        return configured && (StringUtils.isBlank(baseline)
+                || chinese >= Math.max(4, visibleCharacterCount(baseline) / 5));
+    }
+
+    private long visibleCharacterCount(String text)
+    {
+        return text.codePoints().filter(character -> !Character.isWhitespace(character)).count();
     }
 
     private Path resolveTessDataPath()

@@ -45,6 +45,29 @@ public class RagSearchResult implements Serializable
     /** 拦截原因编码 */
     private String blockedReason;
 
+    /** 检索片段标识，仅供平台诊断与审计。 */
+    private String chunkId;
+
+    /** 下游返回的检索得分，保留原始表示。 */
+    private String score;
+
+    public String getChunkId()
+    {
+        return chunkId;
+    }
+    public void setChunkId(String chunkId)
+    {
+        this.chunkId = chunkId;
+    }
+    public String getScore()
+    {
+        return score;
+    }
+    public void setScore(String score)
+    {
+        this.score = score;
+    }
+
     public String getDocId()
     {
         return docId;

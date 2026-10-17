@@ -77,6 +77,7 @@
           plain
           icon="el-icon-download"
           size="mini"
+          :loading="exporting"
           @click="handleExport"
         >
           导出
@@ -100,6 +101,9 @@
       >
         重试
       </el-button>
+    </div>
+    <div v-if="actionError" class="identity-feedback" role="alert">
+      {{ actionError }}
     </div>
     <el-table
       v-loading="loading"
@@ -182,7 +186,7 @@
               <el-dropdown-item v-if="can('system:policy:query')" command="versions">
                 版本历史
               </el-dropdown-item>
-              <el-dropdown-item v-if="can('system:policy:remove')" command="delete">
+              <el-dropdown-item v-if="can('system:policy:remove')" :disabled="deletingId !== null" command="delete">
                 删除策略
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -248,7 +252,7 @@
             <el-form-item label="优先级" prop="priority">
               <el-input-number
                 v-model="form.priority"
-                :min="1"
+                :min="0"
                 :max="9999"
                 controls-position="right"
                 style="width: 100%"
@@ -511,6 +515,7 @@
 </template>
 
 <script>
+import { exportTable } from '@/utils/tableExport'
 import '@/assets/styles/identity-access.scss'
 import { canUse, displayExpression, hasSupportedTimeCondition } from '@/utils/identityAccess'
 import {
@@ -534,7 +539,10 @@ export default {
   data() {
     return {
       loading: true,
+      exporting: false,
       saving: false,
+      deletingId: null,
+      actionError: '',
       listError: '',
       saveError: '',
       bindingsError: '',
@@ -863,25 +871,49 @@ export default {
       })
     },
 
-    handleDelete(row) {
-      this.$modal
-        .confirm('确认删除访问策略“' + row.policyName + '”吗？')
-        .then(() => delPolicy(row.id))
-        .then(() => {
-          this.$modal.msgSuccess('删除成功')
-          this.getList()
-        })
-        .catch(() => {})
+    async handleDelete(row) {
+      if (this.deletingId !== null || !this.can('system:policy:remove')) {
+        return
+      }
+      if (!row || !/^[1-9]\d*$/.test(String(row.id))) {
+        this.actionError = '策略标识无效，请刷新后重试。'
+        return
+      }
+      this.deletingId = row.id
+      this.actionError = ''
+      let confirmed = false
+      try {
+        await this.$modal.confirm('确认删除访问策略“' + row.policyName + '”吗？存在适用对象时须先取消绑定；停用绑定也需处理。')
+        confirmed = true
+        const response = await delPolicy(row.id)
+        if (!response || response.code !== 200) {
+          throw new Error((response && response.msg) || '未收到明确的删除成功结果，请刷新核对。')
+        }
+        this.$modal.msgSuccess('删除成功')
+        if (this.policyList.length === 1 && this.queryParams.pageNum > 1) {
+          this.queryParams.pageNum -= 1
+        }
+        await this.getList()
+      } catch (error) {
+        if (confirmed || (error !== 'cancel' && error !== 'close')) {
+          this.actionError = (error && error.message) || '策略删除失败，请刷新核对。'
+        }
+      } finally {
+        this.deletingId = null
+      }
     },
 
-    handleExport() {
-      this.download(
-        'system/policy/export',
-        {
-          ...this.queryParams
-        },
-        'policy_' + new Date().getTime() + '.xlsx'
-      )
+    async handleExport() {
+      if (this.exporting || !this.can('system:policy:export')) return
+      this.exporting = true
+      this.actionError = ''
+      try {
+        await exportTable('/system/policy/export', this.queryParams)
+      } catch (error) {
+        this.actionError = (error && error.message) || '导出失败，请稍后重试。'
+      } finally {
+        this.exporting = false
+      }
     },
 
     openBindings(row) {

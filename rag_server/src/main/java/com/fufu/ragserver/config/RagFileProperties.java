@@ -15,6 +15,7 @@ public class RagFileProperties
     private int chunkOverlap = 100;
     private String ocrLanguage = "chi_sim+eng";
     private String ocrDataPath;
+    private boolean ocrLineOptimizationEnabled = true;
     private Minio minio = new Minio();
     private Milvus milvus = new Milvus();
 
@@ -26,6 +27,8 @@ public class RagFileProperties
     public void setOcrLanguage(String ocrLanguage) { this.ocrLanguage = ocrLanguage; }
     public String getOcrDataPath() { return ocrDataPath; }
     public void setOcrDataPath(String ocrDataPath) { this.ocrDataPath = ocrDataPath; }
+    public boolean isOcrLineOptimizationEnabled() { return ocrLineOptimizationEnabled; }
+    public void setOcrLineOptimizationEnabled(boolean enabled) { this.ocrLineOptimizationEnabled = enabled; }
     public Minio getMinio() { return minio; }
     public void setMinio(Minio minio) { this.minio = minio; }
     public Milvus getMilvus() { return milvus; }

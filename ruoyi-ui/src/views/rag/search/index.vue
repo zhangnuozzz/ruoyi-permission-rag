@@ -207,8 +207,8 @@
 
         <el-col :span="12">
           <div class="detail-block">
-            <div class="detail-label">发给 RAG Server 的 Milvus 粗过滤表达式</div>
-            <pre class="filter-code">{{ buildMilvusCompatibleFilter() }}</pre>
+            <div class="detail-label">远程检索前置过滤表达式</div>
+            <pre class="filter-code">{{ remoteMetadataFilter() }}</pre>
           </div>
         </el-col>
       </el-row>
@@ -219,8 +219,8 @@
           {{ result.decisionMessage || result.message || '-' }}
         </div>
         <div v-if="result.searchMode === 'remote_rag_server'" class="remote-note">
-          说明：RAG Server 当前 Milvus collection 支持 scope_code、chunk_id 等字段，因此远程检索阶段先用 scope_code 做粗过滤；
-          平台侧继续使用完整 VACP Metadata Filter 完成文档状态、密级、用户组、知悉范围等精细二次过滤。
+          远程检索按人员密级和知悉用户组进行前置过滤；平台再依据当前文档标签与状态逐条复核。
+          兼容标签不作为独立授权依据。请求被拒绝或使用演示检索时，不发送远程请求。
         </div>
       </div>
     </el-card>
@@ -229,17 +229,17 @@
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">平台后端收到的检索请求 JSON</span>
-            <el-button size="mini" type="primary" plain @click="copyText(formatJson(form), '平台请求 JSON 已复制')">复制</el-button>
+            <span class="section-title">本次提交的检索请求 JSON</span>
+            <el-button size="mini" type="primary" plain @click="copyText(formatJson(submittedRequest), '平台请求 JSON 已复制')">复制</el-button>
           </div>
-          <pre class="json-box">{{ formatJson(form) }}</pre>
+          <pre class="json-box">{{ formatJson(submittedRequest) }}</pre>
         </el-card>
       </el-col>
 
       <el-col :span="12">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="section-header">
-            <span class="section-title">后端传给 RAG Server 的检索请求 JSON</span>
+            <span class="section-title">远程请求参数（依据返回上下文）</span>
             <el-button size="mini" type="primary" plain @click="copyText(formatJson(buildRagServerRequest()), 'RAG Server 请求 JSON 已复制')">复制</el-button>
           </div>
           <pre class="json-box">{{ formatJson(buildRagServerRequest()) }}</pre>
@@ -249,7 +249,7 @@
 
     <el-card v-if="result" class="box-card" shadow="never">
       <div slot="header" class="section-header">
-        <span class="section-title">AI 生成回答</span>
+        <span class="section-title">知识回答</span>
         <el-tag size="mini" :type="result.answerEnabled ? 'success' : 'info'">
           {{ result.answerEnabled ? '外部模型已启用' : '外部模型未启用' }}
         </el-tag>
@@ -379,6 +379,7 @@ export default {
     return {
       loading: false,
       result: null,
+      submittedRequest: null,
       form: {
         query: 'username',
         topK: 5,
@@ -418,6 +419,7 @@ export default {
   },
   methods: {
     handleSearch() {
+      if (this.loading) return
       if (!this.form.query || this.form.query.trim().length === 0) {
         this.$message.warning('请输入检索问题')
         return
@@ -430,7 +432,9 @@ export default {
         useRemote: this.form.useRemote
       }
 
-      ragSearch(payload).then(response => {
+      this.submittedRequest = { ...payload }
+      this.result = null
+      return ragSearch(payload).then(response => {
         const data = response && response.data ? response.data : response
         this.result = data
         if (response && response.code && response.code !== 200) {
@@ -447,37 +451,38 @@ export default {
     },
 
     reset() {
+      if (this.loading) return
       this.form = {
         query: 'username',
         topK: 5,
         useRemote: true
       }
       this.result = null
+      this.submittedRequest = null
     },
 
     buildRagServerRequest() {
+      if (!this.result || this.result.searchMode !== 'remote_rag_server' || !this.result.allowAccess) return null
       return {
-        query: this.form.query,
-        topK: this.form.topK,
+        query: this.result.query,
+        topK: this.result.topK,
         userContext: {
-          userId: this.result ? this.result.userId : null,
-          userName: this.result ? this.result.userName : null,
-          admin: this.result ? this.result.admin : null,
-          groupCodes: this.result ? this.result.groupCodes : [],
-          scopeCodes: this.result ? this.result.scopeCodes : []
+          userId: this.result.userId,
+          userName: this.result.userName,
+          admin: this.result.admin,
+          groupCodes: this.result.groupCodes || [],
+          scopeCodes: this.result.scopeCodes || []
         },
-        metadataFilter: this.buildMilvusCompatibleFilter(),
-        platformMetadataFilter: this.result ? this.result.metadataFilter : null,
-        platformFilterMode: 'milvus_scope_prefilter_and_platform_second_filter'
+        scopeCodes: this.result.scopeCodes || [],
+        metadataFilter: this.remoteMetadataFilter(),
+        platformMetadataFilter: this.remoteMetadataFilter(),
+        platformFilterMode: 'security_level_and_knowledge_group_prefilter'
       }
     },
 
-    buildMilvusCompatibleFilter() {
-      const scopes = this.result ? this.normalizeArray(this.result.scopeCodes) : []
-      if (!scopes || scopes.length === 0) {
-        return 'chunk_id != ""'
-      }
-      return 'scope_code in [' + scopes.map(item => '"' + item + '"').join(', ') + ']'
+    remoteMetadataFilter() {
+      if (!this.result || this.result.searchMode !== 'remote_rag_server' || !this.result.allowAccess) return '未发送远程请求'
+      return this.result.metadataFilter || 'chunk_id != ""'
     },
 
     getSecureValue(key) {
