@@ -46,6 +46,18 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <select id="selectSysRagBehaviorAlertByIdForUpdate" parameterType="Long" resultMap="SysRagBehaviorAlertResult">
+        <include refid="selectSysRagBehaviorAlertVo"/>
+        where id = #{id} for update
+    </select>
+
+    <update id="updateUnhandledAlert" parameterType="SysRagBehaviorAlert">
+        update sys_rag_behavior_alert
+        set status = #{status}, handled_by = #{handledBy}, handled_time = #{handledTime},
+            handle_remark = #{handleRemark}
+        where id = #{id} and status = 'unhandled'
+    </update>
+
     <insert id="insertSysRagBehaviorAlert" parameterType="SysRagBehaviorAlert" useGeneratedKeys="true" keyProperty="id">
         insert into sys_rag_behavior_alert
         <trim prefix="(" suffix=")" suffixOverrides=",">

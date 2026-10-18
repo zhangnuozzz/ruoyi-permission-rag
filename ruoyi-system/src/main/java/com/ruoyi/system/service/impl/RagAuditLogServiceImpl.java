@@ -7,6 +7,8 @@ import com.ruoyi.system.service.IRagAuditLogService;
 import com.ruoyi.system.service.ISysRagBehaviorAlertService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * RAG 检索审计日志 Service 实现
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RagAuditLogServiceImpl implements IRagAuditLogService
 {
+    private static final Logger log = LoggerFactory.getLogger(RagAuditLogServiceImpl.class);
     @Autowired
     private RagAuditLogMapper ragAuditLogMapper;
 
@@ -52,7 +55,7 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
             }
             catch (Exception e)
             {
-                // BBAC 状态维护失败不能影响主检索流程。
+                log.warn("检索审计已保存，人员失败计数维护异常，审计ID：{}，用户ID：{}", auditLog.getId(), auditLog.getUserId(), e);
             }
 
             /*
@@ -66,7 +69,7 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
             }
             catch (Exception e)
             {
-                // 行为分析失败不能影响主检索流程。
+                log.warn("检索审计已保存，行为告警分析未完成，审计ID：{}", auditLog.getId(), e);
             }
         }
     }

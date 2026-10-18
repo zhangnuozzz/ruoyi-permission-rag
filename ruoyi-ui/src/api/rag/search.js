@@ -6,6 +6,7 @@ export function ragSearch(data) {
     url: '/rag/search',
     method: 'post',
     data: data,
+    timeout: 60000,
     returnErrorData: true
   })
 }

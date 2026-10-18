@@ -13,6 +13,7 @@
 
       <el-alert
         title="分析链路：审计日志 → 风险评分 → 行为规则匹配 → 告警生成 → 安全处置"
+        description="已停用文档的正常过滤保留审计；权限异常继续告警，历史告警及处置记录保留。"
         type="warning"
         :closable="false"
         show-icon
@@ -85,13 +86,13 @@
             <el-option label="未处理" value="unhandled" />
             <el-option label="已确认" value="handled" />
             <el-option label="已封禁" value="blocked" />
-            <el-option label="已限制" value="limited" />
+            <el-option label="已标记高风险" value="limited" />
             <el-option label="已忽略" value="ignored" />
           </el-select>
         </el-form-item>
 
         <el-form-item>
-          <el-button v-hasPermi="['system:behaviorAlert:analyze']" type="danger" icon="el-icon-cpu" size="mini" @click="handleAnalyze">重新分析</el-button>
+          <el-button v-hasPermi="['system:behaviorAlert:analyze']" type="danger" icon="el-icon-cpu" size="mini" :loading="analyzing" :disabled="handleLoading" @click="handleAnalyze">重新分析</el-button>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
           <el-button v-hasPermi="['system:behaviorAlert:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" :disabled="syslogExporting" @click="handleExport">导出</el-button>
@@ -148,7 +149,7 @@
           <template slot-scope="scope">
             <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
             <el-button
-              v-if="!isHandledStatus(scope.row.status)"
+              v-if="scope.row.status === 'unhandled'"
               v-hasPermi="['system:behaviorAlert:analyze']"
               size="mini"
               type="text"
@@ -245,8 +246,9 @@
       </span>
     </el-dialog>
 
-    <el-dialog title="处理行为告警" :visible.sync="handleOpen" width="620px" append-to-body>
-      <el-form :model="handleForm" label-width="90px">
+    <el-dialog title="处理行为告警" :visible.sync="handleOpen" width="620px" :close-on-click-modal="false" :close-on-press-escape="!handleLoading" :show-close="!handleLoading" :before-close="closeHandleDialog" append-to-body>
+      <el-alert v-if="actionError" :title="actionError" type="error" :closable="false" show-icon class="tips-alert" />
+      <el-form :model="handleForm" label-width="90px" :disabled="handleLoading">
         <el-form-item label="告警ID">
           <el-input v-model="handleForm.id" disabled />
         </el-form-item>
@@ -255,27 +257,35 @@
           <el-input :value="alertTypeName(handleForm.alertType)" disabled />
         </el-form-item>
 
+        <el-form-item label="关联用户">
+          <el-input :value="handleForm.userName || '未关联账号'" disabled />
+        </el-form-item>
+
         <el-form-item label="处置动作">
           <el-radio-group v-model="handleForm.action">
             <el-radio label="CONFIRM">确认</el-radio>
             <el-radio label="IGNORE">忽略</el-radio>
-            <el-radio label="LIMIT_USER">限流</el-radio>
-            <el-radio label="BLOCK_USER">封禁</el-radio>
+            <el-radio label="LIMIT_USER" :disabled="!canRestrictUser">标记高风险</el-radio>
+            <el-radio label="BLOCK_USER" :disabled="!canRestrictUser">临时封禁 30 分钟</el-radio>
           </el-radio-group>
         </el-form-item>
+
+        <el-alert :title="handleActionDescription" type="info" :closable="false" show-icon class="tips-alert" />
 
         <el-form-item label="处理说明">
           <el-input
             v-model="handleForm.handleRemark"
             type="textarea"
             :rows="5"
-            placeholder="请输入处理说明，例如：已核查该告警，系统拦截符合预期，已完成处置。"
+            :maxlength="800"
+            show-word-limit
+            placeholder="请填写核查依据和实际处理说明"
           />
         </el-form-item>
       </el-form>
 
       <span slot="footer" class="dialog-footer">
-        <el-button @click="handleOpen = false">取消</el-button>
+        <el-button :disabled="handleLoading" @click="closeHandleDialog()">取消</el-button>
         <el-button type="primary" :loading="handleLoading" @click="submitHandle">确定处理</el-button>
       </span>
     </el-dialog>
@@ -303,9 +313,12 @@ export default {
       detail: {},
       handleOpen: false,
       handleLoading: false,
+      analyzing: false,
       handleForm: {
         id: null,
         alertType: '',
+        userId: null,
+        userName: '',
         action: 'CONFIRM',
         handleRemark: ''
       },
@@ -320,6 +333,13 @@ export default {
     }
   },
   computed: {
+    canRestrictUser() { return Number(this.handleForm.userId) > 1 },
+    handleActionDescription() {
+      if (this.handleForm.action === 'BLOCK_USER') return '将该账号临时封禁 30 分钟，期间检索请求会被拒绝；不会删除账号。'
+      if (this.handleForm.action === 'LIMIT_USER') return '将该账号风险等级标记为 HIGH，后续请求按高风险规则校验；需管理员另行调整风险等级。'
+      if (this.handleForm.action === 'IGNORE') return '保留告警及核查说明，标记为已忽略，不修改人员状态。'
+      return '保留告警并记录核查说明，不修改人员状态。'
+    },
     criticalCount() {
       return this.alertList.filter(item => item.alertLevel === 'critical').length
     },
@@ -366,17 +386,24 @@ export default {
       this.handleQuery()
     },
 
-    handleAnalyze() {
-      this.$confirm('是否确认根据当前 RAG 审计日志执行行为分析并生成告警？重复告警会自动忽略。', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        return analyzeBehaviorAlert()
-      }).then(response => {
+    async handleAnalyze() {
+      if (this.analyzing || this.handleLoading || !canUse(this.$store.getters.permissions, 'system:behaviorAlert:analyze')) return
+      this.analyzing = true
+      this.actionError = ''
+      try {
+        try {
+          await this.$confirm('重新分析全部历史审计日志并补充告警，重复告警会忽略；已有告警及处置记录保留。是否继续？', '重新分析', {
+            confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+          })
+        } catch (error) { return }
+        const response = await analyzeBehaviorAlert()
         this.msgSuccess(response.msg)
-        this.getList()
-      })
+        await this.getList()
+      } catch (error) {
+        this.actionError = (error && error.message) || '行为分析未完成，请核对已有记录后重试。'
+      } finally {
+        this.analyzing = false
+      }
     },
 
     async handleExport() {
@@ -424,32 +451,54 @@ export default {
     },
 
     openHandleDialog(row) {
+      if (this.handleLoading || this.analyzing || row.status !== 'unhandled' || !canUse(this.$store.getters.permissions, 'system:behaviorAlert:analyze')) return
+      this.actionError = ''
       this.handleForm = {
         id: row.id,
         alertType: row.alertType,
+        userId: row.userId,
+        userName: row.userName,
         action: 'CONFIRM',
         handleRemark: ''
       }
       this.handleOpen = true
     },
 
-    submitHandle() {
+    closeHandleDialog(done) {
       if (this.handleLoading) return
-      if (!this.handleForm.handleRemark || this.handleForm.handleRemark.trim().length === 0) {
-        this.$message.warning('请输入处理说明')
+      if (typeof done === 'function') done()
+      else this.handleOpen = false
+    },
+
+    async submitHandle() {
+      if (this.handleLoading || this.analyzing || !canUse(this.$store.getters.permissions, 'system:behaviorAlert:analyze')) return
+      const { id, action, handleRemark, userName } = this.handleForm
+      const remark = (handleRemark || '').trim()
+      if (!id || !['CONFIRM', 'IGNORE', 'BLOCK_USER', 'LIMIT_USER'].includes(action)) return
+      if (!remark || remark.length > 800) {
+        this.$message.warning('请输入 1 至 800 字的处理说明')
         return
       }
-
+      if (['BLOCK_USER', 'LIMIT_USER'].includes(action) && !this.canRestrictUser) return
       this.handleLoading = true
-      handleBehaviorAlert(this.handleForm.id, {
-        handleRemark: this.handleForm.handleRemark
-      }, this.handleForm.action).then(() => {
+      this.actionError = ''
+      try {
+        if (action === 'BLOCK_USER' || action === 'LIMIT_USER') {
+          try {
+            await this.$confirm('关联账号：' + (userName || this.handleForm.userId) + '。' + this.handleActionDescription, '确认风险处置', {
+              confirmButtonText: '确认处置', cancelButtonText: '取消', type: 'warning'
+            })
+          } catch (error) { return }
+        }
+        await handleBehaviorAlert(id, { handleRemark: remark }, action)
         this.msgSuccess('告警处理成功')
         this.handleOpen = false
-        this.getList()
-      }).finally(() => {
+        await this.getList()
+      } catch (error) {
+        this.actionError = (error && error.message) || '告警处理失败，请刷新核对后重试。'
+      } finally {
         this.handleLoading = false
-      })
+      }
     },
 
     handleDelete(row) {
@@ -476,6 +525,8 @@ export default {
         MASSIVE_RESULT_BLOCK: '大量结果拦截',
         SECOND_FILTER_BLOCK: '二次过滤拦截',
         SLOW_QUERY: '异常耗时',
+        HIGH_FREQUENCY_ACCESS: '高频访问',
+        REPEAT_QUERY_PATTERN: '重复查询',
         NORMAL_ACCESS: '普通访问'
       }
       return map[type] || type || '未知'
@@ -491,6 +542,8 @@ export default {
         MASSIVE_RESULT_BLOCK: 'warning',
         SECOND_FILTER_BLOCK: 'warning',
         SLOW_QUERY: 'info',
+        HIGH_FREQUENCY_ACCESS: 'warning',
+        REPEAT_QUERY_PATTERN: 'warning',
         NORMAL_ACCESS: 'success'
       }
       return map[type] || 'info'
@@ -525,7 +578,7 @@ export default {
         unhandled: '未处理',
         handled: '已确认',
         blocked: '已封禁',
-        limited: '已限制',
+        limited: '已标记高风险',
         ignored: '已忽略'
       }
       return map[status] || status || '未知'

@@ -9,6 +9,7 @@ import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.system.domain.permission.PermissionContext;
 import com.ruoyi.system.domain.permission.PolicyDecisionResult;
 import com.ruoyi.system.domain.rag.RagAuditLog;
+import com.ruoyi.system.domain.rag.RagSearchLimits;
 import com.ruoyi.system.domain.rag.RagSearchRequest;
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.domain.security.SecureQueryContext;
@@ -31,11 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RAG 安全检索入口控制器
- *
- * 当前版本完成：
- * 当前登录用户 -> 权限上下文 -> 策略决策 -> metadata filter 生成
- * -> 从 sys_rag_doc 读取模拟候选结果 -> 二次过滤 -> 审计日志记录
+ * 安全检索入口：查询准入、候选检索、文档鉴权、授权片段限量与审计留痕。
  */
 @RestController
 @RequestMapping("/rag")
@@ -281,10 +278,12 @@ public class RagSearchController
             rawResults = ragDocMockSearchService.search(request.getQuery());
         }
 
-        rawResults = limitResults(rawResults, secureQueryContext.getSafeTopK());
-
-        List<RagSearchResult> filteredResults = ragSecondFilterService.filter(context, rawResults);
-        List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, filteredResults);
+        int candidateLimit = RagSearchLimits.candidateLimit(secureQueryContext.getSafeTopK());
+        rawResults = limitResults(rawResults, candidateLimit);
+        List<RagSearchResult> qualifiedResults = ragSecondFilterService.filter(context, rawResults);
+        List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, qualifiedResults);
+        // 停用或越权候选不占用返回名额；回答仅使用限量后的授权片段。
+        List<RagSearchResult> filteredResults = limitResults(qualifiedResults, secureQueryContext.getSafeTopK());
 
         String answer = "";
         String answerModel = "";
@@ -322,7 +321,9 @@ public class RagSearchController
         result.put("safeTopK", secureQueryContext.getSafeTopK());
         result.put("sanitizedQuery", secureQueryContext.getSanitizedQuery());
 
-        result.put("rawResultCount", rawResults == null ? 0 : rawResults.size());
+        result.put("candidateTopK", candidateLimit);
+        result.put("qualifiedResultCount", qualifiedResults.size());
+        result.put("rawResultCount", rawResults.size());
         result.put("filteredResultCount", filteredResults == null ? 0 : filteredResults.size());
         result.put("rejectedResultCount", rejectedResults == null ? 0 : rejectedResults.size());
         result.put("rawResults", new ArrayList<RagSearchResult>());
@@ -338,27 +339,25 @@ public class RagSearchController
         {
             AjaxResult ajax = AjaxResult.error("请求被权限策略拦截");
             ajax.put("data", result);
-            recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, filteredResults, rejectedResults, ajax);
+            recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, qualifiedResults, rejectedResults, ajax);
             return ajax;
         }
 
         result.put("message", Boolean.TRUE.equals(request.getUseRemote())
-                ? "请求已通过策略决策，完成 RAG Server 真实检索、二次过滤、审计留痕与外部模型回答生成"
-                : "请求已通过策略决策，完成平台 Mock 检索、二次过滤、审计留痕与外部模型回答生成");
+                ? "已完成真实检索、文档权限校验与审计记录"
+                : "已完成元数据演示检索、文档权限校验与审计记录");
 
         AjaxResult ajax = AjaxResult.success(result);
-        recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, filteredResults, rejectedResults, ajax);
+        recordAuditLog(request, context, decision, secureQueryContext, costTime, rawResults, qualifiedResults, rejectedResults, ajax);
         return ajax;
     }
 
-    /**
-     * 按安全 topK 截断候选结果。
-     */
+    /** 保持相关性顺序，分别限制候选处理量与授权返回量。 */
     private List<RagSearchResult> limitResults(List<RagSearchResult> results, Integer safeTopK)
     {
         if (results == null || results.isEmpty())
         {
-            return results;
+            return new ArrayList<RagSearchResult>();
         }
 
         int limit = safeTopK == null || safeTopK <= 0 ? 5 : safeTopK;
@@ -370,14 +369,7 @@ public class RagSearchController
         return new ArrayList<RagSearchResult>(results.subList(0, limit));
     }
 
-    /**
-     * 根据原始候选结果和过滤后结果，计算被二次过滤拦截的文档。
-     *
-     * 该结果主要用于前端演示和审计解释：
-     * 1. rawResults 表示模拟向量检索命中的候选文档；
-     * 2. filteredResults 表示权限过滤后允许返回给用户的文档；
-     * 3. rejectedResults 表示命中但因权限不匹配被过滤的文档。
-     */
+    /** 按片段对象区分拦截结果，避免同一文档的多个片段相互覆盖。 */
     private List<RagSearchResult> buildRejectedResults(List<RagSearchResult> rawResults, List<RagSearchResult> filteredResults)
     {
         List<RagSearchResult> rejectedResults = new ArrayList<RagSearchResult>();
@@ -395,7 +387,7 @@ public class RagSearchController
             {
                 for (RagSearchResult filtered : filteredResults)
                 {
-                    if (raw.getDocId() != null && raw.getDocId().equals(filtered.getDocId()))
+                    if (raw == filtered)
                     {
                         passed = true;
                         break;
@@ -408,7 +400,7 @@ public class RagSearchController
                 raw.setPassed(false);
                 if (raw.getFilterReason() == null || raw.getFilterReason().length() == 0)
                 {
-                    raw.setFilterReason("文档 scopeCode 不在当前用户可访问范围内，已被二次权限过滤拦截");
+                    raw.setFilterReason("文档片段未通过平台权限校验");
                 }
                 rejectedResults.add(raw);
             }

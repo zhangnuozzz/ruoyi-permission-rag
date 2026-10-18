@@ -4,12 +4,15 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.ruoyi.common.utils.ServletUtils;
+import com.ruoyi.framework.web.advice.AccessLogResponseAdvice;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.system.domain.SysAccessLog;
 import com.ruoyi.system.service.ISysAccessLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
@@ -20,6 +23,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class AccessLogInterceptor implements HandlerInterceptor
 {
+    private static final Logger log = LoggerFactory.getLogger(AccessLogInterceptor.class);
     private static final String START_TIME = "ACCESS_LOG_START_TIME";
 
     @Autowired
@@ -46,7 +50,7 @@ public class AccessLogInterceptor implements HandlerInterceptor
             }
 
             Long startTime = (Long) request.getAttribute(START_TIME);
-            long costTime = startTime == null ? 0L : System.currentTimeMillis() - startTime;
+            long costTime = startTime == null ? 0L : Math.max(0L, System.currentTimeMillis() - startTime);
 
             SysAccessLog accessLog = new SysAccessLog();
             accessLog.setIpaddr(getClientIp(request));
@@ -55,13 +59,21 @@ public class AccessLogInterceptor implements HandlerInterceptor
             accessLog.setCostTime(costTime);
 
             int statusCode = response.getStatus();
-            accessLog.setStatus(statusCode >= 200 && statusCode < 400 && ex == null ? "0" : "1");
+            Object businessCode = request.getAttribute(AccessLogResponseAdvice.BUSINESS_CODE_ATTRIBUTE);
+            boolean businessFailed = businessCode instanceof Integer && ((Integer) businessCode).intValue() != 200;
+            boolean transportSucceeded = statusCode >= 200 && statusCode < 400;
+            accessLog.setStatus(transportSucceeded && ex == null && !businessFailed ? "0" : "1");
 
             if (ex != null)
             {
                 accessLog.setErrorMsg(limit(ex.getMessage(), 1000));
             }
-            else if (statusCode >= 400)
+            else if (businessFailed)
+            {
+                Object message = request.getAttribute(AccessLogResponseAdvice.BUSINESS_MESSAGE_ATTRIBUTE);
+                accessLog.setErrorMsg(limit("业务状态 " + businessCode + "：" + (message == null ? "请求未完成" : message), 1000));
+            }
+            else if (!transportSucceeded)
             {
                 accessLog.setErrorMsg("HTTP Status " + statusCode);
             }
@@ -85,9 +97,9 @@ public class AccessLogInterceptor implements HandlerInterceptor
 
             sysAccessLogService.insertSysAccessLog(accessLog);
         }
-        catch (Exception ignored)
+        catch (Exception exception)
         {
-            // 访问日志不能影响主业务请求
+            log.warn("访问监控日志保存失败，请求路径：{}", request.getRequestURI(), exception);
         }
     }
 

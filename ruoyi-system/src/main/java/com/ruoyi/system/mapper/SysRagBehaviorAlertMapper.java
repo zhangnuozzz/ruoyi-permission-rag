@@ -7,6 +7,10 @@ public interface SysRagBehaviorAlertMapper
 {
     public SysRagBehaviorAlert selectSysRagBehaviorAlertById(Long id);
 
+    public SysRagBehaviorAlert selectSysRagBehaviorAlertByIdForUpdate(Long id);
+
+    public int updateUnhandledAlert(SysRagBehaviorAlert alert);
+
     public List<SysRagBehaviorAlert> selectSysRagBehaviorAlertList(SysRagBehaviorAlert sysRagBehaviorAlert);
 
     public int insertSysRagBehaviorAlert(SysRagBehaviorAlert sysRagBehaviorAlert);

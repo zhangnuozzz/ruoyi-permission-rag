@@ -11,7 +11,7 @@
 
     <div class="library-summary">
       <div class="summary-icon"><i class="el-icon-folder-opened" /></div>
-      <div><span>我的文档</span><strong>{{ total }}</strong></div>
+      <div><span>我的文档</span><strong>{{ loadError ? '--' : total }}</strong></div>
       <div class="summary-caption">仅统计当前账号上传的文件</div>
     </div>
 
@@ -56,7 +56,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" align="right">
             <template slot-scope="scope">
-              <el-button type="text" :disabled="scope.row.metadataStatus === 'UNAVAILABLE'" :loading="changingId === scope.row.fileId" @click="toggleStatus(scope.row)">{{ scope.row.metadataStatus === 'ACTIVE' ? '停用' : '启用' }}</el-button>
+              <el-button type="text" :disabled="!!changingId || scope.row.metadataStatus === 'UNAVAILABLE'" :loading="changingId === scope.row.fileId" @click="toggleStatus(scope.row)">{{ scope.row.metadataStatus === 'ACTIVE' ? '停用' : '启用' }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -71,11 +71,11 @@
       <el-button v-if="groupsError" type="text" @click="loadGroups">重试</el-button>
     </p>
 
-    <el-dialog title="上传知识文件" :visible.sync="uploadVisible" width="520px" :close-on-click-modal="false" append-to-body>
+    <el-dialog title="上传知识文件" :visible.sync="uploadVisible" width="520px" :close-on-click-modal="false" :close-on-press-escape="!uploading" :show-close="!uploading" :before-close="closeUpload" append-to-body>
       <div class="upload-intro">文件将进入知识库向量化流程；检索范围由文档密级和国家秘密的唯一知悉用户组决定。</div>
-      <el-form label-position="top" class="upload-form">
+      <el-form label-position="top" class="upload-form" :disabled="uploading">
         <el-form-item label="选择文件" required>
-          <el-upload ref="upload" action="#" :auto-upload="false" :limit="1" :file-list="fileList" :on-change="selectFile" :on-remove="removeFile">
+          <el-upload ref="upload" action="#" :auto-upload="false" :disabled="uploading" :file-list="fileList" :on-change="selectFile" :on-remove="removeFile">
             <el-button size="small" icon="el-icon-document-add">选择文件</el-button>
             <div slot="tip" class="upload-tip">支持 TXT、MD、CSV、JSON、LOG、PDF、DOC、DOCX、OFD 及常见图片，单文件不超过 10 MB。</div>
           </el-upload>
@@ -93,8 +93,8 @@
         <div class="scope-note">{{ uploadRuleText }}</div>
       </el-form>
       <span slot="footer" class="dialog-footer">
-        <el-button @click="uploadVisible = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" :disabled="!selectedFile || !form.securityLevel || (requiresKnowledgeGroup && !form.groupCode)" @click="submitUpload">上传并入库</el-button>
+        <el-button :disabled="uploading" @click="closeUpload()">取消</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="uploading || !selectedFile || !form.securityLevel || (requiresKnowledgeGroup && !form.groupCode)" @click="submitUpload">上传并入库</el-button>
       </span>
     </el-dialog>
   </div>
@@ -114,7 +114,7 @@ export default {
   name: 'MyLibrary',
   data() {
     return {
-      files: [], total: 0, pageNum: 1, pageSize: 10, loading: false, loadError: '',
+      files: [], total: 0, pageNum: 1, pageSize: 10, loading: false, loadError: '', fileRequestId: 0, groupRequestId: 0,
       groups: [], groupsLoading: false, groupsError: false, userSecretLevel: 'PUBLIC', uploadVisible: false, uploading: false, changingId: '',
       fileList: [], selectedFile: null, form: { groupCode: '', securityLevel: '' }
     }
@@ -135,53 +135,74 @@ export default {
     this.loadFiles()
     this.loadGroups()
   },
+  beforeDestroy() {
+    this.fileRequestId++
+    this.groupRequestId++
+  },
   methods: {
     async loadGroups() {
+      const requestId = ++this.groupRequestId
       this.groupsLoading = true
       this.groupsError = false
       try {
         const response = await listMyUploadGroups()
+        if (requestId !== this.groupRequestId) return
         const data = response.data || {}
         this.groups = data.groups || []
         this.userSecretLevel = data.userSecretLevel || 'PUBLIC'
       } catch (error) {
+        if (requestId !== this.groupRequestId) return
         this.groups = []
         this.userSecretLevel = 'PUBLIC'
         this.groupsError = true
       } finally {
-        this.groupsLoading = false
+        if (requestId === this.groupRequestId) this.groupsLoading = false
       }
     },
     async loadFiles() {
+      const requestId = ++this.fileRequestId
       this.loading = true
       this.loadError = ''
       try {
         const response = await listMyKnowledge({ pageNum: this.pageNum, pageSize: this.pageSize })
+        if (requestId !== this.fileRequestId) return
         this.files = response.data.rows || []
         this.total = response.data.total || 0
       } catch (error) {
+        if (requestId !== this.fileRequestId) return
         this.files = []
+        this.total = 0
         this.loadError = '暂时无法读取您的知识库。'
       } finally {
-        this.loading = false
+        if (requestId === this.fileRequestId) this.loading = false
       }
     },
     changePage(page) { this.pageNum = page; this.loadFiles() },
     openUpload() {
+      if (this.uploading) return
       this.selectedFile = null
       this.fileList = []
       this.form.groupCode = ''
       this.form.securityLevel = this.userLevelRank >= 2 ? 'INTERNAL' : 'PUBLIC'
       this.uploadVisible = true
+      this.$nextTick(() => {
+        if (this.$refs.upload) this.$refs.upload.clearFiles()
+      })
     },
-    onLevelChange() { this.form.groupCode = '' },
+    closeUpload(done) {
+      if (this.uploading) return
+      if (typeof done === 'function') done()
+      else this.uploadVisible = false
+    },
+    onLevelChange() { if (!this.uploading) this.form.groupCode = '' },
     selectFile(file, fileList) {
+      if (this.uploading) return
       this.selectedFile = file.raw
       this.fileList = fileList.slice(-1)
     },
-    removeFile() { this.selectedFile = null; this.fileList = [] },
+    removeFile() { if (this.uploading) return; this.selectedFile = null; this.fileList = [] },
     async submitUpload() {
-      if (!this.selectedFile || !this.form.securityLevel || (this.requiresKnowledgeGroup && !this.form.groupCode)) return
+      if (this.uploading || !this.selectedFile || !this.form.securityLevel || (this.requiresKnowledgeGroup && !this.form.groupCode)) return
       if (this.selectedFile.size > 10 * 1024 * 1024) {
         this.$message.warning('单个文件不能超过 10 MB')
         return
@@ -200,9 +221,12 @@ export default {
         } else {
           this.$message.success('文档已上传并写入知识库')
         }
+        this.selectedFile = null
+        this.fileList = []
+        if (this.$refs.upload) this.$refs.upload.clearFiles()
         this.uploadVisible = false
         this.pageNum = 1
-        this.loadFiles()
+        await this.loadFiles()
       } catch (error) {
         // request 拦截器已展示服务端的具体错误。
       } finally {
@@ -210,17 +234,18 @@ export default {
       }
     },
     async toggleStatus(file) {
+      if (this.changingId || !file.fileId || file.metadataStatus === 'UNAVAILABLE') return
       const enabled = file.metadataStatus !== 'ACTIVE'
-      try {
-        await this.$confirm(enabled ? '启用后，符合权限策略的用户可检索此文档。' : '停用后，此文档将不再返回给检索用户。', enabled ? '启用文档' : '停用文档', {
-          confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning'
-        })
-      } catch (error) { return }
       this.changingId = file.fileId
       try {
+        try {
+          await this.$confirm(enabled ? '启用后，符合权限策略的用户可检索此文档。' : '停用后，此文档将不再返回给检索用户。', enabled ? '启用文档' : '停用文档', {
+            confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning'
+          })
+        } catch (error) { return }
         await changeMyKnowledgeStatus(file.fileId, enabled)
         this.$message.success(enabled ? '文档已启用' : '文档已停用')
-        this.loadFiles()
+        await this.loadFiles()
       } catch (error) {
         // request 拦截器已展示服务端的具体错误。
       } finally {

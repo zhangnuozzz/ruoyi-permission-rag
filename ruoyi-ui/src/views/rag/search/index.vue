@@ -163,8 +163,8 @@
         <el-col :span="6">
           <div class="context-card">
             <div class="context-label">过滤统计</div>
-            <div class="context-value">{{ result.filteredResultCount || 0 }} / {{ result.rejectedResultCount || 0 }}</div>
-            <div class="context-extra">通过 / 拦截，耗时：{{ result.costTime || 0 }} ms</div>
+            <div class="context-value">{{ result.qualifiedResultCount == null ? result.filteredResultCount || 0 : result.qualifiedResultCount }} / {{ result.rejectedResultCount || 0 }}</div>
+            <div class="context-extra">通过 / 拦截，返回 {{ result.filteredResultCount || 0 }} 条，耗时：{{ result.costTime || 0 }} ms</div>
           </div>
         </el-col>
       </el-row>
@@ -465,7 +465,7 @@ export default {
       if (!this.result || this.result.searchMode !== 'remote_rag_server' || !this.result.allowAccess) return null
       return {
         query: this.result.query,
-        topK: this.result.topK,
+        topK: this.result.candidateTopK || this.result.topK,
         userContext: {
           userId: this.result.userId,
           userName: this.result.userName,

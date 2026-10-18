@@ -2,11 +2,14 @@ package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.permission.PermissionContext;
 import com.ruoyi.system.domain.permission.PolicyDecisionResult;
+import com.ruoyi.common.exception.CustomException;
+import com.ruoyi.system.domain.rag.RagSearchLimits;
 import com.ruoyi.system.domain.rag.RagSearchRequest;
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.service.IRagRemoteSearchService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -25,7 +28,15 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
     @Value("${rag.server.url:http://localhost:8081}")
     private String ragServerUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate()
+    {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(15000);
+        return new RestTemplate(factory);
+    }
 
     @Override
     @SuppressWarnings("unchecked")
@@ -35,7 +46,8 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("query", request == null ? null : request.getQuery());
-        body.put("topK", request == null || request.getTopK() == null ? 5 : request.getTopK());
+        int candidateLimit = RagSearchLimits.candidateLimit(request == null ? null : request.getTopK());
+        body.put("topK", candidateLimit);
 
         if (context != null)
         {
@@ -50,26 +62,13 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             body.put("scopeCodes", context.getScopeCodes());
         }
 
-        /*
-         * Milvus 前置过滤使用统一安全过滤表达式：
-         *
-         * PUBLIC：
-         * 所有人；
-         *
-         * INTERNAL：
-         * 根据人员密级；
-         *
-         * SECRET / CONFIDENTIAL：
-         * 根据人员密级 + group_id。
-         *
-         * 不再使用 scope_code 作为统一权限过滤条件。
-         */
-        String metadataFilter =
-                decision == null
-                        || decision.getMetadataFilter() == null
-                        || decision.getMetadataFilter().length() == 0
-                        ? "chunk_id != \"\""
-                        : decision.getMetadataFilter();
+        // 缺少前置权限条件时终止调用，不能回退为全库检索。
+        if (decision == null || decision.getMetadataFilter() == null
+                || decision.getMetadataFilter().trim().isEmpty())
+        {
+            throw new CustomException("检索权限条件缺失，请重新发起查询");
+        }
+        String metadataFilter = decision.getMetadataFilter();
 
         body.put(
                 "metadataFilter",
@@ -90,10 +89,14 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 
         if (!(response instanceof Map))
         {
-            return results;
+            throw new CustomException("检索服务返回格式无效");
         }
 
         Map<String, Object> outer = (Map<String, Object>) response;
+        if (!"200".equals(String.valueOf(outer.get("code"))))
+        {
+            throw new CustomException("检索服务未能完成本次查询");
+        }
         Object dataObj = outer.get("data");
 
         Object listObj = null;
@@ -111,16 +114,17 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 
         if (!(listObj instanceof List))
         {
-            return results;
+            throw new CustomException("检索服务缺少有效的结果列表");
         }
 
         List<Object> rawList = (List<Object>) listObj;
 
-        for (Object itemObj : rawList)
+        for (int index = 0; index < Math.min(rawList.size(), candidateLimit); index++)
         {
+            Object itemObj = rawList.get(index);
             if (!(itemObj instanceof Map))
             {
-                continue;
+                throw new CustomException("检索服务返回了无效的文档片段");
             }
 
             Map<String, Object> item = (Map<String, Object>) itemObj;
@@ -139,6 +143,11 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
             result.setChunkId(firstNotEmpty(item, "chunkId", "chunk_id"));
             result.setScore(firstNotEmpty(item, "score", "distance"));
 
+            if (result.getDocId() == null || result.getDocId().trim().isEmpty()
+                    || result.getContent() == null || result.getContent().trim().isEmpty())
+            {
+                throw new CustomException("检索结果缺少文档标识或正文");
+            }
             result.setPassed(false);
             result.setFilterReason("");
 

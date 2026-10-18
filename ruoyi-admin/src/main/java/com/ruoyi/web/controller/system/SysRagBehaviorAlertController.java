@@ -91,15 +91,7 @@ public class SysRagBehaviorAlertController extends BaseController
                               @RequestParam(value = "action", required = false, defaultValue = "CONFIRM") String action,
                               @RequestBody(required = false) SysRagBehaviorAlert alert)
     {
-        String handledBy = "admin";
-        try
-        {
-            handledBy = SecurityUtils.getUsername();
-        }
-        catch (Exception e)
-        {
-            handledBy = "admin";
-        }
+        String handledBy = SecurityUtils.getUsername();
 
         String handleRemark = alert == null ? "" : alert.getHandleRemark();
         return toAjax(sysRagBehaviorAlertService.handleAlert(id, action, handledBy, handleRemark));

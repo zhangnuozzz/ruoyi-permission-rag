@@ -1,12 +1,22 @@
 package com.ruoyi.system.service.impl;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.ruoyi.common.exception.CustomException;
+import com.ruoyi.common.utils.SecurityUtils;
 
 import com.ruoyi.system.domain.SysRagAuditLog;
 import com.ruoyi.system.domain.SysRagBehaviorAlert;
@@ -32,6 +42,7 @@ import com.ruoyi.system.service.SyslogForwardService;
 @Service
 public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertService
 {
+    private static final Logger log = LoggerFactory.getLogger(SysRagBehaviorAlertServiceImpl.class);
     @Autowired
     private SysRagBehaviorAlertMapper sysRagBehaviorAlertMapper;
 
@@ -81,52 +92,78 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int handleAlert(Long id, String handledBy, String handleRemark)
     {
         return handleAlert(id, "CONFIRM", handledBy, handleRemark);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int handleAlert(Long id, String action, String handledBy, String handleRemark)
     {
-        SysRagBehaviorAlert oldAlert = sysRagBehaviorAlertMapper.selectSysRagBehaviorAlertById(id);
-        if (oldAlert == null)
+        String realAction = action == null || action.trim().isEmpty()
+                ? "CONFIRM" : action.trim().toUpperCase(Locale.ROOT);
+        if (!"CONFIRM".equals(realAction) && !"IGNORE".equals(realAction)
+                && !"BLOCK_USER".equals(realAction) && !"LIMIT_USER".equals(realAction))
         {
-            return 0;
+            throw new CustomException("处置动作无效，请重新选择");
+        }
+        if (id == null || id <= 0 || handledBy == null || handledBy.trim().isEmpty()
+                || handledBy.length() > 64)
+        {
+            throw new CustomException("告警或处理人信息无效，请刷新后重试");
+        }
+        String realRemark = handleRemark == null ? "" : handleRemark.trim();
+        if (realRemark.isEmpty() || realRemark.length() > 800)
+        {
+            throw new CustomException("请输入 1 至 800 字的处理说明");
         }
 
-        String realAction = action == null || action.length() == 0 ? "CONFIRM" : action.trim().toUpperCase();
-        String realHandledBy = handledBy == null || handledBy.length() == 0 ? "admin" : handledBy;
-        String realRemark = handleRemark == null ? "" : handleRemark;
+        // 锁定告警后核对状态，防止两个管理员覆盖彼此的处置结果。
+        SysRagBehaviorAlert oldAlert = sysRagBehaviorAlertMapper.selectSysRagBehaviorAlertByIdForUpdate(id);
+        if (oldAlert == null)
+        {
+            throw new CustomException("告警不存在，请刷新后重试");
+        }
+        if (!"unhandled".equals(oldAlert.getStatus()))
+        {
+            throw new CustomException("告警已被处理，请刷新查看最新处置信息");
+        }
 
         if ("BLOCK_USER".equals(realAction))
         {
-            blockUserTemporarily(oldAlert.getUserId(), "行为告警触发临时封禁，alertId=" + id);
-            realRemark = appendRemark(realRemark, "处置动作：已临时封禁该用户 30 分钟。");
+            lockUserAttributes(oldAlert.getUserId());
+            blockUserTemporarily(oldAlert.getUserId(), "行为告警临时封禁，alertId=" + id);
+            realRemark = appendRemark(realRemark, "处置动作：临时封禁该用户 30 分钟。");
         }
         else if ("LIMIT_USER".equals(realAction))
         {
-            limitUserRisk(oldAlert.getUserId());
-            realRemark = appendRemark(realRemark, "处置动作：已将该用户风险等级调整为 HIGH，后续查询将更容易被限制。");
-        }
-        else if ("IGNORE".equals(realAction))
-        {
-            realRemark = appendRemark(realRemark, "处置动作：已确认该告警为可忽略事件。");
+            Map<String, Object> attributes = lockUserAttributes(oldAlert.getUserId());
+            if (!"HIGH".equals(attributes.get("riskLevel")))
+            {
+                limitUserRisk(oldAlert.getUserId());
+            }
+            realRemark = appendRemark(realRemark, "处置动作：将该用户标记为高风险，后续请求按高风险规则校验。");
         }
         else
         {
-            realRemark = appendRemark(realRemark, "处置动作：已确认告警并完成核查。");
+            realRemark = appendRemark(realRemark, "IGNORE".equals(realAction)
+                    ? "处置动作：忽略告警。" : "处置动作：确认告警。");
         }
 
         SysRagBehaviorAlert alert = new SysRagBehaviorAlert();
         alert.setId(id);
         alert.setStatus(resolveStatus(realAction));
-        alert.setHandledBy(realHandledBy);
+        alert.setHandledBy(handledBy.trim());
         alert.setHandledTime(new Date());
         alert.setHandleRemark(realRemark);
-        return sysRagBehaviorAlertMapper.updateSysRagBehaviorAlert(alert);
+        if (sysRagBehaviorAlertMapper.updateUnhandledAlert(alert) != 1)
+        {
+            throw new CustomException("告警处置未保存，请刷新后核对；本次用户状态修改已回滚");
+        }
+        return 1;
     }
-
 
     @Override
     public int analyzeRagAuditLogById(Long auditLogId)
@@ -150,7 +187,8 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
         int count = 0;
 
         Integer riskScore = safeInt(log.getRiskScore());
-        Integer blockedCount = safeInt(log.getBlockedCount());
+        RagFilterSummary filterSummary = RagFilterSummary.from(log);
+        int blockedCount = filterSummary.getRiskBlockedCount();
         String allowAccess = log.getAllowAccess();
         String blockedReasons = log.getBlockedReasons();
         String secureContextJson = log.getSecureContextJson();
@@ -171,7 +209,7 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
                     log,
                     "CRITICAL_RISK_QUERY",
                     "critical",
-                    "查询风险分数达到严重级别，riskScore=" + riskScore + "，系统已执行高风险拦截或强限制"
+                    "查询风险分数达到严重级别，riskScore=" + riskScore
             );
         }
         else if (riskScore >= 70)
@@ -190,7 +228,7 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
                     log,
                     "MASSIVE_RESULT_BLOCK",
                     "medium",
-                    "本次检索存在大量结果被二次过滤拦截，blockedCount=" + blockedCount
+                    "本次检索存在大量权限或元数据异常拦截，riskBlockedCount=" + blockedCount
                             + "，blockedReasons=" + safeText(blockedReasons)
             );
         }
@@ -200,7 +238,7 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
                     log,
                     "SECOND_FILTER_BLOCK",
                     "medium",
-                    "安全向量检索二次过滤拦截了不符合权限的数据，blockedCount=" + blockedCount
+                    "平台复核拦截了权限或元数据异常片段，riskBlockedCount=" + blockedCount
                             + "，blockedReasons=" + safeText(blockedReasons)
             );
         }
@@ -232,7 +270,7 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
                     log,
                     "REPEAT_QUERY_PATTERN",
                     "medium",
-                    "检测到重复查询模式，系统已执行限制策略"
+                    "查询安全上下文识别到重复查询模式"
             );
         }
 
@@ -243,7 +281,7 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
                     log,
                     "HIGH_FREQUENCY_ACCESS",
                     "medium",
-                    "检测到单位时间访问频次过高，系统已执行限流策略"
+                    "查询安全上下文识别到单位时间访问频次过高"
             );
         }
 
@@ -308,64 +346,90 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
         return builder.toString();
     }
 
-    private int insertAlertIgnoreDuplicate(SysRagAuditLog log, String type, String level, String reason)
+    private int insertAlertIgnoreDuplicate(SysRagAuditLog source, String type, String level, String reason)
     {
+        SysRagBehaviorAlert alert = new SysRagBehaviorAlert();
+        alert.setSourceLogId(source.getId());
+        alert.setUserId(source.getUserId());
+        alert.setUserName(source.getUserName());
+        alert.setAlertType(type);
+        alert.setAlertLevel(level);
+        alert.setAlertReason(fitText(reason, 500));
+        alert.setQueryText(source.getQueryText());
+        alert.setAllowAccess(source.getAllowAccess());
+        alert.setCostTime(source.getCostTime());
+        alert.setStatus("unhandled");
+        alert.setRemark(fitText(buildRemark(source), 500));
+        int rows;
         try
         {
-            SysRagBehaviorAlert alert = new SysRagBehaviorAlert();
-            alert.setSourceLogId(log.getId());
-            alert.setUserId(log.getUserId());
-            alert.setUserName(log.getUserName());
-            alert.setAlertType(type);
-            alert.setAlertLevel(level);
-            alert.setAlertReason(reason);
-            alert.setQueryText(log.getQueryText());
-            alert.setAllowAccess(log.getAllowAccess());
-            alert.setCostTime(log.getCostTime());
-            alert.setStatus("unhandled");
-            alert.setRemark(buildRemark(log));
-            int rows = sysRagBehaviorAlertMapper.insertSysRagBehaviorAlert(alert);
-
-            if (rows > 0)
-            {
-                syslogForwardService.forwardAlert(alert);
-            }
-
-            return rows;
+            rows = sysRagBehaviorAlertMapper.insertSysRagBehaviorAlert(alert);
         }
-        catch (Exception e)
+        catch (DuplicateKeyException exception)
         {
             return 0;
         }
+        if (rows > 0)
+        {
+            try
+            {
+                syslogForwardService.forwardAlert(alert);
+            }
+            catch (RuntimeException exception)
+            {
+                log.warn("告警已保存，Syslog 转发异常，告警ID：{}", alert.getId(), exception);
+            }
+        }
+        return rows;
+    }
+
+    /** 仅对存在且启用的普通账号执行风险处置，不覆盖停用或已有封禁状态。 */
+    private Map<String, Object> lockUserAttributes(Long userId)
+    {
+        if (userId == null || userId <= 0 || SecurityUtils.isAdmin(userId))
+        {
+            throw new CustomException("该告警没有可处置的普通账号，请选择确认或忽略");
+        }
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "select a.access_status accessStatus, a.risk_level riskLevel " +
+                "from sys_user_security_attr a join sys_user u on u.user_id = a.user_id " +
+                "where a.user_id = ? and u.status = '0' and u.del_flag = '0' for update", userId);
+        if (rows.size() != 1 || !"ACTIVE".equals(rows.get(0).get("accessStatus")))
+        {
+            throw new CustomException("人员不存在、已停用或已封禁，请刷新核对；未修改人员状态");
+        }
+        return rows.get(0);
     }
 
     private void blockUserTemporarily(Long userId, String reason)
     {
-        if (userId == null)
-        {
-            return;
-        }
-
-        jdbcTemplate.update(
+        int rows = jdbcTemplate.update(
                 "update sys_user_security_attr " +
-                        "set access_status='LOCKED', lock_until=date_add(now(), interval 30 minute), lock_reason=? " +
-                        "where user_id=?",
-                reason,
-                userId
-        );
+                "set access_status='LOCKED', lock_until=date_add(now(), interval 30 minute), lock_reason=? " +
+                "where user_id=? and access_status='ACTIVE'", reason, userId);
+        if (rows != 1)
+        {
+            throw new CustomException("人员封禁未保存，本次告警处置已撤销");
+        }
     }
 
     private void limitUserRisk(Long userId)
     {
-        if (userId == null)
+        int rows = jdbcTemplate.update(
+                "update sys_user_security_attr set risk_level='HIGH' where user_id=? and access_status='ACTIVE'", userId);
+        if (rows != 1)
         {
-            return;
+            throw new CustomException("人员风险标记未保存，本次告警处置已撤销");
         }
+    }
 
-        jdbcTemplate.update(
-                "update sys_user_security_attr set risk_level='HIGH' where user_id=?",
-                userId
-        );
+    private String fitText(String value, int limit)
+    {
+        if (value == null || value.length() <= limit)
+        {
+            return value;
+        }
+        return value.substring(0, limit - 3) + "...";
     }
 
     private String resolveStatus(String action)
@@ -393,6 +457,10 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
         builder.append("; passedCount=").append(safeInt(log.getPassedCount()));
         builder.append("; blockedCount=").append(safeInt(log.getBlockedCount()));
         builder.append("; blockedReasons=").append(safeText(log.getBlockedReasons()));
+        RagFilterSummary summary = RagFilterSummary.from(log);
+        builder.append("; riskBlockedCount=").append(summary.getRiskBlockedCount());
+        builder.append("; disabledCount=").append(summary.getDisabledCount());
+        builder.append("; filterDetailsVerified=").append(summary.isVerified());
         return builder.toString();
     }
 
@@ -407,7 +475,21 @@ public class SysRagBehaviorAlertServiceImpl implements ISysRagBehaviorAlertServi
 
     private boolean containsRiskReason(String text, String key)
     {
-        return text != null && key != null && text.contains(key);
+        if (text == null || key == null)
+        {
+            return false;
+        }
+        try
+        {
+            JSONObject context = JSON.parseObject(text);
+            Object reasons = context == null ? null : context.get("reasons");
+            return reasons instanceof JSONArray && ((JSONArray) reasons).contains(key);
+        }
+        catch (RuntimeException exception)
+        {
+            // 历史非结构化记录保守兼容；新记录只读取实际决策原因。
+            return text.contains(key);
+        }
     }
 
     private Integer safeInt(Integer value)

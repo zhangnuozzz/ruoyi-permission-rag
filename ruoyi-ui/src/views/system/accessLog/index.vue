@@ -100,6 +100,8 @@
         <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
+      <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon class="mb8" />
+
       <el-table v-loading="loading" :data="accessLogList" border stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="50" align="center" />
         <el-table-column label="ID" align="center" prop="accessId" width="80" />
@@ -231,6 +233,8 @@ export default {
   data() {
     return {
       loading: true,
+      listRequestId: 0,
+      loadError: '',
       ids: [],
       multiple: true,
       showSearch: true,
@@ -253,14 +257,43 @@ export default {
   created() {
     this.getList()
   },
+  beforeDestroy() {
+    this.listRequestId++
+  },
   methods: {
-    getList() {
+    buildQueryParams() {
+      const query = { ...this.queryParams }
+      delete query.params
+      delete query.beginTime
+      delete query.endTime
+      const dates = this.daterangeCreateTime
+      if (Array.isArray(dates) && dates.length === 2 && dates[0] && dates[1]) {
+        query.beginTime = dates[0] + ' 00:00:00'
+        query.endTime = dates[1] + ' 23:59:59'
+      }
+      return query
+    },
+    async getList() {
+      const requestId = ++this.listRequestId
       this.loading = true
-      listAccessLog(this.addDateRange(this.queryParams, this.daterangeCreateTime, 'CreateTime')).then(response => {
-        this.accessLogList = response.rows
-        this.total = response.total
-        this.loading = false
-      })
+      this.loadError = ''
+      try {
+        const response = await listAccessLog(this.buildQueryParams())
+        if (requestId !== this.listRequestId) return
+        this.accessLogList = response.rows || []
+        this.total = response.total || 0
+        this.ids = []
+        this.multiple = true
+      } catch (error) {
+        if (requestId !== this.listRequestId) return
+        this.accessLogList = []
+        this.total = 0
+        this.ids = []
+        this.multiple = true
+        this.loadError = (error && error.message) || '访问日志读取失败，请重试。'
+      } finally {
+        if (requestId === this.listRequestId) this.loading = false
+      }
     },
     handleQuery() {
       this.queryParams.pageNum = 1

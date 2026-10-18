@@ -33,12 +33,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="requestUri != null and requestUri != ''"> and request_uri like concat('%', #{requestUri}, '%')</if>
             <if test="requestMethod != null and requestMethod != ''"> and request_method = #{requestMethod}</if>
             <if test="status != null and status != ''"> and status = #{status}</if>
-            <if test="params.beginCreateTime != null and params.beginCreateTime != ''">
-                and date_format(create_time, '%Y%m%d') &gt;= date_format(#{params.beginCreateTime}, '%Y%m%d')
-            </if>
-            <if test="params.endCreateTime != null and params.endCreateTime != ''">
-                and date_format(create_time, '%Y%m%d') &lt;= date_format(#{params.endCreateTime}, '%Y%m%d')
-            </if>
+            <choose>
+                <when test="beginTime != null and beginTime != '' and endTime != null and endTime != ''">
+                    and create_time between #{beginTime} and #{endTime}
+                </when>
+                <otherwise>
+                    <if test="params.beginCreateTime != null and params.beginCreateTime != ''">
+                        and create_time &gt;= date(#{params.beginCreateTime})
+                    </if>
+                    <if test="params.endCreateTime != null and params.endCreateTime != ''">
+                        and create_time &lt; date_add(date(#{params.endCreateTime}), interval 1 day)
+                    </if>
+                </otherwise>
+            </choose>
         </where>
         order by access_id desc
     </select>
