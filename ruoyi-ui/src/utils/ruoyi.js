@@ -3,7 +3,8 @@
  * Copyright (c) 2019 ruoyi
  */
 
-const baseURL = process.env.VUE_APP_BASE_API
+import { Message } from 'element-ui'
+import { downloadExcel } from '@/utils/excelDownload'
 
 // 日期格式化
 export function parseTime(time, pattern) {
@@ -94,7 +95,10 @@ export function selectDictLabels(datas, value, separator) {
 
 // 通用下载方法
 export function download(fileName) {
-	window.location.href = baseURL + "/common/download?fileName=" + encodeURI(fileName) + "&delete=" + true;
+	return downloadExcel(fileName).catch(error => {
+		Message.error(error.message || 'Excel 导出失败，请重试。')
+		return false
+	})
 }
 
 // 字符串格式化(%s )
