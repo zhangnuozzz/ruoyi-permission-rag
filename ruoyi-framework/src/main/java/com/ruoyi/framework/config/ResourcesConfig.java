@@ -36,7 +36,7 @@ public class ResourcesConfig implements WebMvcConfigurer
     public void addResourceHandlers(ResourceHandlerRegistry registry)
     {
         /** 本地文件上传路径 */
-        registry.addResourceHandler(Constants.RESOURCE_PREFIX + "/**").addResourceLocations("file:" + RuoYiConfig.getProfile() + "/");
+        registry.addResourceHandler(Constants.RESOURCE_PREFIX + "/avatar/**").addResourceLocations("file:" + RuoYiConfig.getAvatarPath() + "/");
 
         /** swagger配置 */
         registry.addResourceHandler("swagger-ui.html").addResourceLocations("classpath:/META-INF/resources/");
@@ -53,11 +53,11 @@ public class ResourcesConfig implements WebMvcConfigurer
 
         registry.addInterceptor(ipBlockInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/login", "/logout", "/captchaImage", "/error", "/profile/**", "/common/**");
+                .excludePathPatterns("/login", "/logout", "/captchaImage", "/error", "/profile/**", "/common/upload");
 
         registry.addInterceptor(accessLogInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/login", "/logout", "/captchaImage", "/error", "/profile/**", "/common/**");
+                .excludePathPatterns("/login", "/logout", "/captchaImage", "/error", "/profile/**", "/common/upload");
     }
 
     /**
@@ -69,6 +69,7 @@ public class ResourcesConfig implements WebMvcConfigurer
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
+        config.addExposedHeader("Content-Disposition");
         // 设置访问源地址
         config.addAllowedOrigin("*");
         // 设置访问源请求头

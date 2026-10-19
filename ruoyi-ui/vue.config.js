@@ -37,6 +37,10 @@ module.exports = {
         // 固定走 IPv4 回环，避免 localhost 被解析为 ::1 或被系统代理接管。
         target: `http://127.0.0.1:8080`,
         changeOrigin: true,
+        onProxyReq(proxyReq, request) {
+          // 覆盖客户端自带的转发链，后端仅在登记本代理后采用该来源。
+          proxyReq.setHeader('X-Forwarded-For', request.socket.remoteAddress)
+        },
         pathRewrite: {
           ['^' + process.env.VUE_APP_BASE_API]: ''
         }

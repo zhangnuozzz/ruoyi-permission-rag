@@ -114,7 +114,6 @@ public class AccessLogInterceptor implements HandlerInterceptor
                 || uri.contains("/accessLog/")
                 || uri.contains("/captchaImage")
                 || uri.contains("/profile")
-                || uri.contains("/common/download")
                 || uri.contains("/common/upload")
                 || uri.contains("/webjars")
                 || uri.contains("/swagger")

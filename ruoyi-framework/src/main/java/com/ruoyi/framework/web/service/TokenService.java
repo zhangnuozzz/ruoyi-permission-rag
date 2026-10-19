@@ -28,6 +28,8 @@ import io.jsonwebtoken.SignatureAlgorithm;
 @Component
 public class TokenService
 {
+    public static final String REQUEST_LOGIN_USER = TokenService.class.getName() + ".validatedUser";
+
     // 令牌自定义标识
     @Value("${token.header}")
     private String header;
@@ -56,6 +58,15 @@ public class TokenService
      */
     public LoginUser getLoginUser(HttpServletRequest request)
     {
+        if (request == null)
+        {
+            return null;
+        }
+        Object validated = request.getAttribute(REQUEST_LOGIN_USER);
+        if (validated instanceof LoginUser)
+        {
+            return (LoginUser) validated;
+        }
         // 获取请求携带的令牌
         String token = getToken(request);
         if (StringUtils.isNotEmpty(token))

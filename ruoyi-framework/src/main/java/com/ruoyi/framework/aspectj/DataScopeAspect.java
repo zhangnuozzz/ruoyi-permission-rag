@@ -1,5 +1,8 @@
 package com.ruoyi.framework.aspectj;
 
+import java.util.Collections;
+import java.util.List;
+
 import java.lang.reflect.Method;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
@@ -71,23 +74,26 @@ public class DataScopeAspect
 
     protected void handleDataScope(final JoinPoint joinPoint)
     {
-        // 获得注解
-        DataScope controllerDataScope = getAnnotationLog(joinPoint);
-        if (controllerDataScope == null)
+        // 先覆盖外部传入或复用对象残留的 SQL 范围，未验证身份默认不返回数据。
+        setDataScope(joinPoint, " AND (1=0)");
+        DataScope dataScope = getAnnotationLog(joinPoint);
+        if (dataScope == null)
         {
             return;
         }
-        // 获取当前的用户
         LoginUser loginUser = SpringUtils.getBean(TokenService.class).getLoginUser(ServletUtils.getRequest());
-        if (StringUtils.isNotNull(loginUser))
+        if (loginUser == null || loginUser.getUser() == null)
         {
-            SysUser currentUser = loginUser.getUser();
-            // 如果是超级管理员，则不过滤数据
-            if (StringUtils.isNotNull(currentUser) && !currentUser.isAdmin())
-            {
-                dataScopeFilter(joinPoint, currentUser, controllerDataScope.deptAlias(),
-                        controllerDataScope.userAlias());
-            }
+            return;
+        }
+        SysUser currentUser = loginUser.getUser();
+        if (currentUser.isAdmin())
+        {
+            setDataScope(joinPoint, "");
+        }
+        else
+        {
+            dataScopeFilter(joinPoint, currentUser, dataScope.deptAlias(), dataScope.userAlias());
         }
     }
 
@@ -102,11 +108,18 @@ public class DataScopeAspect
     {
         StringBuilder sqlString = new StringBuilder();
 
-        for (SysRole role : user.getRoles())
+        boolean allData = false;
+        List<SysRole> roles = user.getRoles() == null ? Collections.emptyList() : user.getRoles();
+        for (SysRole role : roles)
         {
+            if (role == null || !"0".equals(role.getStatus()) || !"0".equals(role.getDelFlag()))
+            {
+                continue;
+            }
             String dataScope = role.getDataScope();
             if (DATA_SCOPE_ALL.equals(dataScope))
             {
+                allData = true;
                 sqlString = new StringBuilder();
                 break;
             }
@@ -140,14 +153,19 @@ public class DataScopeAspect
             }
         }
 
-        if (StringUtils.isNotBlank(sqlString.toString()))
+        if (!allData && sqlString.length() == 0)
         {
-            Object params = joinPoint.getArgs()[0];
-            if (StringUtils.isNotNull(params) && params instanceof BaseEntity)
-            {
-                BaseEntity baseEntity = (BaseEntity) params;
-                baseEntity.getParams().put(DATA_SCOPE, " AND (" + sqlString.substring(4) + ")");
-            }
+            sqlString.append(" OR 1=0 ");
+        }
+        setDataScope(joinPoint, allData ? "" : " AND (" + sqlString.substring(4) + ")");
+    }
+
+    private static void setDataScope(JoinPoint joinPoint, String condition)
+    {
+        Object[] args = joinPoint.getArgs();
+        if (args != null && args.length > 0 && args[0] instanceof BaseEntity)
+        {
+            ((BaseEntity) args[0]).getParams().put(DATA_SCOPE, condition);
         }
     }
 

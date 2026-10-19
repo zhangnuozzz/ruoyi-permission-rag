@@ -52,3 +52,7 @@ logs-local/
 
 .run-local/
 logs-local/
+
+# Runtime uploads and temporary exports
+uploadPath/
+/export/

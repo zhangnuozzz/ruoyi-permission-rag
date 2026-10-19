@@ -4,44 +4,133 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import javax.servlet.http.HttpServletRequest;
 import com.ruoyi.common.utils.StringUtils;
-import com.ruoyi.common.utils.html.EscapeUtil;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /**
  * 获取IP方法
  * 
  * @author ruoyi
  */
+@Component
 public class IpUtils
 {
+    private static volatile Set<String> trustedProxies = Collections.emptySet();
+
+    /** 只信任明确登记的直连代理，默认不接收客户端转发头。 */
+    @Value("${security.trusted-proxies:}")
+    public void setTrustedProxies(String addresses)
+    {
+        Set<String> configured = new HashSet<>();
+        if (addresses != null && !addresses.trim().isEmpty())
+        {
+            for (String address : addresses.split(",", -1))
+            {
+                String normalized = normalizeAddress(address);
+                if (normalized == null)
+                {
+                    throw new IllegalArgumentException("security.trusted-proxies 必须为逗号分隔的 IP 地址");
+                }
+                configured.add(normalized);
+            }
+        }
+        trustedProxies = Collections.unmodifiableSet(configured);
+    }
+
     public static String getIpAddr(HttpServletRequest request)
     {
         if (request == null)
         {
             return "unknown";
         }
-        String ip = request.getHeader("x-forwarded-for");
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
+        String peer = normalizeAddress(request.getRemoteAddr());
+        if (peer == null)
         {
-            ip = request.getHeader("Proxy-Client-IP");
+            return "unknown";
         }
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
+        Set<String> proxies = trustedProxies;
+        if (!proxies.contains(peer))
         {
-            ip = request.getHeader("X-Forwarded-For");
+            return peer;
         }
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded == null || forwarded.trim().isEmpty())
         {
-            ip = request.getHeader("WL-Proxy-Client-IP");
+            return peer;
         }
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
+        if (forwarded.length() > 1024)
         {
-            ip = request.getHeader("X-Real-IP");
+            return "unknown";
         }
+        String[] hops = forwarded.split(",", -1);
+        if (hops.length > 20)
+        {
+            return "unknown";
+        }
+        String[] normalized = new String[hops.length];
+        for (int i = 0; i < hops.length; i++)
+        {
+            normalized[i] = normalizeAddress(hops[i]);
+            if (normalized[i] == null)
+            {
+                return "unknown";
+            }
+        }
+        for (int i = normalized.length - 1; i >= 0; i--)
+        {
+            if (!proxies.contains(normalized[i]) || i == 0)
+            {
+                return normalized[i];
+            }
+        }
+        return peer;
+    }
 
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
+    /** 仅解析单个 IPv4/IPv6 字面地址，不解析主机名、网段或带端口的地址。 */
+    public static String normalizeAddress(String value)
+    {
+        if (value == null)
         {
-            ip = request.getRemoteAddr();
+            return null;
         }
-        return "0:0:0:0:0:0:0:1".equals(ip) ? "127.0.0.1" : EscapeUtil.clean(ip);
+        String address = value.trim();
+        if (address.isEmpty() || address.length() > 45)
+        {
+            return null;
+        }
+        if (address.indexOf(':') >= 0)
+        {
+            if (!address.matches("[0-9a-fA-F:.]+"))
+            {
+                return null;
+            }
+            try
+            {
+                InetAddress parsed = InetAddress.getByName(address);
+                return parsed.isLoopbackAddress() && address.indexOf('.') < 0
+                        ? "127.0.0.1" : parsed.getHostAddress();
+            }
+            catch (UnknownHostException e)
+            {
+                return null;
+            }
+        }
+        String[] parts = address.split("\\.", -1);
+        if (parts.length != 4)
+        {
+            return null;
+        }
+        for (String part : parts)
+        {
+            if (!part.matches("0|[1-9][0-9]{0,2}") || Integer.parseInt(part) > 255)
+            {
+                return null;
+            }
+        }
+        return address;
     }
 
     public static boolean internalIp(String ip)

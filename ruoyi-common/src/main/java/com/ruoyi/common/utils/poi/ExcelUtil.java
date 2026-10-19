@@ -17,6 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import com.ruoyi.common.utils.file.ExportFileStore;
+import com.ruoyi.common.utils.spring.SpringUtils;
 import java.util.stream.Collectors;
 import org.apache.poi.hssf.usermodel.HSSFDateUtil;
 import org.apache.poi.ss.usermodel.BorderStyle;
@@ -332,6 +336,7 @@ public class ExcelUtil<T>
     public AjaxResult exportExcel()
     {
         OutputStream out = null;
+        String filename = null;
         try
         {
             // 取出一共有多少个sheet.
@@ -355,14 +360,27 @@ public class ExcelUtil<T>
                     addStatisticsRow();
                 }
             }
-            String filename = encodingFilename(sheetName);
+            filename = encodingFilename(sheetName);
             out = new FileOutputStream(getAbsoluteFile(filename));
             wb.write(out);
+            out.close();
+            out = null;
+            SpringUtils.getBean(ExportFileStore.class).register(filename);
             return AjaxResult.success(filename);
         }
         catch (Exception e)
         {
-            log.error("导出Excel异常{}", e.getMessage());
+            if (out != null)
+            {
+                try { out.close(); } catch (IOException closeException) { e.addSuppressed(closeException); }
+                out = null;
+            }
+            if (filename != null)
+            {
+                try { Files.deleteIfExists(Paths.get(getAbsoluteFile(filename))); }
+                catch (IOException cleanupException) { e.addSuppressed(cleanupException); }
+            }
+            log.error("导出Excel失败", e);
             throw new CustomException("导出Excel失败，请联系网站管理员！");
         }
         finally

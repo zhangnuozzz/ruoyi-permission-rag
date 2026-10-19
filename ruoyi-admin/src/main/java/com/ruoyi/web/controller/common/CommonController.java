@@ -1,5 +1,15 @@
 package com.ruoyi.web.controller.common;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import org.springframework.util.StreamUtils;
+import com.ruoyi.common.exception.CustomException;
+import com.ruoyi.common.utils.file.ExportFileStore;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -10,11 +20,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import com.ruoyi.common.config.RuoYiConfig;
-import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.core.domain.AjaxResult;
-import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.file.FileUploadUtils;
-import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.framework.config.ServerConfig;
 
 /**
@@ -30,6 +37,9 @@ public class CommonController
     @Autowired
     private ServerConfig serverConfig;
 
+    @Autowired
+    private ExportFileStore exportFileStore;
+
     /**
      * 通用下载请求
      * 
@@ -38,29 +48,50 @@ public class CommonController
      */
     @GetMapping("common/download")
     public void fileDownload(String fileName, Boolean delete, HttpServletResponse response, HttpServletRequest request)
+            throws IOException
     {
+        final Path file;
         try
         {
-            if (!FileUtils.isValidFilename(fileName))
-            {
-                throw new Exception(StringUtils.format("文件名称({})非法，不允许下载。 ", fileName));
-            }
-            String realFileName = System.currentTimeMillis() + fileName.substring(fileName.indexOf("_") + 1);
-            String filePath = RuoYiConfig.getDownloadPath() + fileName;
-
-            response.setCharacterEncoding("utf-8");
-            response.setContentType("multipart/form-data");
-            response.setHeader("Content-Disposition",
-                    "attachment;fileName=" + FileUtils.setFileDownloadHeader(request, realFileName));
-            FileUtils.writeBytes(filePath, response.getOutputStream());
-            if (delete)
-            {
-                FileUtils.deleteFile(filePath);
-            }
+            file = exportFileStore.authorize(fileName);
         }
-        catch (Exception e)
+        catch (CustomException exception)
         {
-            log.error("下载文件失败", e);
+            response.sendError(exception.getCode() == null ? 403 : exception.getCode(), exception.getMessage());
+            return;
+        }
+        catch (Exception exception)
+        {
+            log.error("校验导出文件失败", exception);
+            response.sendError(503, "下载校验暂时不可用，请稍后重试。");
+            return;
+        }
+        try (InputStream input = Files.newInputStream(file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS))
+        {
+            String displayName = fileName.substring(fileName.indexOf('_') + 1);
+            String encodedName = URLEncoder.encode(displayName, "UTF-8").replace("+", "%20");
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedName);
+            response.setHeader("Cache-Control", "no-store");
+            response.setHeader("X-Content-Type-Options", "nosniff");
+            response.setContentLengthLong(Files.size(file));
+            StreamUtils.copy(input, response.getOutputStream());
+            response.flushBuffer();
+        }
+        catch (IOException exception)
+        {
+            log.warn("传输导出文件失败", exception);
+            if (!response.isCommitted())
+            {
+                response.reset();
+                response.sendError(500, "文件下载失败，请重新导出。");
+            }
+            return;
+        }
+        if (Boolean.TRUE.equals(delete))
+        {
+            try { exportFileStore.remove(fileName); }
+            catch (Exception exception) { log.warn("清理已下载导出文件失败，将由过期任务清理", exception); }
         }
     }
 
@@ -92,18 +123,8 @@ public class CommonController
      * 本地资源通用下载
      */
     @GetMapping("/common/download/resource")
-    public void resourceDownload(String name, HttpServletRequest request, HttpServletResponse response) throws Exception
+    public void resourceDownload(String name, HttpServletRequest request, HttpServletResponse response) throws IOException
     {
-        // 本地资源路径
-        String localPath = RuoYiConfig.getProfile();
-        // 数据库资源地址
-        String downloadPath = localPath + StringUtils.substringAfter(name, Constants.RESOURCE_PREFIX);
-        // 下载名称
-        String downloadName = StringUtils.substringAfterLast(downloadPath, "/");
-        response.setCharacterEncoding("utf-8");
-        response.setContentType("multipart/form-data");
-        response.setHeader("Content-Disposition",
-                "attachment;fileName=" + FileUtils.setFileDownloadHeader(request, downloadName));
-        FileUtils.writeBytes(downloadPath, response.getOutputStream());
+        response.sendError(403, "请通过对应业务接口访问文件。");
     }
 }

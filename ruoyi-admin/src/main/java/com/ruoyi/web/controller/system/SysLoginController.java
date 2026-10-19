@@ -1,6 +1,12 @@
 package com.ruoyi.web.controller.system;
 
 import java.util.List;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.HashSet;
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.ruoyi.framework.web.service.PlatformAccessService;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +45,9 @@ public class SysLoginController
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private PlatformAccessService platformAccess;
+
     /**
      * 登录方法
      * 
@@ -67,11 +76,24 @@ public class SysLoginController
         LoginUser loginUser = tokenService.getLoginUser(ServletUtils.getRequest());
         SysUser user = loginUser.getUser();
         // 角色集合
-        Set<String> roles = permissionService.getRolePermission(user);
-        // 权限集合
-        Set<String> permissions = permissionService.getMenuPermission(user);
+        Set<String> roles = new HashSet<>(permissionService.getRolePermission(user));
+        boolean platformUser = platformAccess.isPlatformUser();
+        if (!platformUser) roles.remove("admin");
+        Set<String> permissions = platformUser ? permissionService.getMenuPermission(user) : Collections.emptySet();
         AjaxResult ajax = AjaxResult.success();
-        ajax.put("user", user);
+        if (platformUser)
+        {
+            ajax.put("user", user);
+        }
+        else
+        {
+            Map<String, Object> identity = new LinkedHashMap<>();
+            identity.put("userId", user.getUserId());
+            identity.put("userName", user.getUserName());
+            identity.put("nickName", user.getNickName());
+            identity.put("avatar", user.getAvatar() == null ? "" : user.getAvatar());
+            ajax.put("user", identity);
+        }
         ajax.put("roles", roles);
         ajax.put("permissions", permissions);
         return ajax;
@@ -82,6 +104,7 @@ public class SysLoginController
      * 
      * @return 路由信息
      */
+    @PreAuthorize("@platformAccess.isPlatformUser()")
     @GetMapping("getRouters")
     public AjaxResult getRouters()
     {

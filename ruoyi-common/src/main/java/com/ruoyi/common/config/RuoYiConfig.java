@@ -1,5 +1,8 @@
 package com.ruoyi.common.config;
 
+import java.io.File;
+import java.nio.file.Paths;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -103,7 +106,7 @@ public class RuoYiConfig
      */
     public static String getDownloadPath()
     {
-        return getProfile() + "/download/";
+        return Paths.get(getProfile()).toAbsolutePath().normalize().resolveSibling("export").toString() + File.separator;
     }
 
     /**

@@ -51,12 +51,13 @@ const user = {
       return new Promise((resolve, reject) => {
         getInfo(state.token).then(res => {
           const user = res.user
-          const avatar = user.avatar == "" ? require("@/assets/image/profile.jpg") : process.env.VUE_APP_BASE_API + user.avatar;
+          const avatar = !user.avatar ? require('@/assets/image/profile.jpg') : process.env.VUE_APP_BASE_API + user.avatar
           if (res.roles && res.roles.length > 0) { // 验证返回的roles是否是一个非空数组
             commit('SET_ROLES', res.roles)
             commit('SET_PERMISSIONS', res.permissions)
           } else {
             commit('SET_ROLES', ['ROLE_DEFAULT'])
+            commit('SET_PERMISSIONS', [])
           }
           commit('SET_NAME', user.userName)
           commit('SET_AVATAR', avatar)
@@ -66,19 +67,18 @@ const user = {
         })
       })
     },
-    
+
     // 退出系统
     LogOut({ commit, state }) {
-      return new Promise((resolve, reject) => {
-        logout(state.token).then(() => {
-          commit('SET_TOKEN', '')
-          commit('SET_ROLES', [])
-          commit('SET_PERMISSIONS', [])
-          removeToken()
-          resolve()
-        }).catch(error => {
-          reject(error)
-        })
+      return logout(state.token).catch(() => {
+        // 服务端错误由请求层提示，仍必须结束本地登录，避免残留身份和权限。
+      }).finally(() => {
+        commit('SET_TOKEN', '')
+        commit('SET_NAME', '')
+        commit('SET_AVATAR', '')
+        commit('SET_ROLES', [])
+        commit('SET_PERMISSIONS', [])
+        removeToken()
       })
     },
 
@@ -86,6 +86,10 @@ const user = {
     FedLogOut({ commit }) {
       return new Promise(resolve => {
         commit('SET_TOKEN', '')
+        commit('SET_NAME', '')
+        commit('SET_AVATAR', '')
+        commit('SET_ROLES', [])
+        commit('SET_PERMISSIONS', [])
         removeToken()
         resolve()
       })

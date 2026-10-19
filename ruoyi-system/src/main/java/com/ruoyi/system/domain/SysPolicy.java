@@ -47,7 +47,7 @@ public class SysPolicy extends BaseEntity
     private String envExpr;
 
     /** 优先级，数值越小优先级越高 */
-    @Excel(name = "优先级，数值越小优先级越高")
+    @Excel(name = "优先级（预留，暂不参与判定）", width = 38)
     private Integer priority;
 
     /** 状态（0正常 1停用） */

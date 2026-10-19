@@ -1,6 +1,7 @@
 package com.ruoyi.system.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.system.domain.SysRagAuditLog;
+import com.ruoyi.system.domain.export.RagAuditExportRow;
 import com.ruoyi.system.service.ISysRagAuditLogService;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.common.core.page.TableDataInfo;
@@ -55,8 +57,9 @@ public class SysRagAuditLogController extends BaseController
     public AjaxResult export(SysRagAuditLog sysRagAuditLog)
     {
         List<SysRagAuditLog> list = sysRagAuditLogService.selectSysRagAuditLogList(sysRagAuditLog);
-        ExcelUtil<SysRagAuditLog> util = new ExcelUtil<SysRagAuditLog>(SysRagAuditLog.class);
-        return util.exportExcel(list, "RAG检索审计日志数据");
+        List<RagAuditExportRow> rows = list.stream().map(RagAuditExportRow::new).collect(Collectors.toList());
+        ExcelUtil<RagAuditExportRow> util = new ExcelUtil<RagAuditExportRow>(RagAuditExportRow.class);
+        return util.exportExcel(rows, "RAG检索审计日志数据");
     }
 
     /**

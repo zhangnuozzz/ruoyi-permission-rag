@@ -11,7 +11,7 @@
       </div>
 
       <el-alert
-        title="系统保留本地回环地址保护，避免本机管理访问被误封。"
+        title="白名单优先于黑名单；回环地址同样参与检查，请勿将当前管理来源地址误加入黑名单。"
         type="warning"
         :closable="false"
         show-icon
@@ -146,10 +146,10 @@
       />
     </el-card>
 
-    <el-dialog :title="title" :visible.sync="open" width="560px" append-to-body>
+    <el-dialog :title="title" :visible.sync="open" width="560px" append-to-body :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting">
       <el-form ref="form" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="IP地址" prop="ipaddr">
-          <el-input v-model="form.ipaddr" placeholder="请输入IP地址，例如 192.168.1.100" />
+          <el-input v-model="form.ipaddr" placeholder="请输入单个 IPv4 或 IPv6 地址" maxlength="45" />
         </el-form-item>
 
         <el-form-item label="封禁原因" prop="reason">
@@ -169,8 +169,8 @@
       </el-form>
 
       <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">确 定</el-button>
+        <el-button :disabled="submitting" @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
   </div>
@@ -184,6 +184,7 @@ export default {
   data() {
     return {
       loading: true,
+      submitting: false,
       ids: [],
       single: true,
       multiple: true,
@@ -219,10 +220,15 @@ export default {
       listIpBlacklist(this.queryParams).then(response => {
         this.ipBlacklistList = response.rows
         this.total = response.total
+      }).catch(() => {
+        this.ipBlacklistList = []
+        this.total = 0
+      }).finally(() => {
         this.loading = false
       })
     },
     cancel() {
+      if (this.submitting) return
       this.open = false
       this.reset()
     },
@@ -256,7 +262,7 @@ export default {
     },
     handleUpdate(row) {
       this.reset()
-      const blacklistId = row.blacklistId || this.ids
+      const blacklistId = row.blacklistId || this.ids[0]
       getIpBlacklist(blacklistId).then(response => {
         this.form = response.data
         this.open = true
@@ -264,22 +270,22 @@ export default {
       })
     },
     submitForm() {
-      this.$refs['form'].validate(valid => {
-        if (valid) {
-          if (this.form.blacklistId != null) {
-            updateIpBlacklist(this.form).then(() => {
-              this.$modal.msgSuccess('修改成功')
-              this.open = false
-              this.getList()
-            })
-          } else {
-            addIpBlacklist(this.form).then(() => {
-              this.$modal.msgSuccess('新增成功')
-              this.open = false
-              this.getList()
-            })
-          }
-        }
+      if (this.submitting) return
+      this.$refs.form.validate(valid => {
+        if (!valid || this.submitting) return
+        this.submitting = true
+        const payload = { ...this.form, ipaddr: (this.form.ipaddr || '').trim() }
+        const updating = payload.blacklistId != null
+        const save = updating ? updateIpBlacklist : addIpBlacklist
+        save(payload).then(() => {
+          this.$modal.msgSuccess(updating ? '修改成功' : '新增成功')
+          this.open = false
+          this.getList()
+        }).catch(() => {
+          // 保留表单，统一请求层显示服务端校验或网络错误。
+        }).finally(() => {
+          this.submitting = false
+        })
       })
     },
     handleDelete(row) {
@@ -293,7 +299,7 @@ export default {
       }).then(() => {
         this.getList()
         this.$modal.msgSuccess('删除成功')
-      })
+      }).catch(() => {})
     }
   }
 }

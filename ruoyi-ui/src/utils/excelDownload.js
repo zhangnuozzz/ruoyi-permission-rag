@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getToken } from '@/utils/auth'
 
 const activeDownloads = new Map()
 const workbookType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -63,21 +64,25 @@ function responseFileName(headers, fallback) {
   }
 }
 
-async function receiveWorkbook(fileName) {
+async function receiveWorkbook(fileName, token) {
   let response
   try {
-    // 保持原有文件下载接口的认证方式；导出生成仍由各业务接口校验权限。
     response = await axios.get(process.env.VUE_APP_BASE_API + '/common/download', {
-      params: { fileName, delete: true }, responseType: 'blob', timeout: 60000
+      params: { fileName, delete: true }, responseType: 'blob', timeout: 60000,
+      headers: { Authorization: 'Bearer ' + token }
     })
   } catch (error) {
     if (error && error.code === 'ECONNABORTED') throw new Error('Excel 下载超时，请稍后重试。')
+    const status = error && error.response && error.response.status
+    if (status === 403 || status === 404) throw new Error('导出文件已失效或不属于当前用户，请重新导出。')
+    if (error && error.message && error.message.includes('登录状态已失效')) throw error
     throw new Error('Excel 下载失败，请检查登录状态或网络后重试。')
   }
   const blob = response && response.data
   if (!(blob instanceof Blob) || !blob.size || !isWorkbook(await readBlob(blob))) {
     throw new Error('未收到有效的 Excel 工作簿，请重新导出；错误响应未保存为文件。')
   }
+  if (getToken() !== token) throw new Error('账号状态已变化，请在当前账号下重新导出。')
   const name = responseFileName(response.headers, fileName)
   const url = URL.createObjectURL(new Blob([blob], { type: workbookType }))
   const link = document.createElement('a')
@@ -97,11 +102,14 @@ async function receiveWorkbook(fileName) {
 export function downloadExcel(fileName) {
   try {
     validateFileName(fileName)
+    if (!getToken()) throw new Error('登录状态已失效，请重新登录后导出。')
   } catch (error) {
     return Promise.reject(error)
   }
-  if (activeDownloads.has(fileName)) return activeDownloads.get(fileName)
-  const pending = receiveWorkbook(fileName).finally(() => activeDownloads.delete(fileName))
-  activeDownloads.set(fileName, pending)
+  const token = getToken()
+  const key = token + ':' + fileName
+  if (activeDownloads.has(key)) return activeDownloads.get(key)
+  const pending = receiveWorkbook(fileName, token).finally(() => activeDownloads.delete(key))
+  activeDownloads.set(key, pending)
   return pending
 }

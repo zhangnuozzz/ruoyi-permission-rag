@@ -12,6 +12,7 @@ import com.ruoyi.system.domain.security.SecureQueryContext;
 import com.ruoyi.system.mapper.SecureQueryContextMapper;
 import com.ruoyi.system.mapper.BbacSecurityMapper;
 import com.ruoyi.system.service.ISecureQueryContextService;
+import com.ruoyi.system.service.IpAccessService;
 
 /**
  * VACP 查询安全上下文服务实现
@@ -37,6 +38,9 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
 
     @Autowired
     private BbacSecurityMapper bbacSecurityMapper;
+
+    @Autowired
+    private IpAccessService ipAccessService;
 
     @Override
     public SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK)
@@ -79,20 +83,20 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setUserAccessStatus(accessStatus);
         context.setUserRiskLevel(riskLevel);
 
-        // BBAC 1：校验来源 IP，白名单优先于黑名单。
-        // 白名单只跳过 IP 黑名单检查，后续频率、重复查询、风险评分等规则仍然执行。
-        if (clientIp != null && clientIp.length() > 0)
+        // 来源检查与请求入口使用同一判定规则；白名单不豁免后续行为和文档校验。
+        if (clientIp != null && !clientIp.isEmpty())
         {
-            boolean inWhitelist = bbacSecurityMapper.countActiveWhitelistIp(clientIp) > 0;
-
-            if (inWhitelist)
+            IpAccessService.Decision decision = ipAccessService.evaluate(clientIp);
+            if (decision == IpAccessService.Decision.WHITELIST)
             {
                 context.getReasons().add("BBAC_IP_WHITELIST_PASS");
             }
-            else if (bbacSecurityMapper.countActiveBlacklistIp(clientIp) > 0)
+            else if (decision == IpAccessService.Decision.BLACKLIST
+                    || decision == IpAccessService.Decision.INVALID)
             {
                 context.setAllowQuery(false);
-                context.getReasons().add("BBAC_IP_BLACKLIST_DENY");
+                context.getReasons().add(decision == IpAccessService.Decision.BLACKLIST
+                        ? "BBAC_IP_BLACKLIST_DENY" : "BBAC_CLIENT_IP_INVALID");
                 context.setRiskScore(100);
                 return context;
             }

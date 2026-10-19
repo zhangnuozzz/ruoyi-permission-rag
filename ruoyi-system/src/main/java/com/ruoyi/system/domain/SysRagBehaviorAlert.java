@@ -12,6 +12,7 @@ public class SysRagBehaviorAlert extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
 
+    @Excel(name = "告警ID", sort = 0)
     private Long id;
 
     @Excel(name = "来源审计日志ID")
@@ -55,6 +56,7 @@ public class SysRagBehaviorAlert extends BaseEntity
     private String handleRemark;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "告警时间", sort = 1, width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date createTime;
 
     public Long getId() { return id; }
