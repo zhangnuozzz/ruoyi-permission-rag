@@ -20,6 +20,17 @@
         class="tips-alert"
       />
 
+      <div class="forwarding-status" role="status">
+        <span v-if="forwardingError" class="forwarding-error">{{ forwardingError }}</span>
+        <template v-else-if="forwarding">
+          <el-tag size="small" :type="forwarding.state === 'ACTIVE' ? 'info' : 'warning'">{{ forwardingStateName }}</el-tag>
+          <span>本次运行已发送 {{ forwarding.sent }} 条，失败 {{ forwarding.failed }} 条，未发送 {{ forwarding.rejected }} 条，待发送 {{ forwarding.pending }} 条。</span>
+          <span>{{ forwarding.includeQuery ? '含查询正文' : '仅告警摘要' }}；发送计数不代表接收端确认。</span>
+        </template>
+        <span v-else>正在读取日志转发状态…</span>
+        <el-button type="text" size="small" :loading="forwardingLoading" @click="loadForwardingStatus">刷新状态</el-button>
+      </div>
+
       <el-row :gutter="12" class="summary-row">
         <el-col :span="6">
           <el-card shadow="never" class="summary-card">
@@ -293,7 +304,7 @@
 </template>
 
 <script>
-import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlertSyslog } from '@/api/rag/behaviorAlert'
+import { listBehaviorAlert, analyzeBehaviorAlert, handleBehaviorAlert, delBehaviorAlert, exportBehaviorAlertSyslog, getAlertForwardingStatus } from '@/api/rag/behaviorAlert'
 import { exportTable } from '@/utils/tableExport'
 import { canUse } from '@/utils/identityAccess'
 
@@ -307,6 +318,9 @@ export default {
       actionError: '',
       exporting: false,
       syslogExporting: false,
+      forwarding: null,
+      forwardingError: '',
+      forwardingLoading: false,
       total: 0,
       alertList: [],
       detailOpen: false,
@@ -333,6 +347,11 @@ export default {
     }
   },
   computed: {
+    forwardingStateName() {
+      if (!this.forwarding) return '日志转发状态未知'
+      const names = { ACTIVE: '日志转发已启用', DISABLED: '日志转发未启用', INVALID_CONFIGURATION: '日志转发配置无效', STOPPED: '日志转发已停止', NOT_STARTED: '日志转发未就绪' }
+      return names[this.forwarding.state] || '日志转发状态未知'
+    },
     canRestrictUser() { return Number(this.handleForm.userId) > 1 },
     handleActionDescription() {
       if (this.handleForm.action === 'BLOCK_USER') return '将该账号临时封禁 30 分钟，期间检索请求会被拒绝；不会删除账号。'
@@ -354,9 +373,28 @@ export default {
     }
   },
   created() {
+    this.loadForwardingStatus()
     this.getList()
   },
   methods: {
+    async loadForwardingStatus() {
+      if (this.forwardingLoading) return
+      this.forwardingLoading = true
+      try {
+        const response = await getAlertForwardingStatus()
+        if (!response || !response.data || typeof response.data.state !== 'string' ||
+            !['sent', 'failed', 'rejected', 'pending'].every(key => Number.isFinite(response.data[key]) && response.data[key] >= 0)) {
+          throw new Error('转发状态返回不完整')
+        }
+        this.forwarding = response.data
+        this.forwardingError = ''
+      } catch (error) {
+        this.forwarding = null
+        this.forwardingError = '日志转发状态读取失败，请重试。'
+      } finally {
+        this.forwardingLoading = false
+      }
+    },
     async getList() {
       const requestId = ++this.listRequestId
       this.loading = true
@@ -608,6 +646,7 @@ export default {
 </script>
 
 <style scoped>
+.forwarding-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; color: #606266; font-size: 12px; line-height: 1.7; }.forwarding-error { color: #c45656; }
 .behavior-alert-page {
   padding: 20px;
 }

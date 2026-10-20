@@ -173,6 +173,9 @@
           </div>
         </el-form-item>
 
+        <el-form-item v-if="uploadError">
+          <el-alert :title="uploadError" type="warning" :closable="false" show-icon />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="uploading" @click="handleUpload">上传入库</el-button>
           <el-button @click="resetUpload">重置</el-button>
@@ -184,7 +187,7 @@
     <el-card v-if="uploadResult" shadow="never" class="result-card">
       <div slot="header" class="table-header">
         <span>最近一次上传结果</span>
-        <el-tag type="success" size="mini">上传成功</el-tag>
+        <el-tag :type="Number(latestUpload.chunkCount) > 0 ? 'success' : 'warning'" size="mini">{{ Number(latestUpload.chunkCount) > 0 ? '已入库' : '已保存，未生成向量切块' }}</el-tag>
       </div>
 
       <el-descriptions :column="3" border>
@@ -201,7 +204,7 @@
           <el-tag type="info" size="mini">{{ latestUpload.fileType || '-' }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="解析方式">
-          <el-tag type="info" size="mini">{{ latestUpload.parseMethod || 'UTF8_TEXT' }}</el-tag>
+          <el-tag type="info" size="mini">{{ latestUpload.parseMethod || '未提供' }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="文件密级">
           <el-tag :type="tagType(latestUpload.securityLevel)" size="mini">{{ latestUpload.securityLevel || '-' }}</el-tag>
@@ -358,6 +361,7 @@
 </template>
 
 <script>
+import { fileUploadFailureMessage } from '@/utils/fileTransfer'
 import { uploadRagFile, listRagFileMariadb, listRagFileMilvus, listRagFileMinio, listRagUploadGroups } from '@/api/rag/file'
 
 export default {
@@ -365,6 +369,7 @@ export default {
   data() {
     return {
       uploading: false,
+      uploadError: '',
       refreshing: false,
       fileList: [],
       selectedFile: null,
@@ -545,17 +550,18 @@ export default {
       )
 
       this.uploading = true
+      this.uploadError = ''
       return uploadRagFile(data).then(response => {
         this.uploadResult = response.data || response
         this.fileList = []
         this.selectedFile = null
         if (this.$refs.upload) this.$refs.upload.clearFiles()
-        this.$modal.msgSuccess('文件上传入库成功')
+        if (Number(this.latestUpload.chunkCount) > 0) this.$modal.msgSuccess('文件上传入库成功')
+        else this.$modal.msgWarning('文件已保存，但未生成向量切块，请检查文件内容')
         this.refreshAll()
       }).catch(error => {
         this.uploadResult = null
-        const message = error && error.message ? error.message : '文件上传入库失败，请查看后端日志'
-        this.$modal.msgError(message)
+        this.uploadError = fileUploadFailureMessage(error)
       }).finally(() => {
         this.uploading = false
       })

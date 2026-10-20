@@ -20,6 +20,9 @@ public interface SysPolicyMapper
      */
     public SysPolicy selectSysPolicyById(Long id);
 
+    /** 锁定当前策略并清除旧会话缓存，串行维护策略及版本。 */
+    public SysPolicy selectSysPolicyByIdForUpdate(Long id);
+
     /**
      * 查询权限策略定义列表
      * 

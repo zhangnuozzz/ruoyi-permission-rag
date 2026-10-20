@@ -52,11 +52,11 @@
             <template slot-scope="scope"><span class="index-status" :class="isVectorReady(scope.row) ? 'ready' : 'pending'">{{ vectorStatus(scope.row) }}</span></template>
           </el-table-column>
           <el-table-column label="使用状态" width="100">
-            <template slot-scope="scope"><span class="index-status" :class="scope.row.metadataStatus === 'ACTIVE' ? 'ready' : 'paused'">{{ scope.row.metadataStatus === 'ACTIVE' ? '已启用' : scope.row.metadataStatus === 'UNAVAILABLE' ? '待修复' : '已停用' }}</span></template>
+            <template slot-scope="scope"><span class="index-status" :class="scope.row.metadataStatus === 'ACTIVE' ? 'ready' : 'paused'">{{ documentStatus(scope.row) }}</span></template>
           </el-table-column>
           <el-table-column label="操作" width="90" align="right">
             <template slot-scope="scope">
-              <el-button type="text" :disabled="!!changingId || scope.row.metadataStatus === 'UNAVAILABLE'" :loading="changingId === scope.row.fileId" @click="toggleStatus(scope.row)">{{ scope.row.metadataStatus === 'ACTIVE' ? '停用' : '启用' }}</el-button>
+              <el-button type="text" :disabled="!!changingId || !canChangeStatus(scope.row)" :loading="changingId === scope.row.fileId" @click="toggleStatus(scope.row)">{{ scope.row.metadataStatus === 'ACTIVE' ? '停用' : '启用' }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -72,6 +72,7 @@
     </p>
 
     <el-dialog title="上传知识文件" :visible.sync="uploadVisible" width="520px" :close-on-click-modal="false" :close-on-press-escape="!uploading" :show-close="!uploading" :before-close="closeUpload" append-to-body>
+      <el-alert v-if="uploadError" :title="uploadError" type="warning" :closable="false" show-icon />
       <div class="upload-intro">文件将进入知识库向量化流程；检索范围由文档密级和国家秘密的唯一知悉用户组决定。</div>
       <el-form label-position="top" class="upload-form" :disabled="uploading">
         <el-form-item label="选择文件" required>
@@ -101,6 +102,7 @@
 </template>
 
 <script>
+import { fileUploadFailureMessage } from '@/utils/fileTransfer'
 import { listMyKnowledge, listMyUploadGroups, uploadMyKnowledge, changeMyKnowledgeStatus } from '@/api/rag/myKnowledge'
 
 const LEVELS = [
@@ -115,7 +117,7 @@ export default {
   data() {
     return {
       files: [], total: 0, pageNum: 1, pageSize: 10, loading: false, loadError: '', fileRequestId: 0, groupRequestId: 0,
-      groups: [], groupsLoading: false, groupsError: false, userSecretLevel: 'PUBLIC', uploadVisible: false, uploading: false, changingId: '',
+      groups: [], groupsLoading: false, groupsError: false, uploadError: '', userSecretLevel: 'PUBLIC', uploadVisible: false, uploading: false, changingId: '',
       fileList: [], selectedFile: null, form: { groupCode: '', securityLevel: '' }
     }
   },
@@ -182,6 +184,7 @@ export default {
       if (this.uploading) return
       this.selectedFile = null
       this.fileList = []
+      this.uploadError = ''
       this.form.groupCode = ''
       this.form.securityLevel = this.userLevelRank >= 2 ? 'INTERNAL' : 'PUBLIC'
       this.uploadVisible = true
@@ -212,6 +215,7 @@ export default {
       data.append('groupCode', this.requiresKnowledgeGroup ? this.form.groupCode : '')
       data.append('securityLevel', this.form.securityLevel)
       this.uploading = true
+      this.uploadError = ''
       try {
         const response = await uploadMyKnowledge(data)
         const uploadResult = response.data
@@ -228,13 +232,17 @@ export default {
         this.pageNum = 1
         await this.loadFiles()
       } catch (error) {
-        // request 拦截器已展示服务端的具体错误。
+        this.uploadError = fileUploadFailureMessage(error)
       } finally {
         this.uploading = false
       }
     },
+    canChangeStatus(file) { return file.metadataStatus === 'ACTIVE' || file.metadataStatus === 'DISABLED' },
+    documentStatus(file) {
+      return { ACTIVE: '已启用', DISABLED: '已停用', ARCHIVED: '已归档', UNAVAILABLE: '待修复' }[file.metadataStatus] || '待核对'
+    },
     async toggleStatus(file) {
-      if (this.changingId || !file.fileId || file.metadataStatus === 'UNAVAILABLE') return
+      if (this.changingId || !file.fileId || !this.canChangeStatus(file)) return
       const enabled = file.metadataStatus !== 'ACTIVE'
       this.changingId = file.fileId
       try {

@@ -1,6 +1,8 @@
 package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.rag.RagAuditLog;
+import com.ruoyi.system.domain.rag.QueryExecutionStatus;
+import com.ruoyi.common.exception.CustomException;
 import com.ruoyi.system.mapper.RagAuditLogMapper;
 import com.ruoyi.system.mapper.BbacSecurityMapper;
 import com.ruoyi.system.service.IRagAuditLogService;
@@ -31,11 +33,15 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
     {
         if (auditLog != null)
         {
-            ragAuditLogMapper.insertRagAuditLog(auditLog);
+            int rows = ragAuditLogMapper.insertRagAuditLog(auditLog);
+            if (rows != 1 || auditLog.getId() == null || auditLog.getId() <= 0)
+            {
+                throw new CustomException("审计记录未能完整保存，本次请求未返回检索结果");
+            }
 
             /*
              * BBAC 连续失败闭环：
-             * allow_access = 1 表示放行，成功后连续失败次数清零；
+             * 获准且执行完成后清零；服务异常或缺少完成记录不改变失败计数；
              * allow_access = 0 表示拒绝，连续失败次数加 1；
              * 第 5 次连续失败时 Mapper 会立即锁定用户 30 分钟。
              */
@@ -43,7 +49,8 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
             {
                 if (auditLog.getUserId() != null)
                 {
-                    if ("1".equals(auditLog.getAllowAccess()))
+                    if (QueryExecutionStatus.from(auditLog.getAllowAccess(), auditLog.getResponseJson())
+                            == QueryExecutionStatus.COMPLETED)
                     {
                         bbacSecurityMapper.resetFailCount(auditLog.getUserId());
                     }

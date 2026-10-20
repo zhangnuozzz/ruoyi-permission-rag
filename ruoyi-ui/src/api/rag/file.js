@@ -1,10 +1,12 @@
 import request from '@/utils/request'
+import { FILE_UPLOAD_TIMEOUT, FILE_LIST_TIMEOUT } from '@/utils/fileTransfer'
 
 // 上传文件到 RAG Server
 export function uploadRagFile(data) {
   return request({
     url: '/rag/file/upload',
     method: 'post',
+    timeout: FILE_UPLOAD_TIMEOUT,
     data: data,
     headers: {
       'Content-Type': 'multipart/form-data'
@@ -16,6 +18,7 @@ export function uploadRagFile(data) {
 export function listRagFileMariadb() {
   return request({
     url: '/rag/file/platform/mariadb/list',
+    timeout: FILE_LIST_TIMEOUT,
     method: 'get'
   })
 }
@@ -32,6 +35,7 @@ export function listRagUploadGroups() {
 export function listRagFileMilvus(limit = 100) {
   return request({
     url: '/rag/file/milvus/list',
+    timeout: FILE_LIST_TIMEOUT,
     method: 'get',
     params: { limit }
   })
@@ -41,6 +45,7 @@ export function listRagFileMilvus(limit = 100) {
 export function listRagFileMinio(limit = 100) {
   return request({
     url: '/rag/file/minio/list',
+    timeout: FILE_LIST_TIMEOUT,
     method: 'get',
     params: { limit }
   })

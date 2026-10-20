@@ -12,7 +12,8 @@
       </div>
 
       <el-alert
-        title="审计链路：检索问题 → 查询安全上下文 → 权限上下文 → Metadata Filter → 安全向量检索 → 二次过滤 → 审计留痕"
+        title="请求准入与文档授权分别判定"
+        description="请求获准执行后，仍逐条校验文档。停用或不符合权限的候选会被拦截，不会返回给用户。"
         type="info"
         :closable="false"
         show-icon
@@ -28,19 +29,19 @@
         </el-col>
         <el-col :span="6">
           <el-card shadow="never" class="summary-card">
-            <div class="summary-label">当前页放行</div>
+            <div class="summary-label">当前页获准请求</div>
             <div class="summary-value success">{{ allowCount }}</div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="never" class="summary-card">
-            <div class="summary-label">当前页拒绝</div>
+            <div class="summary-label">当前页拒绝请求</div>
             <div class="summary-value danger">{{ denyCount }}</div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="never" class="summary-card">
-            <div class="summary-label">当前页拦截结果</div>
+            <div class="summary-label">当前页文档拦截次数</div>
             <div class="summary-value warning">{{ blockedResultCount }}</div>
           </el-card>
         </el-col>
@@ -94,15 +95,15 @@
           />
         </el-form-item>
 
-        <el-form-item label="访问决策" prop="allowAccess">
+        <el-form-item label="请求准入" prop="allowAccess">
           <el-select
             v-model="queryParams.allowAccess"
-            placeholder="访问决策"
+            placeholder="请求准入"
             clearable
             style="width: 120px"
           >
-            <el-option label="放行" value="1" />
-            <el-option label="拒绝" value="0" />
+            <el-option label="获准执行" value="1" />
+            <el-option label="请求拒绝" value="0" />
           </el-select>
         </el-form-item>
 
@@ -143,6 +144,7 @@
         <el-form-item>
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+          <el-button type="danger" plain size="mini" @click="showRejectedRequests">筛选请求拒绝</el-button>
           <el-button v-hasPermi="['system:log:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
@@ -155,11 +157,21 @@
         <el-table-column label="用户" align="center" prop="userName" width="110" />
         <el-table-column label="检索内容" align="center" prop="queryText" min-width="180" show-overflow-tooltip />
 
-        <el-table-column label="访问决策" align="center" prop="allowAccess" width="100">
+        <el-table-column label="请求准入" align="center" prop="allowAccess" width="110">
           <template slot-scope="scope">
-            <el-tag :type="scope.row.allowAccess === '1' ? 'success' : 'danger'" size="small">
-              {{ scope.row.allowAccess === '1' ? '放行' : '拒绝' }}
-            </el-tag>
+            <el-tag :type="requestTagType(scope.row)" size="small">{{ requestDecisionName(scope.row) }}</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="执行结果" align="center" width="110">
+          <template slot-scope="scope">
+            <el-tag :type="executionTagType(scope.row)" size="small">{{ executionStatusName(scope.row) }}</el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="文档校验" align="center" width="150">
+          <template slot-scope="scope">
+            <el-tag :type="documentTagType(scope.row)" size="small">{{ documentDecisionName(scope.row) }}</el-tag>
           </template>
         </el-table-column>
 
@@ -179,7 +191,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="通过/拦截" align="center" width="110">
+        <el-table-column label="可访问 / 拦截候选" align="center" width="150">
           <template slot-scope="scope">
             <span class="pass-count">{{ auditPassedCount(scope.row) }}</span>
             <span>/</span>
@@ -190,8 +202,12 @@
         <el-table-column label="用户组" align="center" prop="groupCodes" min-width="170" show-overflow-tooltip />
         <el-table-column label="权限标签" align="center" prop="scopeCodes" min-width="170" show-overflow-tooltip />
         <el-table-column label="Metadata Filter" align="center" prop="metadataFilter" min-width="240" show-overflow-tooltip />
-        <el-table-column label="拒绝原因" align="center" prop="denyReasons" min-width="150" show-overflow-tooltip />
-        <el-table-column label="结果拦截原因" align="center" prop="blockedReasons" min-width="220" show-overflow-tooltip />
+        <el-table-column label="请求拒绝原因" align="center" min-width="180" show-overflow-tooltip>
+          <template slot-scope="scope">{{ reasonText(scope.row.denyReasons) }}</template>
+        </el-table-column>
+        <el-table-column label="文档拦截原因" align="center" min-width="180" show-overflow-tooltip>
+          <template slot-scope="scope">{{ reasonText(scope.row.blockedReasons) }}</template>
+        </el-table-column>
         <el-table-column label="耗时(ms)" align="center" prop="costTime" width="100" />
         <el-table-column label="审计时间" align="center" prop="createTime" width="170">
           <template slot-scope="scope">
@@ -217,6 +233,8 @@
         </el-table-column>
       </el-table>
 
+      <p class="count-note">以上数量仅统计当前页；文档拦截按候选次数累计，同一文档在不同请求中分别计数。</p>
+
       <pagination
         v-show="total > 0"
         :total="total"
@@ -235,19 +253,22 @@
       <el-descriptions :column="3" border size="small" class="audit-desc">
         <el-descriptions-item label="审计ID">{{ jsonDetail.id }}</el-descriptions-item>
         <el-descriptions-item label="用户">{{ jsonDetail.userName }}</el-descriptions-item>
-        <el-descriptions-item label="访问决策">
-          <el-tag :type="jsonDetail.allowAccess === '1' ? 'success' : 'danger'" size="small">
-            {{ jsonDetail.allowAccess === '1' ? '放行' : '拒绝' }}
-          </el-tag>
+        <el-descriptions-item label="请求准入">
+          <el-tag :type="requestTagType(jsonDetail)" size="small">{{ requestDecisionName(jsonDetail) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="执行结果">
+          <el-tag :type="executionTagType(jsonDetail)" size="small">{{ executionStatusName(jsonDetail) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="文档校验">
+          <el-tag :type="documentTagType(jsonDetail)" size="small">{{ documentDecisionName(jsonDetail) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="风险分数">{{ jsonDetail.riskScore || 0 }}</el-descriptions-item>
         <el-descriptions-item label="受限查询">{{ jsonDetail.limitedQuery === '1' ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="通过/拦截">
+        <el-descriptions-item label="可访问 / 拦截候选">
           {{ auditPassedCount(jsonDetail) }} / {{ auditBlockedCount(jsonDetail) }}
         </el-descriptions-item>
-        <el-descriptions-item label="拦截原因" :span="3">
-          {{ jsonDetail.blockedReasons || jsonDetail.denyReasons || '暂无' }}
-        </el-descriptions-item>
+        <el-descriptions-item label="请求拒绝原因" :span="3">{{ reasonText(jsonDetail.denyReasons) }}</el-descriptions-item>
+        <el-descriptions-item label="文档拦截原因" :span="3">{{ reasonText(jsonDetail.blockedReasons) }}</el-descriptions-item>
       </el-descriptions>
 
       <el-tabs v-model="jsonActiveTab" class="json-tabs">
@@ -329,10 +350,10 @@ export default {
   },
   computed: {
     allowCount() {
-      return this.logList.filter(item => item.allowAccess === '1').length
+      return this.logList.filter(item => this.requestDecisionCode(item) === '1').length
     },
     denyCount() {
-      return this.logList.filter(item => item.allowAccess === '0').length
+      return this.logList.filter(item => this.requestDecisionCode(item) === '0').length
     },
     blockedResultCount() {
       return this.logList.reduce((sum, item) => {
@@ -344,6 +365,76 @@ export default {
     this.getList()
   },
   methods: {
+    requestDecisionCode(row) {
+      const value = row && row.allowAccess
+      if (value === '1' || value === 1 || value === true) return '1'
+      if (value === '0' || value === 0 || value === false) return '0'
+      return ''
+    },
+    requestDecisionName(row) {
+      const code = this.requestDecisionCode(row)
+      return code === '1' ? '获准执行' : code === '0' ? '请求拒绝' : '未判定'
+    },
+    requestTagType(row) {
+      const code = this.requestDecisionCode(row)
+      return code === '1' ? 'success' : code === '0' ? 'danger' : 'info'
+    },
+    executionStatusName(row) {
+      const admitted = this.requestDecisionCode(row)
+      if (admitted === '0') return '未执行'
+      if (admitted !== '1' || !row.responseJson) return '未记录'
+      try {
+        const response = JSON.parse(row.responseJson)
+        const code = response && String(response.code)
+        if (code === '200') return '已完成'
+        return /^[45][0-9]{2}$/.test(code) ? '执行失败' : '未记录'
+      } catch (error) {
+        return '未记录'
+      }
+    },
+    executionTagType(row) {
+      const name = this.executionStatusName(row)
+      return name === '已完成' ? 'success' : name === '执行失败' ? 'danger' : 'info'
+    },
+    documentDecisionName(row) {
+      const code = this.requestDecisionCode(row)
+      if (code === '0') return '请求已拒绝'
+      if (code !== '1') return '未判定'
+      if (this.executionStatusName(row) === '执行失败') return '执行已中断'
+      const blocked = this.auditBlockedCount(row)
+      if (blocked > 0) return '已拦截 ' + blocked + ' 条候选'
+      return this.auditPassedCount(row) > 0 ? '当前候选通过' : '无候选结果'
+    },
+    documentTagType(row) {
+      const code = this.requestDecisionCode(row)
+      if (code === '0') return 'danger'
+      if (code !== '1') return 'info'
+      if (this.executionStatusName(row) === '执行失败') return 'warning'
+      if (this.auditBlockedCount(row) > 0) return 'warning'
+      return this.auditPassedCount(row) > 0 ? 'success' : 'info'
+    },
+    reasonText(value) {
+      if (!value) return '—'
+      const names = {
+        DOCUMENT_STATUS_NOT_ACTIVE: '文档已停用',
+        DOCUMENT_METADATA_NOT_FOUND: '文档权限信息缺失',
+        INVALID_DOCUMENT_SECURITY_LEVEL: '文档密级缺失或无效',
+        USER_SECRET_LEVEL_LOWER_THAN_DOCUMENT: '人员密级不足',
+        USER_NOT_IN_DOCUMENT_KNOWLEDGE_GROUP: '不在文档知悉范围内',
+        STATE_SECRET_DOCUMENT_GROUP_NOT_CONFIGURED: '国家秘密文档未配置知悉组',
+        OUT_OF_USER_ACCESS_TIME_WINDOW: '不在允许访问时间内',
+        USER_ACCESS_STATUS_NOT_ACTIVE: '知识访问状态未启用',
+        USER_SECURITY_ATTR_NOT_FOUND: '人员安全属性缺失',
+        BBAC_IP_BLACKLIST_DENY: '访问来源在黑名单中',
+        RISK_SCORE_TOO_HIGH_QUERY_BLOCKED: '风险分数过高',
+        BBAC_REPEAT_QUERY_PATTERN_LIMITED: '重复查询受到限制'
+      }
+      return String(value).split(',').map(code => code.trim()).filter(Boolean).map(code => names[code] || code).join('；')
+    },
+    showRejectedRequests() {
+      this.queryParams.allowAccess = '0'
+      this.handleQuery()
+    },
     buildQueryParams() {
       const query = { ...this.queryParams }
       const dates = this.daterangeCreateTime
@@ -505,6 +596,7 @@ export default {
 </script>
 
 <style scoped>
+.count-note { color: #909399; font-size: 12px; line-height: 1.6; margin: 12px 0; }
 .rag-audit-page {
   padding: 20px;
 }

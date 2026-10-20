@@ -131,6 +131,10 @@ public class RagSearchController
     @SuppressWarnings("unchecked")
     private AjaxResult toKnowledgeResponse(AjaxResult response)
     {
+        if (Integer.valueOf(503).equals(response.get(AjaxResult.CODE_TAG)))
+        {
+            return AjaxResult.error(503, "知识服务暂时不可用，请稍后重试或联系管理员。");
+        }
         Map<String, Object> source = (Map<String, Object>) response.get(AjaxResult.DATA_TAG);
         boolean allowed = source != null && Boolean.TRUE.equals(source.get("allowAccess"));
         Map<String, Object> data = new LinkedHashMap<String, Object>();
@@ -267,34 +271,47 @@ public class RagSearchController
             return ajax;
         }
 
-        List<RagSearchResult> rawResults;
-
-        if (Boolean.TRUE.equals(request.getUseRemote()))
-        {
-            rawResults = ragRemoteSearchService.search(request, context, decision);
-        }
-        else
-        {
-            rawResults = ragDocMockSearchService.search(request.getQuery());
-        }
-
+        List<RagSearchResult> rawResults = new ArrayList<RagSearchResult>();
+        List<RagSearchResult> qualifiedResults = new ArrayList<RagSearchResult>();
+        List<RagSearchResult> rejectedResults = new ArrayList<RagSearchResult>();
+        List<RagSearchResult> filteredResults = new ArrayList<RagSearchResult>();
         int candidateLimit = RagSearchLimits.candidateLimit(secureQueryContext.getSafeTopK());
-        rawResults = limitResults(rawResults, candidateLimit);
-        List<RagSearchResult> qualifiedResults = ragSecondFilterService.filter(context, rawResults);
-        List<RagSearchResult> rejectedResults = buildRejectedResults(rawResults, qualifiedResults);
-        // 停用或越权候选不占用返回名额；回答仅使用限量后的授权片段。
-        List<RagSearchResult> filteredResults = limitResults(qualifiedResults, secureQueryContext.getSafeTopK());
-
         String answer = "";
         String answerModel = "";
         long answerCostTime = 0L;
-
-        if (Boolean.TRUE.equals(decision.getAllowAccess()))
+        String failureStage = "RETRIEVAL";
+        try
         {
+            rawResults = Boolean.TRUE.equals(request.getUseRemote())
+                    ? ragRemoteSearchService.search(request, context, decision)
+                    : ragDocMockSearchService.search(request.getQuery());
+            rawResults = limitResults(rawResults, candidateLimit);
+            failureStage = "DOCUMENT_AUTHORIZATION";
+            qualifiedResults = ragSecondFilterService.filter(context, rawResults);
+            rejectedResults = buildRejectedResults(rawResults, qualifiedResults);
+            filteredResults = limitResults(qualifiedResults, secureQueryContext.getSafeTopK());
+
+            failureStage = "ANSWER_GENERATION";
             long answerStartTime = System.currentTimeMillis();
             answerModel = ragAnswerService.getModelName();
             answer = ragAnswerService.generateAnswer(request.getQuery(), filteredResults);
             answerCostTime = System.currentTimeMillis() - answerStartTime;
+        }
+        catch (RuntimeException exception)
+        {
+            log.warn("知识请求执行失败，用户ID：{}，阶段：{}，异常类型：{}",
+                    userId, failureStage, exception.getClass().getSimpleName());
+            Map<String, Object> failed = new LinkedHashMap<String, Object>();
+            failed.put("allowAccess", true);
+            failed.put("executionStatus", "FAILED");
+            failed.put("failureStage", failureStage);
+            long failureCost = System.currentTimeMillis() - startTime;
+            failed.put("costTime", failureCost);
+            AjaxResult response = new AjaxResult(503,
+                    "知识服务暂时不可用，请稍后重试或联系管理员。", failed);
+            recordAuditLog(request, context, decision, secureQueryContext,
+                    failureCost, rawResults, qualifiedResults, rejectedResults, response);
+            return response;
         }
 
         long costTime = System.currentTimeMillis() - startTime;

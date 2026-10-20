@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { FILE_UPLOAD_TIMEOUT } from '@/utils/fileTransfer'
 
 export function listMyKnowledge(params) {
   return request({ url: '/rag/file/mine/list', method: 'get', params })
@@ -14,7 +15,7 @@ export function uploadMyKnowledge(data) {
     method: 'post',
     data,
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000
+    timeout: FILE_UPLOAD_TIMEOUT
   })
 }
 

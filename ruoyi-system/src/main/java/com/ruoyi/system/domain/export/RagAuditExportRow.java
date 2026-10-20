@@ -3,6 +3,7 @@ package com.ruoyi.system.domain.export;
 import java.util.Date;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.system.domain.SysRagAuditLog;
+import com.ruoyi.system.domain.rag.QueryExecutionStatus;
 
 /** 检索审计导出行，显式限定导出字段，保留记录编号和发生时间。 */
 public final class RagAuditExportRow
@@ -31,10 +32,10 @@ public final class RagAuditExportRow
     @Excel(name = "元数据过滤条件", sort = 7)
     private final String metadataFilter;
 
-    @Excel(name = "是否放行", sort = 8, readConverterExp = "1=放行,0=拒绝")
+    @Excel(name = "请求准入", sort = 8, readConverterExp = "1=获准执行,0=请求拒绝")
     private final String allowAccess;
 
-    @Excel(name = "拒绝原因", sort = 9)
+    @Excel(name = "请求拒绝原因", sort = 9)
     private final String denyReasons;
 
     @Excel(name = "风险分数", sort = 10)
@@ -43,17 +44,20 @@ public final class RagAuditExportRow
     @Excel(name = "是否受限查询", sort = 11, readConverterExp = "1=是,0=否")
     private final String limitedQuery;
 
-    @Excel(name = "通过结果数量", sort = 12)
+    @Excel(name = "可访问候选数量", sort = 12)
     private final Integer passedCount;
 
-    @Excel(name = "拦截结果数量", sort = 13)
+    @Excel(name = "已拦截候选数量", sort = 13)
     private final Integer blockedCount;
 
-    @Excel(name = "拦截原因汇总", sort = 14)
+    @Excel(name = "文档拦截原因汇总", sort = 14)
     private final String blockedReasons;
 
     @Excel(name = "耗时，单位毫秒", sort = 15)
     private final Long costTime;
+
+    @Excel(name = "执行结果", sort = 16)
+    private final String executionStatus;
 
     public RagAuditExportRow(SysRagAuditLog source)
     {
@@ -73,5 +77,6 @@ public final class RagAuditExportRow
         this.blockedCount = source.getBlockedCount();
         this.blockedReasons = source.getBlockedReasons();
         this.costTime = source.getCostTime();
+        this.executionStatus = QueryExecutionStatus.from(source.getAllowAccess(), source.getResponseJson()).getLabel();
     }
 }

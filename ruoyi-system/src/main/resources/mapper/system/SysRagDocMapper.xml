@@ -34,7 +34,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectSysRagDocList" parameterType="SysRagDoc" resultMap="SysRagDocResult">
         <include refid="selectSysRagDocVo"/>
-        <where>  
+        <where>
+            del_flag = '0'
             <if test="docId != null  and docId != ''"> and doc_id like concat('%', #{docId}, '%')</if>
             <if test="docName != null  and docName != ''"> and doc_name like concat('%', #{docName}, '%')</if>
             <if test="uploadUserName != null  and uploadUserName != ''"> and upload_user_name like concat('%', #{uploadUserName}, '%')</if>
@@ -49,7 +50,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     
     <select id="selectSysRagDocById" parameterType="Long" resultMap="SysRagDocResult">
         <include refid="selectSysRagDocVo"/>
-        where id = #{id}
+        where id = #{id} and del_flag = '0'
+    </select>
+
+    <select id="selectSysRagDocByIdForUpdate" parameterType="Long" resultMap="SysRagDocResult" useCache="false" flushCache="true">
+        <include refid="selectSysRagDocVo"/>
+        where id = #{id} and del_flag = '0'
+        for update
     </select>
 
     <select id="selectSysRagDocByDocId" parameterType="String" resultMap="SysRagDocResult">
@@ -67,9 +74,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="uploadUserName != null and uploadUserName != ''">upload_user_name,</if>
             <if test="scopeCode != null and scopeCode != ''">scope_code,</if>
             <if test="securityLevel != null and securityLevel != ''">security_level,</if>
-            <if test="ownerGroupCode != null">owner_group_code,</if>
+            <if test="ownerGroupCode != null">owner_group_code, doc_group_id,</if>
             <if test="ownerGroupName != null">owner_group_name,</if>
-            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">owner_group_secret_level,</if>
+            <if test="ownerGroupSecretLevel != null">owner_group_secret_level,</if>
             <if test="metadataStatus != null and metadataStatus != ''">metadata_status,</if>
             <if test="status != null and status != ''">status,</if>
             <if test="remark != null">remark,</if>
@@ -86,9 +93,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="uploadUserName != null and uploadUserName != ''">#{uploadUserName},</if>
             <if test="scopeCode != null and scopeCode != ''">#{scopeCode},</if>
             <if test="securityLevel != null and securityLevel != ''">#{securityLevel},</if>
-            <if test="ownerGroupCode != null">#{ownerGroupCode},</if>
+            <if test="ownerGroupCode != null">#{ownerGroupCode}, #{ownerGroupCode},</if>
             <if test="ownerGroupName != null">#{ownerGroupName},</if>
-            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">#{ownerGroupSecretLevel},</if>
+            <if test="ownerGroupSecretLevel != null">#{ownerGroupSecretLevel},</if>
             <if test="metadataStatus != null and metadataStatus != ''">#{metadataStatus},</if>
             <if test="status != null and status != ''">#{status},</if>
             <if test="remark != null">#{remark},</if>
@@ -103,25 +110,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <update id="updateSysRagDoc" parameterType="SysRagDoc">
         update sys_rag_doc
         <trim prefix="SET" suffixOverrides=",">
-            <if test="docId != null and docId != ''">doc_id = #{docId},</if>
             <if test="docName != null and docName != ''">doc_name = #{docName},</if>
-            <if test="uploadUserId != null">upload_user_id = #{uploadUserId},</if>
-            <if test="uploadUserName != null and uploadUserName != ''">upload_user_name = #{uploadUserName},</if>
             <if test="scopeCode != null and scopeCode != ''">scope_code = #{scopeCode},</if>
             <if test="securityLevel != null and securityLevel != ''">security_level = #{securityLevel},</if>
-            <if test="ownerGroupCode != null">owner_group_code = #{ownerGroupCode},</if>
+            <if test="ownerGroupCode != null">owner_group_code = #{ownerGroupCode}, doc_group_id = #{ownerGroupCode},</if>
             <if test="ownerGroupName != null">owner_group_name = #{ownerGroupName},</if>
-            <if test="ownerGroupSecretLevel != null and ownerGroupSecretLevel != ''">owner_group_secret_level = #{ownerGroupSecretLevel},</if>
+            <if test="ownerGroupSecretLevel != null">owner_group_secret_level = #{ownerGroupSecretLevel},</if>
             <if test="metadataStatus != null and metadataStatus != ''">metadata_status = #{metadataStatus},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             <if test="remark != null">remark = #{remark},</if>
-            <if test="createBy != null">create_by = #{createBy},</if>
-            <if test="createTime != null">create_time = #{createTime},</if>
             <if test="updateBy != null">update_by = #{updateBy},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>
-            <if test="delFlag != null">del_flag = #{delFlag},</if>
         </trim>
-        where id = #{id}
+        where id = #{id} and del_flag = '0'
     </update>
 
     <delete id="deleteSysRagDocById" parameterType="Long">

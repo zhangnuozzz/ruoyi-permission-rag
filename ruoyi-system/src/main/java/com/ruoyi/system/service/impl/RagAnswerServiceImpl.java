@@ -2,6 +2,8 @@ package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.service.IRagAnswerService;
+import com.ruoyi.common.exception.CustomException;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -32,7 +34,15 @@ public class RagAnswerServiceImpl implements IRagAnswerService
     @Value("${rag.answer.temperature:${RAG_ANSWER_TEMPERATURE:0.2}}")
     private Double temperature;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate()
+    {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(30000);
+        return new RestTemplate(factory);
+    }
 
     @Override
     public boolean isEnabled()
@@ -99,7 +109,7 @@ public class RagAnswerServiceImpl implements IRagAnswerService
 
         if (!(response instanceof Map))
         {
-            return "外部模型返回格式异常，未能生成回答。";
+            throw new CustomException("回答服务未返回有效内容");
         }
 
         Map<String, Object> responseMap = (Map<String, Object>) response;
@@ -107,13 +117,13 @@ public class RagAnswerServiceImpl implements IRagAnswerService
 
         if (!(choicesObj instanceof List) || ((List<?>) choicesObj).isEmpty())
         {
-            return "外部模型未返回 choices，未能生成回答。";
+            throw new CustomException("回答服务未返回有效内容");
         }
 
         Object firstChoiceObj = ((List<?>) choicesObj).get(0);
         if (!(firstChoiceObj instanceof Map))
         {
-            return "外部模型 choices 格式异常，未能生成回答。";
+            throw new CustomException("回答服务未返回有效内容");
         }
 
         Map<String, Object> firstChoice = (Map<String, Object>) firstChoiceObj;
@@ -122,19 +132,19 @@ public class RagAnswerServiceImpl implements IRagAnswerService
         if (messageObj instanceof Map)
         {
             Object content = ((Map<String, Object>) messageObj).get("content");
-            if (content != null)
+            if (content instanceof String && !((String) content).trim().isEmpty())
             {
                 return String.valueOf(content);
             }
         }
 
         Object text = firstChoice.get("text");
-        if (text != null)
+        if (text instanceof String && !((String) text).trim().isEmpty())
         {
             return String.valueOf(text);
         }
 
-        return "外部模型返回内容为空，未能生成回答。";
+        throw new CustomException("回答服务未返回有效内容");
     }
 
     private String buildAuthorizedContext(List<RagSearchResult> filteredResults)

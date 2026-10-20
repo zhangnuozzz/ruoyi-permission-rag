@@ -21,6 +21,7 @@ import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.system.domain.SysRagBehaviorAlert;
 import com.ruoyi.system.service.ISysRagBehaviorAlertService;
+import com.ruoyi.system.service.SyslogForwardService;
 import com.ruoyi.common.utils.SecurityUtils;
 
 /**
@@ -32,6 +33,16 @@ public class SysRagBehaviorAlertController extends BaseController
 {
     @Autowired
     private ISysRagBehaviorAlertService sysRagBehaviorAlertService;
+
+    @Autowired
+    private SyslogForwardService syslogForwardService;
+
+    @PreAuthorize("@ss.hasPermi('system:behaviorAlert:list')")
+    @GetMapping("/forwarding/status")
+    public AjaxResult forwardingStatus()
+    {
+        return AjaxResult.success(syslogForwardService.getStatus());
+    }
 
     @PreAuthorize("@ss.hasPermi('system:behaviorAlert:list')")
     @GetMapping("/list")

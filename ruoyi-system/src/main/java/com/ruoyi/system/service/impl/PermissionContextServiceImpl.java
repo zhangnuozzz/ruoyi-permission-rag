@@ -1,7 +1,7 @@
 package com.ruoyi.system.service.impl;
 
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -14,6 +14,7 @@ import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.system.domain.permission.GroupInfo;
 import com.ruoyi.system.domain.permission.PermissionContext;
 import com.ruoyi.system.domain.permission.PolicyInfo;
+import com.ruoyi.system.domain.permission.WorkingHoursRule;
 import com.ruoyi.system.mapper.PermissionContextMapper;
 import com.ruoyi.system.service.IPermissionContextService;
 
@@ -31,6 +32,8 @@ public class PermissionContextServiceImpl implements IPermissionContextService
 {
     @Autowired
     private PermissionContextMapper permissionContextMapper;
+
+    private Clock clock = Clock.systemDefaultZone();
 
     @Override
     public PermissionContext buildContext(Long userId, String userName, Boolean admin)
@@ -97,38 +100,38 @@ public class PermissionContextServiceImpl implements IPermissionContextService
          * 策略用于进一步限制，而不是产生基础知悉权限。
          */
 
-        // 第一版仅识别简单的“非工作时间禁止访问”表达式。
-        // 例如：time not in [09:00-18:00]
+        if (context.getPolicies() == null)
+        {
+            context.setAllowAccess(false);
+            context.getDenyReasons().add("POLICY_CONTEXT_UNAVAILABLE");
+            return;
+        }
         for (PolicyInfo policy : context.getPolicies())
         {
-            if ("1".equals(policy.getEffect()) && containsOffHoursRule(policy.getEnvExpr()))
+            if (policy == null || (!WorkingHoursRule.isDeny(policy.getEffect())
+                    && !WorkingHoursRule.isAllow(policy.getEffect())))
             {
-                if (isOutsideWorkingHours())
-                {
-                    context.setAllowAccess(false);
-                    context.getDenyReasons().add("OUT_OF_WORKING_HOURS");
-                    return;
-                }
+                context.setAllowAccess(false);
+                context.getDenyReasons().add("INVALID_ACCESS_POLICY");
+                return;
+            }
+            if (!WorkingHoursRule.isDeny(policy.getEffect()))
+            {
+                continue;
+            }
+            if (!WorkingHoursRule.supports(policy.getEffect(), policy.getResourceExpr(), policy.getEnvExpr()))
+            {
+                context.setAllowAccess(false);
+                context.getDenyReasons().add("UNSUPPORTED_ACCESS_POLICY");
+                return;
+            }
+            if (WorkingHoursRule.isOutside(LocalTime.now(clock)))
+            {
+                context.setAllowAccess(false);
+                context.getDenyReasons().add("OUT_OF_WORKING_HOURS");
+                return;
             }
         }
-
         context.setAllowAccess(true);
-    }
-
-    private boolean containsOffHoursRule(String envExpr)
-    {
-        if (envExpr == null)
-        {
-            return false;
-        }
-        return envExpr.contains("time not in") && envExpr.contains("09:00-18:00");
-    }
-
-    private boolean isOutsideWorkingHours()
-    {
-        LocalTime now = LocalTime.now();
-        LocalTime start = LocalTime.parse("09:00", DateTimeFormatter.ofPattern("HH:mm"));
-        LocalTime end = LocalTime.parse("18:00", DateTimeFormatter.ofPattern("HH:mm"));
-        return now.isBefore(start) || now.isAfter(end);
     }
 }

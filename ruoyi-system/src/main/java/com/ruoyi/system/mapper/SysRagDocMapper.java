@@ -19,6 +19,9 @@ public interface SysRagDocMapper
      */
     public SysRagDoc selectSysRagDocById(Long id);
 
+    /** 锁定并读取当前已提交标签，避免使用普通查询的会话缓存。 */
+    public SysRagDoc selectSysRagDocByIdForUpdate(Long id);
+
     /**
      * 根据文档ID查询文档权限标签
      *

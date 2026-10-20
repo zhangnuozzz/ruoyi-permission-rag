@@ -114,7 +114,7 @@
 
               <div class="permission-row">
                 <span>人员密级</span>
-                <strong>{{ securityLevelName(userContext.userSecretLevel) }}</strong>
+                <strong>{{ contextLoading ? '读取中' : securityLevelName(userContext.userSecretLevel) }}</strong>
               </div>
 
               <div class="permission-row">
@@ -137,6 +137,8 @@
                   </span>
                 </div>
               </div>
+
+              <div v-if="contextError" class="permission-note" role="status">{{ contextError }}</div>
 
               <div class="permission-note">
                 公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。
@@ -164,11 +166,6 @@
           </div>
 
           <h1>欢迎使用向量库访问控制系统</h1>
-
-          <p>
-            基于向量检索、权限控制与大模型能力，为知识访问提供
-            安全、可信、可审计的智能检索与问答服务。
-          </p>
 
           <div class="quick-grid">
             <div
@@ -305,7 +302,7 @@
                       {{
                         message.blocked
                           ? '请求已执行安全策略'
-                          : '本次回答已通过权限过滤'
+                          : '引用资料已通过权限校验'
                       }}
                     </span>
 
@@ -370,7 +367,7 @@
             class="send-button"
             type="primary"
             :loading="loading"
-            :disabled="!question.trim()"
+            :disabled="!question.trim() || loading"
             @click="sendQuestion"
           >
             <i
@@ -407,6 +404,11 @@ export default {
       loading: false,
       messages: [],
       userContext: {},
+      contextLoading: false,
+      contextError: '',
+      contextVersion: 0,
+      conversationVersion: 0,
+      disposed: false,
       history: [],
       quickQuestions: [
         {
@@ -446,10 +448,6 @@ export default {
         : 'U'
     },
 
-    historyStorageKey() {
-      return 'vectorKnowledgeQuestionHistory:' + this.userName
-    },
-
     isAdmin() {
       const roles = this.$store.getters.roles || []
       return roles.indexOf('admin') !== -1
@@ -457,24 +455,59 @@ export default {
   },
 
   created() {
-    this.loadContext()
-    this.loadHistory()
+    this.clearStoredHistory()
+    this.loadContext().catch(() => {})
+  },
+
+  beforeDestroy() {
+    this.disposed = true
+    this.conversationVersion++
+    this.contextVersion++
+    this.messages = []
+    this.history = []
+    this.question = ''
+    this.userContext = {}
   },
 
   methods: {
-    loadContext() {
-      getRagUserContext()
-        .then(response => {
-          this.userContext = Object.assign({}, this.userContext, response.data || {})
-        })
-        .catch(() => {})
-      listMyUploadGroups()
-        .then(response => {
-          this.userContext = Object.assign({}, this.userContext, {
-            userSecretLevel: (response.data || {}).userSecretLevel || 'PUBLIC'
-          })
-        })
-        .catch(() => {})
+    async loadContext() {
+      const version = ++this.contextVersion
+      const identity = this.$store.getters.token
+      this.contextLoading = true
+      this.contextError = ''
+      this.userContext = {}
+      try {
+        const [contextResponse, accessResponse] = await Promise.all([
+          getRagUserContext(), listMyUploadGroups()
+        ])
+        const context = contextResponse && contextResponse.data
+        const access = accessResponse && accessResponse.data
+        if (!contextResponse || contextResponse.code !== 200 ||
+            !accessResponse || accessResponse.code !== 200 ||
+            !context || !Array.isArray(context.groupCodes) ||
+            !access || !['PUBLIC', 'INTERNAL', 'SECRET', 'CONFIDENTIAL'].includes(access.userSecretLevel)) {
+          throw new Error('Invalid permission summary')
+        }
+        if (!this.disposed && version === this.contextVersion && identity === this.$store.getters.token) {
+          this.userContext = {
+            userId: context.userId,
+            userName: context.userName,
+            groupCodes: context.groupCodes.filter(code => typeof code === 'string'),
+            userSecretLevel: access.userSecretLevel
+          }
+          return this.userContext
+        }
+        return null
+      } catch (error) {
+        if (!this.disposed && version === this.contextVersion && identity === this.$store.getters.token) {
+          this.contextError = '权限信息暂时无法获取'
+        }
+        throw error
+      } finally {
+        if (!this.disposed && version === this.contextVersion && identity === this.$store.getters.token) {
+          this.contextLoading = false
+        }
+      }
     },
 
     securityLevelName(level) {
@@ -482,15 +515,11 @@ export default {
       return names[level] || '未获取'
     },
 
-    loadHistory() {
+    clearStoredHistory() {
       try {
-        const value = localStorage.getItem(this.historyStorageKey)
-
-        this.history = value
-          ? JSON.parse(value)
-          : []
-      } catch (e) {
-        this.history = []
+        localStorage.removeItem('vectorKnowledgeQuestionHistory:' + this.userName)
+      } catch (error) {
+        // 浏览器存储不可用不影响问答。
       }
     },
 
@@ -510,8 +539,6 @@ export default {
           historyItem => historyItem.query !== query
         )
       ].slice(0, 8)
-
-      localStorage.setItem(this.historyStorageKey, JSON.stringify(this.history))
     },
 
     useHistory(item) {
@@ -519,17 +546,19 @@ export default {
       this.question = item.query
 
       this.$nextTick(() => {
-        this.$refs.questionInput.focus()
+        if (this.$refs.questionInput) this.$refs.questionInput.focus()
       })
     },
 
     newConversation() {
+      this.conversationVersion++
+      this.loading = false
       this.activeView = 'chat'
       this.messages = []
       this.question = ''
 
       this.$nextTick(() => {
-        this.$refs.questionInput.focus()
+        if (this.$refs.questionInput) this.$refs.questionInput.focus()
       })
     },
 
@@ -547,158 +576,115 @@ export default {
       this.sendQuestion()
     },
 
-    showPermissionSummary() {
+    async showPermissionSummary() {
+      if (this.loading || this.disposed) return
+      const turn = this.currentTurn()
       const query = '查看我的可访问内容'
-
-      this.messages.push({
-        role: 'user',
-        content: query
-      })
-
+      this.activeView = 'chat'
+      this.loading = true
+      this.messages.push({ role: 'user', content: query })
       this.saveHistory(query)
       this.scrollToBottom()
-
-      Promise.all([getRagUserContext(), listMyUploadGroups()])
-        .then(([contextResponse, accessResponse]) => {
-          const context = contextResponse.data || {}
-          const userSecretLevel = (accessResponse.data || {}).userSecretLevel || 'PUBLIC'
-
-          this.userContext = Object.assign({}, context, { userSecretLevel })
-
-          const groups =
-            context.groupCodes &&
-            context.groupCodes.length
-              ? context.groupCodes.join('、')
-              : '暂无国家秘密知悉用户组'
-
-          const content =
-            '已读取当前账号的权限摘要：\n\n' +
-            '当前用户：' +
-            (context.userName || this.userName) +
-            '\n' +
-            '人员密级：' +
-            this.securityLevelName(userSecretLevel) +
-            '\n' +
-            '国家秘密知悉用户组：' +
-            groups +
-            '\n\n' +
-            '公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。具体文档以本次访问校验结果为准。'
-
-          this.messages.push({
-            role: 'assistant',
-            content: content,
-            blocked: false,
-            sources: [],
-            security: null
-          })
-
-          this.scrollToBottom()
-        })
-        .catch(() => {
+      try {
+        const context = await this.loadContext()
+        if (!this.isCurrentTurn(turn) || !context) return
+        const groups = context.groupCodes.length
+          ? context.groupCodes.join('、')
+          : '暂无国家秘密知悉用户组'
+        const content =
+          '已读取当前账号的权限摘要：\n\n' +
+          '当前用户：' + (context.userName || this.userName) + '\n' +
+          '人员密级：' + this.securityLevelName(context.userSecretLevel) + '\n' +
+          '国家秘密知悉用户组：' + groups + '\n\n' +
+          '公开文档无需密级和用户组；内部文档按人员密级访问；秘密、机密文档还需属于文档绑定的知悉用户组。具体文档以本次访问校验结果为准。'
+        this.messages.push({ role: 'assistant', content, blocked: false, sources: [], security: null })
+      } catch (error) {
+        if (this.isCurrentTurn(turn)) {
           this.messages.push({
             role: 'assistant',
             content: '当前无法获取账号权限摘要，请稍后重新尝试。',
-            blocked: false,
-            sources: [],
-            security: null
+            blocked: false, sources: [], security: null
           })
-
+        }
+      } finally {
+        if (this.isCurrentTurn(turn)) {
+          this.loading = false
           this.scrollToBottom()
-        })
+        }
+      }
+    },
+
+    currentTurn() {
+      return { version: this.conversationVersion, identity: this.$store.getters.token }
+    },
+
+    isCurrentTurn(turn) {
+      return !this.disposed && turn.version === this.conversationVersion &&
+        turn.identity === this.$store.getters.token
     },
 
     handleKeydown(event) {
+      if (event.isComposing || event.keyCode === 229 || event.repeat) return
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault()
         this.sendQuestion()
       }
     },
 
-    sendQuestion() {
+    async sendQuestion() {
       const query = this.question.trim()
-
-      if (!query || this.loading) {
-        return
-      }
-
-      this.messages.push({
-        role: 'user',
-        content: query
-      })
-
+      if (!query || query.length > 1000 || this.loading || this.disposed) return
+      const turn = this.currentTurn()
+      this.activeView = 'chat'
+      this.messages.push({ role: 'user', content: query })
       this.saveHistory(query)
       this.question = ''
       this.loading = true
       this.scrollToBottom()
-
-      ragSearch({
-        query: query,
-        topK: 5,
-        useRemote: true
-      })
-        .then(response => {
-          const data =
-            response && response.data
-              ? response.data
-              : {}
-
-          const blocked =
-            data.allowAccess === false
-
-          let content = ''
-
-          if (blocked) {
-            content =
-              '当前请求暂时无法完成，请稍后重试或联系管理员。'
-          } else {
-            content =
-              data.answer ||
-              '已完成知识检索，但当前没有生成可展示的回答。'
+      try {
+        const response = await ragSearch({ query, topK: 5, useRemote: true })
+        if (!this.isCurrentTurn(turn)) return
+        const data = response && response.data
+        if (!response || !data || typeof data.allowAccess !== 'boolean') {
+          throw new Error('Invalid knowledge response')
+        }
+        const blocked = data.allowAccess === false
+        if (!blocked && (response.code !== 200 || !Array.isArray(data.filteredResults) ||
+            typeof data.answer !== 'string' || data.filteredResults.some(item =>
+          !item || typeof item !== 'object' || typeof item.content !== 'string'))) {
+          throw new Error('Invalid knowledge result')
+        }
+        const sources = blocked ? [] : data.filteredResults.map(item => ({
+          title: typeof item.title === 'string' && item.title ? item.title : '知识文档',
+          level: ['PUBLIC', 'INTERNAL', 'SECRET', 'CONFIDENTIAL'].includes(item.level) ? item.level : '',
+          content: item.content
+        }))
+        this.messages.push({
+          role: 'assistant',
+          content: blocked
+            ? '当前请求受到访问限制，请联系管理员确认。'
+            : data.answer || (sources.length ? '已找到相关资料，请查看下方授权引用。' : '未找到可供当前账号使用的相关资料。'),
+          blocked,
+          sources,
+          security: {
+            passed: sources.length,
+            costTime: Number.isFinite(data.costTime) && data.costTime >= 0 ? data.costTime : 0
           }
-
-          const sources = (
-            data.filteredResults || []
-          ).map(item => ({
-            title:
-              item.title ||
-              item.fileName ||
-              item.docName ||
-              item.docId,
-            level:
-              item.level ||
-              item.securityLevel ||
-              item.docLevel,
-            content:
-              item.content || ''
-          }))
-
+        })
+      } catch (error) {
+        if (this.isCurrentTurn(turn)) {
           this.messages.push({
             role: 'assistant',
-            content: content,
-            blocked: blocked,
-            sources: sources,
-            security: {
-              passed:
-                data.filteredResultCount || 0,
-              costTime:
-                data.costTime || 0
-            }
+            content: '当前知识服务暂时无法完成请求，请稍后重新尝试。',
+            blocked: false, sources: [], security: null
           })
-        })
-        .catch(() => {
-          this.messages.push({
-            role: 'assistant',
-            content:
-              '当前知识服务暂时无法完成请求，请稍后重新尝试。',
-            blocked: false,
-            sources: [],
-            security: null
-          })
-        })
-        .finally(() => {
+        }
+      } finally {
+        if (this.isCurrentTurn(turn)) {
           this.loading = false
           this.scrollToBottom()
-        })
+        }
+      }
     },
 
     scrollToBottom() {
@@ -1014,25 +1000,18 @@ export default {
 }
 
 .welcome h1 {
-  margin: 0;
+  margin: 0 0 28px;
+  line-height: 1.4;
   font-size: 28px;
   font-weight: 600;
   color: #1e3148;
 }
 
-.welcome > p {
-  width: 610px;
-  max-width: 100%;
-  margin: 15px auto 30px;
-  color: #7a899a;
-  font-size: 14px;
-  line-height: 1.9;
-}
 
 .quick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 13px;
+  gap: 16px;
   text-align: left;
 }
 

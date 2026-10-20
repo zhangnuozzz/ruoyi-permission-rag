@@ -20,12 +20,7 @@ export function displayExpression(value) {
 
 // Mirrors the limited condition recognized by the current backend; not a policy decision.
 export function hasSupportedTimeCondition(policy) {
-  const expression = policy && policy.envExpr
-  return (
-    !!policy &&
-    policy.effect === '1' &&
-    typeof expression === 'string' &&
-    expression.indexOf('time not in') !== -1 &&
-    expression.indexOf('09:00-18:00') !== -1
-  )
+  if (!policy || !['1', 'DENY'].includes(String(policy.effect).toUpperCase())) return false
+  return !String(policy.resourceExpr || '').trim() &&
+    /^time\s+not\s+in\s*\[\s*09:00\s*-\s*18:00\s*\]$/i.test(String(policy.envExpr || '').trim())
 }

@@ -150,7 +150,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="优先级" prop="priority" width="85" align="center" />
+      <el-table-column label="预留优先级" prop="priority" width="105" align="center" />
       <el-table-column label="操作" width="190" fixed="right" align="center">
         <template slot-scope="scope">
           <el-button
@@ -194,7 +194,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <p class="identity-muted">其他规则暂仅保存配置，不参与访问判断；当前时间判断不按优先级排序。</p>
+    <p class="identity-muted">其他配置须停用保存；历史允许配置不授予额外权限。无法识别的启用拒绝规则将拒绝普通人员请求；预留优先级不参与判定。</p>
 
     <pagination
       v-show="total > 0"
@@ -217,7 +217,7 @@
     >
       <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
       <div class="identity-pending-note">
-        目前支持普通人员的固定工作时间限制，管理员不受此项限制；其他表达式暂仅保存配置。
+        目前仅可启用普通人员的固定工作时间拒绝规则，管理员不受此项限制；其他配置须停用保存。
       </div>
       <el-button size="small" plain @click="applyWorkingHoursTemplate">
         套用工作时间限制（09:00—18:00）
@@ -267,7 +267,7 @@
                 placeholder="兼容配置；当前固定时间判断不解析此字段"
               />
               <div class="field-help">
-                此字段保留历史资源表达式。当前固定时间判断不执行资源范围匹配，不可据此推断文档已授权。
+                此字段保留历史资源表达式。启用固定时间规则时此项须为空；未实现的资源表达式只能停用保存，不授予文档权限。
               </div>
             </el-form-item>
           </el-col>
@@ -289,7 +289,7 @@
                 </el-form-item>
 
                 <el-form-item label="主体表达式">
-                  <el-input v-model="form.subjectExpr" placeholder="保留原策略表达式兼容能力" />
+                  <el-input v-model="form.subjectExpr" :disabled="form.status === '0'" placeholder="历史记录，不参与执行；适用对象以人员和用户组绑定为准" />
                 </el-form-item>
               </el-collapse-item>
             </el-collapse>
@@ -662,14 +662,15 @@ export default {
       return displayExpression(policy.envExpr) || '尚无可识别的附加条件'
     },
     ruleSupport(policy) {
-      return hasSupportedTimeCondition(policy)
-        ? '固定时间条件可识别，仍须绑定对象且启用'
-        : '仅保存配置，暂未执行'
+      if (hasSupportedTimeCondition(policy)) return '固定时间条件可执行，仍须绑定对象且启用'
+      if (policy.status === '0' && ['1', 'DENY'].includes(String(policy.effect).toUpperCase())) return '规则无法识别，普通人员请求将被拒绝，请维护配置'
+      return '未参与执行；仅保留配置，不授予额外权限'
     },
     applyWorkingHoursTemplate() {
       this.form.effect = '1'
       this.form.envExpr = 'time not in [09:00-18:00]'
       this.form.resourceExpr = null
+      this.form.subjectExpr = null
     },
     closePolicyDialog(done) {
       if (!this.saving) {
@@ -837,6 +838,7 @@ export default {
       this.saveError = ''
       try {
         const response = await getPolicy(row.id)
+        if (!response.data || String(response.data.id) !== String(row.id)) throw new Error('策略不存在或已删除')
         this.form = response.data
         this.title = '编辑附加访问策略'
         this.open = true
@@ -856,15 +858,19 @@ export default {
         if (!valid || this.saving) {
           return
         }
-        this.saving = true
         this.saveError = ''
+        if (this.form.status === '0' && !hasSupportedTimeCondition(this.form)) {
+          this.saveError = '当前仅可启用固定工作时间拒绝规则，其他配置请停用保存。'
+          return
+        }
+        this.saving = true
         try {
           await (this.form.id ? updatePolicy(this.form) : addPolicy(this.form))
           this.$modal.msgSuccess('策略配置已保存；请核对适用对象与后端执行范围')
           this.open = false
           this.getList()
         } catch (error) {
-          this.saveError = '策略保存失败，请核对后重试。'
+          this.saveError = error && error.message ? error.message : '策略保存失败，请核对后重试。'
         } finally {
           this.saving = false
         }

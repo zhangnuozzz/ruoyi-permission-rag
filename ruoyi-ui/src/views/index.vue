@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="loading" class="situation-page">
+  <div v-loading="loading && !loaded" class="situation-page">
     <header class="overview-header">
       <div class="header-copy">
         <div class="eyebrow"><span class="pulse-dot" /> SECURITY SITUATION OVERVIEW</div>
@@ -14,6 +14,12 @@
         <el-button icon="el-icon-refresh" plain :loading="loading" @click="loadOverview">刷新数据</el-button>
       </div>
     </header>
+
+    <div v-if="loaded && refreshError" class="refresh-warning" role="status">
+      <i class="el-icon-warning-outline" />
+      <span>{{ refreshError }} 当前展示 {{ overview.generatedAt }} 的数据。</span>
+      <el-button type="text" size="small" :loading="loading" @click="loadOverview">重试</el-button>
+    </div>
 
     <div v-if="loadError" class="feedback-card">
       <i class="el-icon-warning-outline" />
@@ -74,18 +80,18 @@
           <div class="panel-heading">
             <div>
               <div class="panel-kicker">ACCESS DECISION</div>
-              <h2>访问决策分布</h2>
-              <p>基于所有检索请求的访问决策</p>
+              <h2>请求准入分布</h2>
+              <p>请求准入结果；获准后仍逐条校验文档</p>
             </div>
           </div>
           <div v-if="decisionTotal" class="decision-body">
             <div class="donut-wrap">
-              <div ref="decisionChart" class="decision-chart" role="img" aria-label="放行与拒绝请求占比" />
-              <div class="donut-center"><strong>{{ allowRate }}%</strong><span>放行率</span></div>
+              <div ref="decisionChart" class="decision-chart" role="img" aria-label="请求获准、拒绝与未判定占比" />
+              <div class="donut-center"><strong>{{ allowRate }}%</strong><span>请求获准率</span></div>
             </div>
             <div class="decision-stats">
-              <div><span><i class="legend-dot primary" /> 已放行</span><strong>{{ formatNumber(overview.decisions.allowed) }}</strong></div>
-              <div><span><i class="legend-dot danger" /> 已拒绝</span><strong>{{ formatNumber(overview.decisions.denied) }}</strong></div>
+              <div><span><i class="legend-dot primary" /> 获准执行</span><strong>{{ formatNumber(overview.decisions.allowed) }}</strong></div>
+              <div><span><i class="legend-dot danger" /> 请求拒绝</span><strong>{{ formatNumber(overview.decisions.denied) }}</strong></div>
               <div><span><i class="legend-dot neutral" /> 未判定</span><strong>{{ formatNumber(overview.decisions.undetermined) }}</strong></div>
             </div>
           </div>
@@ -142,7 +148,7 @@
         </div>
         <div class="table-scroll">
           <table v-if="overview.recentRequests.length" class="activity-table">
-            <thead><tr><th>时间</th><th>用户</th><th>访问决策</th><th>通过结果</th><th>拦截结果</th><th>耗时</th></tr></thead>
+            <thead><tr><th>时间</th><th>用户</th><th>请求准入</th><th>可访问候选</th><th>已拦截候选</th><th>耗时</th></tr></thead>
             <tbody>
               <tr v-for="item in overview.recentRequests" :key="item.id">
                 <td>{{ item.createTime || '--' }}</td>
@@ -174,6 +180,9 @@ export default {
       loading: false,
       loaded: false,
       loadError: '',
+      refreshError: '',
+      pageActive: false,
+      requestVersion: 0,
       refreshTimer: null,
       trendInstance: null,
       decisionInstance: null,
@@ -190,7 +199,7 @@ export default {
   },
   computed: {
     decisionTotal() {
-      return Number(this.overview.decisions.allowed || 0) + Number(this.overview.decisions.denied || 0)
+      return Number(this.overview.decisions.allowed || 0) + Number(this.overview.decisions.denied || 0) + Number(this.overview.decisions.undetermined || 0)
     },
     allowRate() {
       return this.decisionTotal ? Math.round(Number(this.overview.decisions.allowed || 0) / this.decisionTotal * 100) : 0
@@ -200,37 +209,79 @@ export default {
     }
   },
   mounted() {
-    this.loadOverview()
-    this.refreshTimer = window.setInterval(this.loadOverview, 60000)
+    this.startRefresh()
     window.addEventListener('resize', this.resizeCharts)
+    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+  },
+  activated() {
+    this.startRefresh()
+    this.$nextTick(this.resizeCharts)
+  },
+  deactivated() {
+    this.stopRefresh()
   },
   beforeDestroy() {
-    window.clearInterval(this.refreshTimer)
+    this.stopRefresh()
     window.removeEventListener('resize', this.resizeCharts)
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
     this.disposeCharts()
   },
   methods: {
+    startRefresh() {
+      if (this.pageActive) return
+      this.pageActive = true
+      this.handleVisibilityChange()
+    },
+    stopRefresh() {
+      this.pageActive = false
+      window.clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+      this.requestVersion++
+      this.loading = false
+    },
+    handleVisibilityChange() {
+      window.clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+      if (!this.pageActive || document.hidden) return
+      this.loadOverview()
+      this.refreshTimer = window.setInterval(this.loadOverview, 60000)
+      this.$nextTick(this.resizeCharts)
+    },
     async loadOverview() {
-      if (this.loading) return
+      if (this.loading || !this.pageActive || document.hidden) return
+      const version = ++this.requestVersion
       this.loading = true
       try {
         const response = await getSituationOverview()
-        this.overview = response.data
+        if (version !== this.requestVersion || !this.pageActive) return
+        const data = response.data
+        if (!data || !data.totals || !data.decisions || !data.generatedAt ||
+            !['trend', 'documentLevels', 'pendingAlerts', 'recentRequests'].every(key => Array.isArray(data[key]))) {
+          throw new Error('态势数据格式不完整')
+        }
+        this.overview = data
         this.loaded = true
         this.loadError = ''
+        this.refreshError = ''
         this.$nextTick(this.renderCharts)
       } catch (error) {
-        if (!this.loaded) {
-          this.loadError = error && error.response && error.response.status === 403
-            ? '平台级统计仅对管理员开放，请使用管理员账号登录。'
-            : '请确认后台服务与数据库连接正常，然后重试。'
+        if (version !== this.requestVersion || !this.pageActive) return
+        if (error && error.response && error.response.status === 403) {
+          this.loaded = false
+          this.loadError = '平台级统计仅对管理员开放，请使用管理员账号登录。'
+          this.refreshError = ''
+          this.disposeCharts()
+        } else if (this.loaded) {
+          this.refreshError = '刷新未成功，数据尚未更新。'
+        } else {
+          this.loadError = '暂时无法读取数据，请稍后重试。'
         }
       } finally {
-        this.loading = false
+        if (version === this.requestVersion) this.loading = false
       }
     },
     renderCharts() {
-      if (!this.$refs.trendChart) return
+      if (!this.pageActive || document.hidden || !this.$refs.trendChart) return
       if (!this.trendInstance) this.trendInstance = echarts.init(this.$refs.trendChart)
       const trend = this.overview.trend || []
       this.trendInstance.setOption({
@@ -250,11 +301,12 @@ export default {
         if (!this.decisionInstance) this.decisionInstance = echarts.init(this.$refs.decisionChart)
         this.decisionInstance.setOption({
           animationDuration: 450,
-          color: ['#3578e5', '#ee6b6b'],
+          color: ['#3578e5', '#ee6b6b', '#b9c4d1'],
           tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
           series: [{ type: 'pie', radius: ['69%', '85%'], center: ['50%', '50%'], hoverOffset: 5, label: { show: false }, data: [
-            { name: '已放行', value: Number(this.overview.decisions.allowed || 0) },
-            { name: '已拒绝', value: Number(this.overview.decisions.denied || 0) }
+            { name: '获准执行', value: Number(this.overview.decisions.allowed || 0) },
+            { name: '请求拒绝', value: Number(this.overview.decisions.denied || 0) },
+            { name: '未判定', value: Number(this.overview.decisions.undetermined || 0) }
           ] }]
         }, true)
       } else if (this.decisionInstance) {
@@ -294,7 +346,7 @@ export default {
       return String(value) === '1' ? 'allowed' : String(value) === '0' ? 'denied' : 'unknown'
     },
     decisionName(value) {
-      return String(value) === '1' ? '放行' : String(value) === '0' ? '拒绝' : '未判定'
+      return String(value) === '1' ? '获准执行' : String(value) === '0' ? '请求拒绝' : '未判定'
     }
   }
 }
@@ -343,6 +395,7 @@ export default {
 .alert-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }.alert-main strong { color: #314b69; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.alert-main span { color: #9baabb; font-size: 11px; }.severity-label { padding: 4px 8px; border-radius: 4px; background: #eef4fa; color: #6284a9; font-size: 11px; }.severity-label.critical, .severity-label.high { background: #fff0f0; color: #d85861; }.severity-label.medium { background: #fff5e8; color: #c88636; }
 .activity-panel { margin-top: 16px; }.table-scroll { overflow-x: auto; }.activity-table { width: 100%; border-collapse: collapse; font-size: 12px; }.activity-table th { padding: 12px 24px; background: #f8fafd; color: #8b9cb0; text-align: left; font-weight: 600; white-space: nowrap; }.activity-table td { padding: 11px 24px; color: #667c96; border-top: 1px solid #f0f3f7; white-space: nowrap; }.activity-table .user-cell { color: #324f70; font-weight: 600; }.decision-tag { display: inline-block; min-width: 46px; padding: 4px 8px; text-align: center; border-radius: 4px; background: #f2f4f8; color: #8293a6; }.decision-tag.allowed { background: #e8f7f1; color: #3aa77b; }.decision-tag.denied { background: #fff0f0; color: #d75b65; }
 .empty-state { min-height: 286px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #a0aec0; font-size: 12px; }.empty-state i { color: #bdcddd; font-size: 29px; }.empty-state.small { min-height: 180px; }
+.refresh-warning { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 10px 16px; border: 1px solid #f3dfb6; border-radius: 8px; background: #fffaf0; color: #986d24; font-size: 12px; line-height: 1.6; }.refresh-warning .el-button { margin-left: auto; flex-shrink: 0; }
 .data-note { margin: 15px 2px 0; color: #9aa9ba; font-size: 11px; line-height: 1.7; }.feedback-card { margin-top: 18px; min-height: 140px; padding: 27px; display: flex; align-items: center; gap: 17px; border: 1px solid #e5ebf3; border-radius: 13px; background: #fff; color: #526b86; }.feedback-card > i { font-size: 25px; color: #e29c50; }.feedback-card strong { color: #29425f; }.feedback-card p { margin: 7px 0 0; font-size: 12px; }.feedback-card .el-button { margin-left: auto; }.initial-loading { justify-content: center; min-height: 220px; }.initial-loading i { color: #4d8bd4; }
 @media (max-width: 1280px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-grid, .detail-grid { grid-template-columns: 1fr; }.decision-body { justify-content: center; gap: 55px; } }
 @media (max-width: 700px) { .situation-page { padding: 12px; }.overview-header { padding: 22px; align-items: flex-start; flex-direction: column; }.header-copy h1 { font-size: 24px; }.header-actions { width: 100%; justify-content: space-between; }.update-info { text-align: left; }.metrics-grid { grid-template-columns: 1fr; gap: 10px; }.metric-card { min-height: 135px; }.decision-body { gap: 12px; padding: 12px; }.donut-wrap { width: 145px; height: 145px; flex-basis: 145px; }.decision-stats { width: 125px; }.panel-heading { padding: 18px 18px 0; } }

@@ -52,3 +52,11 @@ export function exportBehaviorAlert(query) {
     params: query
   })
 }
+
+// 查询当前运行进程的告警转发状态
+export function getAlertForwardingStatus() {
+  return request({
+    url: '/system/behaviorAlert/forwarding/status',
+    method: 'get'
+  })
+}

@@ -19,6 +19,9 @@ import javax.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -63,7 +66,24 @@ public class RagFileProxyController
     @Value("${rag.server.url:http://localhost:8081}")
     private String ragServerUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private static final Logger log = LoggerFactory.getLogger(RagFileProxyController.class);
+    private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
+    private static final int CONNECT_TIMEOUT_MILLIS = 5000;
+    private static final int UPLOAD_READ_TIMEOUT_MILLIS = 90000;
+    private static final int LIST_READ_TIMEOUT_MILLIS = 10000;
+    private static final String UNCONFIRMED_UPLOAD =
+            "文件处理结果尚未确认，请先核对文件列表或联系管理员，避免重复上传。";
+
+    private final RestTemplate restTemplate = fileClient(UPLOAD_READ_TIMEOUT_MILLIS);
+    private final RestTemplate metadataRestTemplate = fileClient(LIST_READ_TIMEOUT_MILLIS);
+
+    private static RestTemplate fileClient(int readTimeout)
+    {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
+        factory.setReadTimeout(readTimeout);
+        return new RestTemplate(factory);
+    }
 
     @Autowired
     private ISysRagDocService sysRagDocService;
@@ -171,10 +191,13 @@ public class RagFileProxyController
                 "select count(*) from sys_rag_file where upload_user_id = ?", Long.class, userId);
         List<Map<String, Object>> files = jdbcTemplate.queryForList(
                 "select f.file_id fileId, f.file_name fileName, f.file_type fileType, " +
-                "f.security_level securityLevel, f.scope_code scopeCode, f.group_name groupName, " +
+                "case when d.doc_id is null then f.security_level else d.security_level end securityLevel, " +
+                "case when d.doc_id is null then f.scope_code else d.scope_code end scopeCode, " +
+                "case when d.doc_id is null then f.group_name else d.owner_group_name end groupName, " +
                 "f.chunk_count chunkCount, f.embedding_status embeddingStatus, " +
                 "case when d.doc_id is null then 'UNAVAILABLE' " +
-                "else coalesce(d.metadata_status, f.doc_status, 'ACTIVE') end metadataStatus, " +
+                "else coalesce(d.metadata_status, case d.status when '0' then 'ACTIVE' " +
+                "when '1' then 'DISABLED' else 'UNAVAILABLE' end) end metadataStatus, " +
                 "date_format(f.create_time, '%Y-%m-%d %H:%i') createTime " +
                 "from sys_rag_file f left join sys_rag_doc d on d.doc_id = f.file_id and d.del_flag = '0' " +
                 "where f.upload_user_id = ? order by f.create_time desc, f.file_id desc limit ? offset ?",
@@ -197,17 +220,32 @@ public class RagFileProxyController
         }
         Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
         String status = enabled ? "ACTIVE" : "DISABLED";
+        List<String> owned = jdbcTemplate.queryForList(
+                "select file_id from sys_rag_file where file_id = ? and upload_user_id = ? for update",
+                String.class, fileId, userId);
+        if (owned.size() != 1)
+        {
+            return AjaxResult.error("文档不存在或无操作权限");
+        }
         int updated = jdbcTemplate.update(
                 "update sys_rag_doc d join sys_rag_file f on f.file_id = d.doc_id " +
                 "set d.metadata_status = ?, d.status = ? " +
-                "where f.file_id = ? and f.upload_user_id = ? and d.del_flag = '0'",
+                "where f.file_id = ? and f.upload_user_id = ? and d.del_flag = '0' " +
+                "and (d.metadata_status in ('ACTIVE', 'DISABLED') " +
+                "or (d.metadata_status is null and d.status in ('0', '1')))",
                 status, enabled ? "0" : "1", fileId, userId);
         if (updated == 0)
         {
             return AjaxResult.error("文档不存在、无操作权限或权限标签未同步");
         }
-        jdbcTemplate.update("update sys_rag_file set doc_status = ? where file_id = ? and upload_user_id = ?",
-                status, fileId, userId);
+        int changed = jdbcTemplate.update(
+                "update sys_rag_file set doc_status = ?, metadata_json = "
+                + "json_set(coalesce(nullif(metadata_json, ''), '{}'), '$.status', ?) "
+                + "where file_id = ? and upload_user_id = ?", status, status, fileId, userId);
+        if (changed != 1)
+        {
+            throw new IllegalStateException("文档状态未能完整保存，请刷新后重试");
+        }
         return AjaxResult.success("文档状态已更新");
     }
 
@@ -229,6 +267,15 @@ public class RagFileProxyController
         if (file == null || file.isEmpty())
         {
             return AjaxResult.error("上传文件不能为空");
+        }
+
+        if (file.getSize() > MAX_FILE_BYTES)
+        {
+            return AjaxResult.error("单个文件不能超过 10 MB");
+        }
+        if (isBlank(fileName) || fileName.length() > 200 || invalidFileName(fileName))
+        {
+            return AjaxResult.error("文件名不能为空、不能超过 200 个字符，且不能包含路径或控制字符");
         }
 
         if (!fileDecision.allowUpload)
@@ -253,22 +300,34 @@ public class RagFileProxyController
 
         try
         {
-            headers.add("X-User-Id", String.valueOf(SecurityUtils.getLoginUser().getUser().getUserId()));
-            headers.add("X-Username", SecurityUtils.getUsername());
+            Long userId = SecurityUtils.getLoginUser().getUser().getUserId();
+            String userName = SecurityUtils.getUsername();
+            if (userId == null || isBlank(userName))
+            {
+                return AjaxResult.error(401, "登录状态已失效，请重新登录");
+            }
+            headers.add("X-User-Id", String.valueOf(userId));
+            headers.add("X-Username", userName);
             headers.add("X-Group-Id", groupDecision.groupCode);
-            // HTTP Header 对中文不稳定，这里传 ASCII 编码的 groupCode，平台侧再回写真实中文组名。
             headers.add("X-Group-Name", groupDecision.groupCode);
         }
-        catch (Exception e)
+        catch (RuntimeException exception)
         {
-            headers.add("X-User-Id", "");
-            headers.add("X-Username", "anonymous");
-            headers.add("X-Group-Id", groupDecision.groupCode);
-            // HTTP Header 对中文不稳定，这里传 ASCII 编码的 groupCode，平台侧再回写真实中文组名。
-            headers.add("X-Group-Name", groupDecision.groupCode);
+            return AjaxResult.error(401, "登录状态已失效，请重新登录");
         }
 
-        ByteArrayResource fileResource = new ByteArrayResource(file.getBytes())
+        byte[] contents;
+        try
+        {
+            contents = file.getBytes();
+        }
+        catch (IOException exception)
+        {
+            recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
+                    null, new RuntimeException("LOCAL_FILE_READ_FAILED"), System.currentTimeMillis() - startTime);
+            return AjaxResult.error("未能读取所选文件，尚未提交入库，请重新选择文件");
+        }
+        ByteArrayResource fileResource = new ByteArrayResource(contents)
         {
             @Override
             public String getFilename()
@@ -293,11 +352,10 @@ public class RagFileProxyController
             String ragErrorMessage = extractRagErrorMessage(responseBody);
             if (!isBlank(ragErrorMessage))
             {
-                RuntimeException exception = new RuntimeException(ragErrorMessage);
+                RuntimeException exception = new RuntimeException("REMOTE_UPLOAD_RESPONSE_REJECTED");
                 recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
                         responseBody, exception, System.currentTimeMillis() - startTime);
-                return AjaxResult.error(personal ? "文档处理失败，请稍后重试或联系管理员。"
-                        : "RAG文件服务处理失败：" + ragErrorMessage);
+                return AjaxResult.error(UNCONFIRMED_UPLOAD);
             }
 
             final Object completedUpload = responseBody;
@@ -319,9 +377,10 @@ public class RagFileProxyController
         catch (Exception e)
         {
             recordRagUploadAudit(request, fileName, normalizedSecurityLevel, groupDecision.scopeCode,
-                    responseBody, e, System.currentTimeMillis() - startTime);
-            return AjaxResult.error(personal ? "文件处理未完成，请联系管理员核对，避免重复上传。"
-                    : "文件入库流程未完成：" + e.getMessage());
+                    responseBody, new RuntimeException("UPLOAD_NOT_CONFIRMED:" + e.getClass().getSimpleName()),
+                    System.currentTimeMillis() - startTime);
+            log.warn("文件入库结果未确认，exceptionType={}", e.getClass().getSimpleName());
+            return AjaxResult.error(UNCONFIRMED_UPLOAD);
         }
     }
 
@@ -363,13 +422,21 @@ public class RagFileProxyController
     @GetMapping("/platform/mariadb/list")
     public AjaxResult platformMariadbList()
     {
-        String sql = "select file_id fileId, file_name fileName, file_type fileType, parse_method parseMethod, " +
-                "upload_user_id uploadUserId, upload_user_name uploadUserName, security_level securityLevel, " +
-                "scope_code scopeCode, group_id groupId, group_name groupName, minio_object_name minioObjectName, " +
-                "chunk_count chunkCount, embedding_status embeddingStatus, vector_index_type vectorIndexType, " +
-                "metadata_index_status metadataIndexStatus, doc_level docLevel, doc_group docGroup, " +
-                "doc_status docStatus, metadata_json metadataJson, create_by createBy, create_time createTime " +
-                "from sys_rag_file order by create_time desc limit 100";
+        String sql = "select f.file_id fileId, f.file_name fileName, f.file_type fileType, f.parse_method parseMethod, " +
+                "f.upload_user_id uploadUserId, f.upload_user_name uploadUserName, " +
+                "case when d.doc_id is null then f.security_level else d.security_level end securityLevel, " +
+                "case when d.doc_id is null then f.scope_code else d.scope_code end scopeCode, " +
+                "case when d.doc_id is null then f.group_id else d.owner_group_code end groupId, " +
+                "case when d.doc_id is null then f.group_name else d.owner_group_name end groupName, " +
+                "f.minio_object_name minioObjectName, f.chunk_count chunkCount, f.embedding_status embeddingStatus, " +
+                "f.vector_index_type vectorIndexType, f.metadata_index_status metadataIndexStatus, " +
+                "case when d.doc_id is null then f.doc_level else d.security_level end docLevel, " +
+                "case when d.doc_id is null then f.doc_group else d.owner_group_code end docGroup, " +
+                "case when d.doc_id is null then 'UNAVAILABLE' else coalesce(d.metadata_status, " +
+                "case d.status when '0' then 'ACTIVE' when '1' then 'DISABLED' else 'UNAVAILABLE' end) end docStatus, " +
+                "f.metadata_json metadataJson, f.create_by createBy, f.create_time createTime " +
+                "from sys_rag_file f left join sys_rag_doc d on d.doc_id = f.file_id and d.del_flag = '0' " +
+                "order by f.create_time desc, f.file_id desc limit 100";
         return AjaxResult.success(jdbcTemplate.queryForList(sql));
     }
 
@@ -407,12 +474,13 @@ public class RagFileProxyController
     {
         try
         {
-            Object result = restTemplate.getForObject(ragServerUrl + path, Object.class);
+            Object result = metadataRestTemplate.getForObject(ragServerUrl + path, Object.class);
             return AjaxResult.success(result);
         }
         catch (Exception e)
         {
-            return AjaxResult.error("调用RAG文件服务失败：" + e.getMessage());
+            log.warn("读取文件服务列表失败，path={}, exceptionType={}", path, e.getClass().getSimpleName());
+            return AjaxResult.error("文件服务暂时不可用，请稍后刷新");
         }
     }
 
@@ -736,7 +804,7 @@ public class RagFileProxyController
         }
         catch (Exception e)
         {
-            // 审计失败不影响上传主流程
+            log.warn("记录文件上传审计失败，exceptionType={}", e.getClass().getSimpleName());
         }
     }
 
@@ -793,6 +861,19 @@ public class RagFileProxyController
     {
         Object value = map.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private boolean invalidFileName(String value)
+    {
+        for (int i = 0; i < value.length(); i++)
+        {
+            char character = value.charAt(i);
+            if (character == '/' || character == '\\' || Character.isISOControl(character))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String normalizeLevel(String value)
