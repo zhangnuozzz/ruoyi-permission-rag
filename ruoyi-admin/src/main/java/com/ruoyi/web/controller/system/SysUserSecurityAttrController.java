@@ -57,7 +57,6 @@ public class SysUserSecurityAttrController extends BaseController
     @PostMapping
     public AjaxResult add(@RequestBody SysUserSecurityAttr sysUserSecurityAttr)
     {
-        sysUserSecurityAttr.setCreateBy("admin");
         return toAjax(sysUserSecurityAttrService.insertSysUserSecurityAttr(sysUserSecurityAttr));
     }
 
@@ -66,7 +65,6 @@ public class SysUserSecurityAttrController extends BaseController
     @PutMapping
     public AjaxResult edit(@RequestBody SysUserSecurityAttr sysUserSecurityAttr)
     {
-        sysUserSecurityAttr.setUpdateBy("admin");
         return toAjax(sysUserSecurityAttrService.updateSysUserSecurityAttr(sysUserSecurityAttr));
     }
 

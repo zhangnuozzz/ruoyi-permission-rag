@@ -115,6 +115,8 @@
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
+    <el-alert v-if="listError" :title="listError" type="error" :closable="false" show-icon class="dialog-alert" />
+
     <el-table v-loading="loading" :data="userSecurityAttrList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
 
@@ -194,7 +196,8 @@
       @pagination="getList"
     />
 
-    <el-dialog :title="title" :visible.sync="open" width="620px" append-to-body>
+    <el-dialog :title="title" :visible.sync="open" width="620px" :show-close="!saving" :close-on-click-modal="false" :close-on-press-escape="!saving" append-to-body>
+      <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon class="dialog-alert" />
       <el-alert
         title="说明：用户安全属性用于后续访问决策。用户密级、访问状态、访问时间窗口会参与权限判断。"
         type="info"
@@ -207,13 +210,13 @@
         <el-row>
           <el-col :span="12">
             <el-form-item label="用户ID" prop="userId">
-              <el-input v-model="form.userId" placeholder="请输入用户ID" />
+              <el-input v-model="form.userId" :disabled="form.id != null" placeholder="请输入已存在的用户ID" />
             </el-form-item>
           </el-col>
 
           <el-col :span="12">
             <el-form-item label="用户名" prop="userName">
-              <el-input v-model="form.userName" placeholder="请输入用户名" />
+              <el-input v-model="form.userName" disabled placeholder="保存时从人员账号关联" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -221,7 +224,7 @@
         <el-row>
           <el-col :span="12">
             <el-form-item label="用户昵称" prop="nickName">
-              <el-input v-model="form.nickName" placeholder="请输入用户昵称" />
+              <el-input v-model="form.nickName" disabled placeholder="保存时从人员账号关联" />
             </el-form-item>
           </el-col>
 
@@ -288,13 +291,13 @@
         <el-row>
           <el-col :span="12">
             <el-form-item label="失败次数" prop="failCount">
-              <el-input-number v-model="form.failCount" :min="0" :max="999" style="width: 100%" />
+              <el-input-number v-model="form.failCount" disabled :min="0" :max="999" style="width: 100%" />
             </el-form-item>
           </el-col>
 
           <el-col :span="12">
             <el-form-item label="最近访问IP" prop="lastAccessIp">
-              <el-input v-model="form.lastAccessIp" placeholder="可选" />
+              <el-input v-model="form.lastAccessIp" disabled placeholder="系统记录" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -303,6 +306,7 @@
           <el-date-picker
             clearable
             v-model="form.lastAccessTime"
+            disabled
             type="datetime"
             value-format="yyyy-MM-dd HH:mm:ss"
             placeholder="请选择最近访问时间"
@@ -316,8 +320,8 @@
       </el-form>
 
       <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+        <el-button type="primary" :loading="saving" :disabled="saving" @click="submitForm">确 定</el-button>
+        <el-button :disabled="saving" @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
   </div>
@@ -346,6 +350,11 @@ export default {
       userSecurityAttrList: [],
       title: '',
       open: false,
+      saving: false,
+      formError: '',
+      listError: '',
+      listVersion: 0,
+      detailVersion: 0,
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -359,9 +368,6 @@ export default {
       rules: {
         userId: [
           { required: true, message: '用户ID不能为空', trigger: 'blur' }
-        ],
-        userName: [
-          { required: true, message: '用户名不能为空', trigger: 'blur' }
         ],
         secretLevel: [
           { required: true, message: '用户密级不能为空', trigger: 'change' }
@@ -379,19 +385,32 @@ export default {
     this.getList()
   },
   methods: {
-    getList() {
+    async getList() {
+      const version = ++this.listVersion
       this.loading = true
-      listUserSecurityAttr(this.queryParams).then(response => {
-        this.userSecurityAttrList = response.rows
-        this.total = response.total
-        this.loading = false
-      })
+      this.listError = ''
+      try {
+        const response = await listUserSecurityAttr({ ...this.queryParams })
+        if (version !== this.listVersion) return
+        this.userSecurityAttrList = response.rows || []
+        this.total = response.total || 0
+      } catch (error) {
+        if (version !== this.listVersion) return
+        this.userSecurityAttrList = []
+        this.total = 0
+        this.listError = '安全属性加载失败，请重试'
+      } finally {
+        if (version === this.listVersion) this.loading = false
+      }
     },
     cancel() {
+      if (this.saving) return
+      this.detailVersion++
       this.open = false
       this.reset()
     },
     reset() {
+      this.formError = ''
       this.form = {
         id: null,
         userId: null,
@@ -423,35 +442,49 @@ export default {
       this.multiple = !selection.length
     },
     handleAdd() {
+      if (this.saving) return
+      this.detailVersion++
       this.reset()
       this.open = true
       this.title = '新增用户安全属性'
     },
-    handleUpdate(row) {
+    async handleUpdate(row) {
+      if (this.saving) return
+      const id = row.id || this.ids[0]
+      const version = ++this.detailVersion
       this.reset()
-      const id = row.id || this.ids
-      getUserSecurityAttr(id).then(response => {
+      try {
+        const response = await getUserSecurityAttr(id)
+        if (version !== this.detailVersion) return
+        if (!response.data || response.data.id !== id) throw new Error('Attribute not found')
         this.form = response.data
         this.open = true
         this.title = '修改用户安全属性'
-      })
+      } catch (error) {
+        if (version === this.detailVersion) this.listError = '安全属性不存在或加载失败，请刷新后重试'
+      }
     },
     submitForm() {
-      this.$refs['form'].validate(valid => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateUserSecurityAttr(this.form).then(response => {
-              this.msgSuccess('修改成功')
-              this.open = false
-              this.getList()
-            })
-          } else {
-            addUserSecurityAttr(this.form).then(response => {
-              this.msgSuccess('新增成功')
-              this.open = false
-              this.getList()
-            })
-          }
+      if (this.saving) return
+      this.$refs.form.validate(async valid => {
+        if (!valid || this.saving) return
+        if (!!this.form.accessStartTime !== !!this.form.accessEndTime) {
+          this.formError = '访问时间须成对设置或同时清空'
+          return
+        }
+        this.saving = true
+        this.formError = ''
+        const payload = { ...this.form }
+        try {
+          if (payload.id != null) await updateUserSecurityAttr(payload)
+          else await addUserSecurityAttr(payload)
+          this.msgSuccess('保存成功')
+          this.open = false
+          await this.getList()
+        } catch (error) {
+          this.formError = error.message || '保存失败，请核对输入后重试'
+        } finally {
+          this.saving = false
         }
       })
     },
@@ -466,6 +499,8 @@ export default {
       }).then(() => {
         this.getList()
         this.msgSuccess('删除成功')
+      }).catch(error => {
+        if (error !== 'cancel' && error !== 'close') this.listError = error.message || '删除失败，请核对人员状态'
       })
     },
     handleExport() {

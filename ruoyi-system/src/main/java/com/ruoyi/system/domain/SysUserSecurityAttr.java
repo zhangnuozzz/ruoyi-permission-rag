@@ -15,6 +15,8 @@ public class SysUserSecurityAttr extends BaseEntity
     private static final long serialVersionUID = 1L;
 
     private Long id;
+    private transient boolean startTimePresent;
+    private transient boolean endTimePresent;
 
     @Excel(name = "用户ID")
     private Long userId;
@@ -69,10 +71,13 @@ public class SysUserSecurityAttr extends BaseEntity
     public void setAccessStatus(String accessStatus) { this.accessStatus = accessStatus; }
 
     public String getAccessStartTime() { return accessStartTime; }
-    public void setAccessStartTime(String accessStartTime) { this.accessStartTime = accessStartTime; }
+    public void setAccessStartTime(String accessStartTime) { this.accessStartTime = accessStartTime; this.startTimePresent = true; }
 
     public String getAccessEndTime() { return accessEndTime; }
-    public void setAccessEndTime(String accessEndTime) { this.accessEndTime = accessEndTime; }
+    public void setAccessEndTime(String accessEndTime) { this.accessEndTime = accessEndTime; this.endTimePresent = true; }
+
+    public boolean hasAccessStartTime() { return startTimePresent; }
+    public boolean hasAccessEndTime() { return endTimePresent; }
 
     public String getRiskLevel() { return riskLevel; }
     public void setRiskLevel(String riskLevel) { this.riskLevel = riskLevel; }

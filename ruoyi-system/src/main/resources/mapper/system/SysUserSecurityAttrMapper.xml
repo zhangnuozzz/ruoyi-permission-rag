@@ -77,8 +77,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accessEndTime != null">access_end_time,</if>
             <if test="riskLevel != null">risk_level,</if>
             <if test="failCount != null">fail_count,</if>
-            <if test="lastAccessIp != null">last_access_ip,</if>
-            <if test="lastAccessTime != null">last_access_time,</if>
             <if test="remark != null">remark,</if>
             <if test="createBy != null">create_by,</if>
             create_time,
@@ -93,8 +91,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accessEndTime != null">#{accessEndTime},</if>
             <if test="riskLevel != null">#{riskLevel},</if>
             <if test="failCount != null">#{failCount},</if>
-            <if test="lastAccessIp != null">#{lastAccessIp},</if>
-            <if test="lastAccessTime != null">#{lastAccessTime},</if>
             <if test="remark != null">#{remark},</if>
             <if test="createBy != null">#{createBy},</if>
             now(),
@@ -104,17 +100,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <update id="updateSysUserSecurityAttr" parameterType="SysUserSecurityAttr">
         update sys_user_security_attr
         <trim prefix="SET" suffixOverrides=",">
-            <if test="userId != null">user_id = #{userId},</if>
             <if test="userName != null">user_name = #{userName},</if>
             <if test="nickName != null">nick_name = #{nickName},</if>
             <if test="secretLevel != null">secret_level = #{secretLevel},</if>
             <if test="accessStatus != null">access_status = #{accessStatus},</if>
-            <if test="accessStartTime != null">access_start_time = #{accessStartTime},</if>
-            <if test="accessEndTime != null">access_end_time = #{accessEndTime},</if>
+            access_start_time = #{accessStartTime,jdbcType=TIME},
+            access_end_time = #{accessEndTime,jdbcType=TIME},
             <if test="riskLevel != null">risk_level = #{riskLevel},</if>
-            <if test="failCount != null">fail_count = #{failCount},</if>
-            <if test="lastAccessIp != null">last_access_ip = #{lastAccessIp},</if>
-            <if test="lastAccessTime != null">last_access_time = #{lastAccessTime},</if>
             <if test="remark != null">remark = #{remark},</if>
             <if test="updateBy != null">update_by = #{updateBy},</if>
             update_time = now()

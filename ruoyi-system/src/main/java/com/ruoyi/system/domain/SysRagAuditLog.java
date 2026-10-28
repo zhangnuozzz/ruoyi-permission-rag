@@ -60,7 +60,6 @@ public class SysRagAuditLog extends BaseEntity
     @Excel(name = "元数据过滤条件")
     private String metadataFilter;
 
-    /** 是否放行（0放行 1拒绝） */
     @Excel(name = "是否放行", readConverterExp = "1=放行,0=拒绝")
     private String allowAccess;
 
