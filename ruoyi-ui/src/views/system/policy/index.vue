@@ -9,7 +9,7 @@
     </header>
 
     <div class="identity-rule-note" role="note">
-      当前支持普通人员的工作时间限制。策略不提高人员密级，也不扩大知悉范围。
+      策略限定适用人员的访问时段；文档仍按人员密级和知悉用户组授权。
     </div>
 
     <el-form
@@ -150,7 +150,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="预留优先级" prop="priority" width="105" align="center" />
+
       <el-table-column label="操作" width="190" fixed="right" align="center">
         <template slot-scope="scope">
           <el-button
@@ -194,7 +194,6 @@
         </template>
       </el-table-column>
     </el-table>
-    <p class="identity-muted">其他配置须停用保存；历史允许配置不授予额外权限。无法识别的启用拒绝规则将拒绝普通人员请求；预留优先级不参与判定。</p>
 
     <pagination
       v-show="total > 0"
@@ -216,15 +215,9 @@
       :close-on-click-modal="false"
     >
       <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
-      <div class="identity-pending-note">
-        目前仅可启用普通人员的固定工作时间拒绝规则，管理员不受此项限制；其他配置须停用保存。
-      </div>
-      <el-button size="small" plain @click="applyWorkingHoursTemplate">
-        套用工作时间限制（09:00—18:00）
-      </el-button>
-      <p class="identity-help">
-        保存后请配置“适用对象”。绑定用户组表示限制该组成员，并非仅限制该组文档。
-      </p>
+      <el-select v-model="selectedScenario" placeholder="选择常用场景" clearable style="width: 100%; margin-bottom: 16px" @change="applyScenario">
+        <el-option v-for="scenario in scenarios" :key="scenario.code" :label="scenario.name" :value="scenario.code" />
+      </el-select>
       <el-form ref="form" :model="form" :rules="rules" label-width="110px">
         <el-row :gutter="18">
           <el-col :span="12">
@@ -242,45 +235,32 @@
           <el-col :span="12">
             <el-form-item label="访问效果" prop="effect">
               <el-radio-group v-model="form.effect">
-                <el-radio label="0">允许配置（不扩大基础资格）</el-radio>
-                <el-radio label="1">拒绝配置</el-radio>
+                <el-radio v-if="form.id && isAllow(form.effect)" label="0" disabled>历史允许配置</el-radio>
+                <el-radio label="1">限定访问时段</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
 
-          <el-col :span="12">
-            <el-form-item label="优先级" prop="priority">
-              <el-input-number
-                v-model="form.priority"
-                :min="0"
-                :max="9999"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-
           <el-col :span="24">
-            <el-form-item label="资源范围">
-              <el-input
-                v-model="form.resourceExpr"
-                placeholder="兼容配置；当前固定时间判断不解析此字段"
-              />
-              <div class="field-help">
-                此字段保留历史资源表达式。启用固定时间规则时此项须为空；未实现的资源表达式只能停用保存，不授予文档权限。
-              </div>
+            <el-form-item label="文档密级">
+              <el-select v-model="documentLevels" multiple clearable placeholder="全部密级" style="width: 100%" :disabled="form.effect !== '1'" @change="updateTimeCondition">
+                <el-option label="公开" value="PUBLIC" />
+                <el-option label="内部" value="INTERNAL" />
+                <el-option label="秘密" value="SECRET" />
+                <el-option label="机密" value="CONFIDENTIAL" />
+              </el-select>
             </el-form-item>
           </el-col>
-
           <el-col :span="24">
-            <el-form-item label="环境限制">
-              <el-input v-model="form.envExpr" placeholder="当前识别：time not in [09:00-18:00]" />
+            <el-form-item label="允许时段">
+              <el-time-picker v-model="policyTimeRange[0]" value-format="HH:mm" format="HH:mm" placeholder="开始时间" style="width: 46%" :disabled="form.effect !== '1'" @change="updateTimeCondition" />
+              <span style="display: inline-block; width: 8%; text-align: center">至</span>
+              <el-time-picker v-model="policyTimeRange[1]" value-format="HH:mm" format="HH:mm" placeholder="结束时间" style="width: 46%" :disabled="form.effect !== '1'" @change="updateTimeCondition" />
             </el-form-item>
           </el-col>
-
           <el-col :span="24">
             <el-collapse>
-              <el-collapse-item title="高级兼容配置（一般无需修改）">
+              <el-collapse-item title="适用对象类型">
                 <el-form-item label="主体类型">
                   <el-select v-model="form.subjectType" style="width: 100%">
                     <el-option label="用户组" value="GROUP" />
@@ -289,7 +269,7 @@
                 </el-form-item>
 
                 <el-form-item label="主体表达式">
-                  <el-input v-model="form.subjectExpr" :disabled="form.status === '0'" placeholder="历史记录，不参与执行；适用对象以人员和用户组绑定为准" />
+                  <el-input v-model="form.subjectExpr" disabled />
                 </el-form-item>
               </el-collapse-item>
             </el-collapse>
@@ -330,7 +310,7 @@
       :close-on-click-modal="false"
     >
       <el-alert
-        title="启用的策略通过有效绑定进入对应人员的权限上下文；停用用户组不传递组策略。"
+        title="用户组绑定将策略应用到该组成员；文档范围以所选密级为准。"
         type="info"
         :closable="false"
         show-icon
@@ -343,7 +323,6 @@
           重新加载选项
         </el-button>
       </div>
-      <p class="identity-help">用户组绑定会把本策略应用于该组成员，不代表只限制绑定组的文档。</p>
       <p v-if="currentPolicy && currentPolicy.status !== '0'" class="identity-help">
         当前策略已停用，可查看或取消已有绑定，不能新增绑定。
       </p>
@@ -515,9 +494,10 @@
 </template>
 
 <script>
+import { accessPolicyScenarios } from '@/utils/accessPolicyScenarios'
 import { exportTable } from '@/utils/tableExport'
 import '@/assets/styles/identity-access.scss'
-import { canUse, displayExpression, hasSupportedTimeCondition } from '@/utils/identityAccess'
+import { canUse, displayExpression, hasSupportedTimeCondition, parseTimeCondition, timeConditionSummary } from '@/utils/identityAccess'
 import {
   listPolicy,
   getPolicy,
@@ -590,6 +570,10 @@ export default {
       },
 
       form: {},
+      scenarios: accessPolicyScenarios,
+      selectedScenario: null,
+      policyTimeRange: ['09:00', '18:00'],
+      documentLevels: [],
 
       rules: {
         policyCode: [
@@ -653,24 +637,43 @@ export default {
       return canUse(this.$store.getters.permissions, permission)
     },
     ruleSummary(policy) {
-      if (hasSupportedTimeCondition(policy)) {
-        return '工作时间外拒绝访问（09:00—18:00）'
-      }
-      if (policy.effect === '0' || policy.effect === 'ALLOW') {
-        return '历史允许配置；不扩大人员密级或知悉范围'
-      }
-      return displayExpression(policy.envExpr) || '尚无可识别的附加条件'
+      return timeConditionSummary(policy) || displayExpression(policy.envExpr) || '未设置有效条件'
     },
     ruleSupport(policy) {
-      if (hasSupportedTimeCondition(policy)) return '固定时间条件可执行，仍须绑定对象且启用'
-      if (policy.status === '0' && ['1', 'DENY'].includes(String(policy.effect).toUpperCase())) return '规则无法识别，普通人员请求将被拒绝，请维护配置'
-      return '未参与执行；仅保留配置，不授予额外权限'
+      if (hasSupportedTimeCondition(policy)) return ''
+      if (policy.status === '0' && ['1', 'DENY'].includes(String(policy.effect).toUpperCase())) return '规则无效，请修改配置'
+      return '历史配置，不增加访问权限'
+    },
+    loadTimeCondition() {
+      const condition = parseTimeCondition(this.form)
+      this.policyTimeRange = condition ? [condition.start, condition.end] : []
+      this.documentLevels = condition ? condition.levels : []
+      this.selectedScenario = null
+    },
+    updateTimeCondition() {
+      if (this.form.effect !== '1') return
+      const range = this.policyTimeRange || []
+      this.form.envExpr = range.length === 2 ? 'time not in [' + range[0] + '-' + range[1] + ']' : ''
+      this.form.resourceExpr = this.documentLevels.length ? 'level in [' + this.documentLevels.join(',') + ']' : ''
     },
     applyWorkingHoursTemplate() {
       this.form.effect = '1'
-      this.form.envExpr = 'time not in [09:00-18:00]'
-      this.form.resourceExpr = null
+      this.policyTimeRange = ['09:00', '18:00']
+      this.documentLevels = []
       this.form.subjectExpr = null
+      this.updateTimeCondition()
+    },
+    applyScenario(code) {
+      const scenario = this.scenarios.find(item => item.code === code)
+      if (!scenario) return
+      this.form.policyCode = scenario.code
+      this.form.policyName = scenario.name
+      this.form.remark = scenario.description
+      this.form.effect = '1'
+      this.policyTimeRange = [scenario.start, scenario.end]
+      this.documentLevels = scenario.levels.slice()
+      this.form.subjectExpr = null
+      this.updateTimeCondition()
     },
     closePolicyDialog(done) {
       if (!this.saving) {
@@ -828,7 +831,8 @@ export default {
       this.reset()
       this.saveError = ''
       this.form.effect = '1'
-      this.form.envExpr = 'time not in [09:00-18:00]'
+      this.applyWorkingHoursTemplate()
+      this.selectedScenario = null
       this.title = '新建附加访问策略'
       this.open = true
     },
@@ -840,6 +844,7 @@ export default {
         const response = await getPolicy(row.id)
         if (!response.data || String(response.data.id) !== String(row.id)) throw new Error('策略不存在或已删除')
         this.form = response.data
+        this.loadTimeCondition()
         this.title = '编辑附加访问策略'
         this.open = true
       } catch (error) {
@@ -860,13 +865,13 @@ export default {
         }
         this.saveError = ''
         if (this.form.status === '0' && !hasSupportedTimeCondition(this.form)) {
-          this.saveError = '当前仅可启用固定工作时间拒绝规则，其他配置请停用保存。'
+          this.saveError = '请设置有效的访问时段和文档密级。'
           return
         }
         this.saving = true
         try {
           await (this.form.id ? updatePolicy(this.form) : addPolicy(this.form))
-          this.$modal.msgSuccess('策略配置已保存；请核对适用对象与后端执行范围')
+          this.$modal.msgSuccess('保存成功')
           this.open = false
           this.getList()
         } catch (error) {

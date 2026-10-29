@@ -3,7 +3,7 @@
 PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.system.mapper.SysRagDocMapper">
-    
+
     <resultMap type="SysRagDoc" id="SysRagDocResult">
         <result property="id"    column="id"    />
         <result property="docId"    column="doc_id"    />
@@ -47,7 +47,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
-    
+
     <select id="selectSysRagDocById" parameterType="Long" resultMap="SysRagDocResult">
         <include refid="selectSysRagDocVo"/>
         where id = #{id} and del_flag = '0'
@@ -63,6 +63,20 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <include refid="selectSysRagDocVo"/>
         where del_flag = '0' and doc_id = #{docId}
         limit 1
+    </select>
+
+    <select id="selectSysRagDocsByDocIds" resultMap="SysRagDocResult" useCache="false" flushCache="true">
+        <include refid="selectSysRagDocVo"/>
+        where del_flag = '0'
+        <choose>
+            <when test="docIds != null and docIds.size() > 0">
+                and doc_id in
+                <foreach collection="docIds" item="docId" open="(" separator="," close=")">
+                    #{docId}
+                </foreach>
+            </when>
+            <otherwise>and 1 = 0</otherwise>
+        </choose>
     </select>
 
     <insert id="insertSysRagDoc" parameterType="SysRagDoc" useGeneratedKeys="true" keyProperty="id">
@@ -130,7 +144,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </delete>
 
     <delete id="deleteSysRagDocByIds" parameterType="String">
-        delete from sys_rag_doc where id in 
+        delete from sys_rag_doc where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>

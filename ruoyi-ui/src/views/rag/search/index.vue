@@ -5,32 +5,13 @@
         <div>
           <div class="page-title">RAG 安全检索</div>
           <div class="page-subtitle">
-            基于统一身份权限、真实向量召回、二次权限过滤与审计留痕，提供安全可控的知识检索服务。
+            按当前权限检索知识文档，并保留访问记录。
           </div>
         </div>
-        <el-tag :type="form.useRemote ? 'success' : 'warning'" effect="plain">
-          {{ form.useRemote ? '真实 RAG 检索' : '演示检索' }}
-        </el-tag>
+        <el-tag type="success" effect="plain">安全检索</el-tag>
       </div>
 
-      <el-alert
-        title="安全链路：身份校验 → 安全检索 → 权限过滤 → 智能回答 → 审计留痕"
-        type="info"
-        :closable="false"
-        show-icon
-        class="tips-alert"
-      />
-
       <el-form :model="form" label-width="100px" class="search-form">
-        <el-form-item label="检索模式">
-          <el-radio-group v-model="form.useRemote">
-            <el-radio-button :label="false">演示检索</el-radio-button>
-            <el-radio-button :label="true">真实 RAG 检索</el-radio-button>
-          </el-radio-group>
-          <span class="mode-tip">
-            {{ form.useRemote ? '已接入远程 RAG 检索服务' : '使用平台内置演示数据' }}
-          </span>
-        </el-form-item>
 
         <el-form-item label="召回数量">
           <el-input-number v-model="form.topK" :min="1" :max="20" />
@@ -41,7 +22,7 @@
             v-model="form.query"
             type="textarea"
             :rows="4"
-            placeholder="请输入检索问题，例如：username"
+            placeholder="请输入需要检索的知识内容"
           />
         </el-form-item>
 
@@ -106,7 +87,7 @@
           >
             {{ item }}
           </el-tag>
-          <span v-if="securityReasons.length === 0" class="empty-text">后端未返回具体原因</span>
+          <span v-if="securityReasons.length === 0" class="empty-text">暂无详细原因</span>
         </div>
       </div>
 
@@ -214,13 +195,9 @@
       </el-row>
 
       <div class="detail-block">
-        <div class="detail-label">远程联调说明</div>
+        <div class="detail-label">访问决策</div>
         <div class="decision-message">
           {{ result.decisionMessage || result.message || '-' }}
-        </div>
-        <div v-if="result.searchMode === 'remote_rag_server'" class="remote-note">
-          远程检索按人员密级和知悉用户组进行前置过滤；平台再依据当前文档标签与状态逐条复核。
-          兼容标签不作为独立授权依据。请求被拒绝或使用演示检索时，不发送远程请求。
         </div>
       </div>
     </el-card>
@@ -440,11 +417,11 @@ export default {
         if (response && response.code && response.code !== 200) {
           this.$message.warning(response.msg || data.message || '检索请求返回异常')
         } else {
-          this.$message.success(this.form.useRemote ? '真实 RAG 检索完成' : '演示检索完成')
+          this.$message.success('检索完成')
         }
       }).catch(error => {
         console.error(error)
-        this.$message.error('检索失败，请检查后端 8080 与 RAG Server 8081 是否正常运行')
+        this.$message.error('检索服务暂时不可用，请稍后重试')
       }).finally(() => {
         this.loading = false
       })

@@ -70,7 +70,7 @@
         <span class="summary-footnote">
           {{
             contextLoaded
-              ? '另有 ' + compatibilityGroups.length + ' 个旧版兼容分组'
+              ? '另有 ' + compatibilityGroups.length + ' 个公开资料分组'
               : '分组信息待加载'
           }}
         </span>
@@ -81,7 +81,6 @@
         <span class="summary-detail">
           {{ contextLoaded ? '已关联 ' + policies.length + ' 条策略' : '策略信息待加载' }}
         </span>
-        <span class="summary-footnote">此摘要不能替代实际检索准入判断</span>
       </article>
     </section>
 
@@ -95,7 +94,7 @@
         <strong>{{ accessWindowText }}</strong>
       </div>
       <div>
-        <span>后端上下文时间</span>
+        <span>权限更新时间</span>
         <strong>{{ contextLoaded ? context.requestTime || '未提供' : '待加载' }}</strong>
       </div>
     </section>
@@ -139,10 +138,6 @@
           <i class="el-icon-folder-opened" aria-hidden="true" />
           <span>用户组信息尚未加载</span>
         </div>
-        <p v-if="contextLoaded && compatibilityGroups.length" class="panel-note">
-          {{ compatibilityGroups.length }} 个 GROUP_PUBLIC
-          兼容分组已单独归类，不计入秘密、机密文档的知悉用户组。
-        </p>
       </section>
       <section class="panel" aria-labelledby="decision-details-title">
         <div class="panel-heading">
@@ -218,7 +213,7 @@
               <h2 id="access-rules-title">文档访问规则</h2>
               <p>密级资格与知悉范围分别判断，满足对应条件后仍须通过附加安全校验。</p>
             </div>
-            <el-tag size="mini" type="info">统一业务规则</el-tag>
+            <el-tag size="mini" type="info">访问条件</el-tag>
           </div>
           <div class="rule-table-wrap">
             <table class="rule-table">

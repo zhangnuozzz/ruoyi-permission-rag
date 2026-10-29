@@ -10,7 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import com.ruoyi.common.utils.DateUtils;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import com.ruoyi.system.domain.permission.GroupInfo;
 import com.ruoyi.system.domain.permission.PermissionContext;
 import com.ruoyi.system.domain.permission.PolicyInfo;
@@ -42,7 +43,7 @@ public class PermissionContextServiceImpl implements IPermissionContextService
         context.setUserId(userId);
         context.setUserName(userName);
         context.setAdmin(Boolean.TRUE.equals(admin));
-        context.setRequestTime(DateUtils.getTime());
+        context.setRequestTime(LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
         List<GroupInfo> groups = permissionContextMapper.selectGroupsByUserId(userId);
         List<PolicyInfo> policies = permissionContextMapper.selectPoliciesByUserId(userId);
@@ -80,12 +81,6 @@ public class PermissionContextServiceImpl implements IPermissionContextService
      */
     private void evaluateBasicRules(PermissionContext context)
     {
-        if (Boolean.TRUE.equals(context.getAdmin()))
-        {
-            context.setAllowAccess(true);
-            return;
-        }
-
         /*
          * 用户组不是“是否能够使用系统”的前置条件。
          *
@@ -125,7 +120,8 @@ public class PermissionContextServiceImpl implements IPermissionContextService
                 context.getDenyReasons().add("UNSUPPORTED_ACCESS_POLICY");
                 return;
             }
-            if (WorkingHoursRule.isOutside(LocalTime.now(clock)))
+            if (WorkingHoursRule.appliesToAll(policy.getResourceExpr())
+                    && WorkingHoursRule.isOutside(policy.getEnvExpr(), LocalTime.now(clock)))
             {
                 context.setAllowAccess(false);
                 context.getDenyReasons().add("OUT_OF_WORKING_HOURS");

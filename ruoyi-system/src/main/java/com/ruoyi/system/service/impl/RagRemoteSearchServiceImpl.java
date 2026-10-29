@@ -1,6 +1,7 @@
 package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.permission.PermissionContext;
+import com.ruoyi.system.domain.permission.WorkingHoursRule;
 import com.ruoyi.system.domain.permission.PolicyDecisionResult;
 import com.ruoyi.common.exception.CustomException;
 import com.ruoyi.system.domain.rag.RagSearchLimits;
@@ -68,7 +69,8 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
         {
             throw new CustomException("检索权限条件缺失，请重新发起查询");
         }
-        String metadataFilter = decision.getMetadataFilter();
+        String metadataFilter = WorkingHoursRule.restrictFilter(context, decision.getMetadataFilter());
+        decision.setMetadataFilter(metadataFilter);
 
         body.put(
                 "metadataFilter",

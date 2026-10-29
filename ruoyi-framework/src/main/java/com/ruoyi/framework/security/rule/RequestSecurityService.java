@@ -41,7 +41,7 @@ public class RequestSecurityService
         {
             try
             {
-                IpAccessService.Decision decision = ipAccessService.evaluate(ip);
+                IpAccessService.Decision decision = ipAccessService.evaluate(ip, request);
                 if (decision == IpAccessService.Decision.BLACKLIST)
                 {
                     reason = "IP命中黑名单";

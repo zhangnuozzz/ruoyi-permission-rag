@@ -33,10 +33,10 @@ public class PlatformAccessService
     public boolean canAccess(Authentication authentication, HttpServletRequest request)
     {
         if (!isAuthenticatedUser(authentication) || request == null) return false;
-        if (isPlatformUser(authentication)) return true;
         String path = request.getServletPath();
-        return ("GET".equals(request.getMethod()) && PORTAL_GET.contains(path))
-                || ("POST".equals(request.getMethod()) && PORTAL_POST.contains(path));
+        if (("GET".equals(request.getMethod()) && PORTAL_GET.contains(path))
+                || ("POST".equals(request.getMethod()) && PORTAL_POST.contains(path))) return true;
+        return isPlatformUser(authentication);
     }
 
     public boolean isPlatformUser()

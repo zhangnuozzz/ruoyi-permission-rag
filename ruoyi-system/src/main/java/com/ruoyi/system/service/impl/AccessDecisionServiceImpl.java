@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.ruoyi.system.domain.permission.AccessDecisionResult;
+import com.ruoyi.system.domain.permission.PermissionContext;
+import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.service.IPermissionContextService;
 import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.service.IAccessDecisionService;
 
@@ -36,6 +39,9 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
 {
     @Autowired
     private AccessDecisionMapper accessDecisionMapper;
+
+    @Autowired
+    private IPermissionContextService permissionContextService;
 
     @Override
     public AccessDecisionResult decide(
@@ -88,6 +94,14 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         if (!isDocActive(metadataStatus, oldStatus))
         {
             deny(result, "DOCUMENT_STATUS_NOT_ACTIVE");
+            return result;
+        }
+
+        PermissionContext policyContext = permissionContextService.buildContext(userId, userName, admin);
+        String policyDenial = WorkingHoursRule.denialReason(policyContext, docLevel);
+        if (Boolean.FALSE.equals(policyContext.getAllowAccess()) || policyDenial != null)
+        {
+            deny(result, policyDenial == null ? "ACCESS_POLICY_DENIED" : policyDenial);
             return result;
         }
 

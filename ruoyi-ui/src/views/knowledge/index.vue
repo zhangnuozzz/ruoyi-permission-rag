@@ -378,7 +378,7 @@
         </div>
 
         <div class="composer-note">
-          大模型生成内容仅供参考 · 所有知识访问均经过权限校验并记录审计
+          请核对文档来源 · 知识访问均经过权限校验并记录审计
         </div>
       </footer>
     </main>
@@ -1006,7 +1006,6 @@ export default {
   font-weight: 600;
   color: #1e3148;
 }
-
 
 .quick-grid {
   display: grid;

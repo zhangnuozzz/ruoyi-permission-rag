@@ -96,7 +96,7 @@
             :type="scope.row.groupCode === 'GROUP_PUBLIC' ? 'info' : ''"
             effect="plain"
           >
-            {{ scope.row.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组' : '涉密知悉范围' }}
+            {{ scope.row.groupCode === 'GROUP_PUBLIC' ? '公开资料分组' : '涉密知悉范围' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -155,7 +155,7 @@
             class="danger-text"
             :disabled="deletingId !== null || scope.row.groupCode === 'GROUP_PUBLIC'"
             :loading="deletingId === scope.row.id"
-            :title="scope.row.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组保留历史归属，不能删除' : '仅可删除无引用的用户组'"
+            :title="scope.row.groupCode === 'GROUP_PUBLIC' ? '系统公开分组不能删除' : '仅可删除无引用的用户组'"
             @click="handleDelete(scope.row)"
           >
             删除
@@ -186,7 +186,7 @@
       <el-alert
         :title="
           form.groupCode === 'GROUP_PUBLIC'
-            ? '此分组仅用于旧版公开数据兼容，不参与涉密知悉授权。'
+            ? '公开文档无需加入此组即可访问。'
             : '用户组表示知悉范围，不设置密级，也不授予后台操作权限。'
         "
         type="info"
@@ -213,7 +213,7 @@
 
         <el-form-item label="业务含义">
           <el-input
-            :value="form.groupCode === 'GROUP_PUBLIC' ? '公开兼容分组' : '涉密知悉范围'"
+            :value="form.groupCode === 'GROUP_PUBLIC' ? '公开资料分组' : '涉密知悉范围'"
             disabled
           />
         </el-form-item>
@@ -257,7 +257,7 @@
       <el-alert
         :title="
           currentGroup && currentGroup.groupCode === 'GROUP_PUBLIC'
-            ? '此处维护旧版兼容成员关系；公开文档访问不以加入该组为前提。'
+            ? '公开文档无需加入此组即可访问。'
             : '加入该组只满足对应知悉范围，访问秘密、机密文档仍须人员密级足够。'
         "
         type="warning"

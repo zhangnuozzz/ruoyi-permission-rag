@@ -61,10 +61,12 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         context.setRawTopK(topK);
         context.setSafeTopK(normalizeTopK(topK));
 
-        // BBAC：如果临时封禁已过期，自动恢复 ACTIVE。
-        bbacSecurityMapper.unlockExpiredUser(userId);
-
         Map<String, Object> userAttr = secureQueryContextMapper.selectUserSecurityAttr(userId);
+        if (userAttr != null && "LOCKED".equalsIgnoreCase(toStr(userAttr.get("access_status")))
+                && bbacSecurityMapper.unlockExpiredUser(userId) > 0)
+        {
+            userAttr = secureQueryContextMapper.selectUserSecurityAttr(userId);
+        }
         if (userAttr == null)
         {
             context.setAllowQuery(false);

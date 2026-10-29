@@ -172,7 +172,7 @@ public class SysPolicyServiceImpl implements ISysPolicyService
         {
             if (!WorkingHoursRule.supports(policy.getEffect(), policy.getResourceExpr(), policy.getEnvExpr()))
             {
-                throw new CustomException("当前仅可启用固定工作时间拒绝规则，其他配置请停用保存");
+                throw new CustomException("请设置有效的访问时段和文档密级范围");
             }
             if (!policy.getSubjectExpr().isEmpty()
                     && (current == null || !policy.getSubjectExpr().equals(text(current.getSubjectExpr()))))

@@ -2,6 +2,7 @@ package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.SysRagDoc;
 import com.ruoyi.system.domain.permission.PermissionContext;
+import com.ruoyi.system.domain.permission.WorkingHoursRule;
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.mapper.SysRagDocMapper;
@@ -14,6 +15,11 @@ import org.springframework.util.CollectionUtils;
 import java.sql.Time;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import com.ruoyi.common.exception.CustomException;
+import com.ruoyi.system.domain.rag.RagSearchLimits;
 import java.util.List;
 import java.util.Map;
 
@@ -54,6 +60,29 @@ public class RagSecondFilterServiceImpl
             return filtered;
         }
 
+        if (results.size() > RagSearchLimits.MAX_CANDIDATES)
+        {
+            throw new CustomException("检索候选数量超出允许范围");
+        }
+        Set<String> ids = new LinkedHashSet<String>();
+        for (RagSearchResult result : results)
+        {
+            if (result != null && result.getDocId() != null && !result.getDocId().isEmpty())
+                ids.add(result.getDocId());
+        }
+        Map<String, SysRagDoc> documents = new HashMap<String, SysRagDoc>();
+        if (!ids.isEmpty())
+        {
+            List<SysRagDoc> labels = sysRagDocMapper.selectSysRagDocsByDocIds(new ArrayList<String>(ids));
+            if (labels == null) throw new CustomException("文档安全标签未能完整读取");
+            for (SysRagDoc label : labels)
+            {
+                if (label == null || !ids.contains(label.getDocId())
+                        || documents.put(label.getDocId(), label) != null)
+                    throw new CustomException("文档安全标签存在冲突");
+            }
+        }
+
         Long userId =
                 context == null
                         ? null
@@ -78,16 +107,7 @@ public class RagSecondFilterServiceImpl
                 continue;
             }
 
-            SysRagDoc doc = null;
-
-            if (result.getDocId() != null
-                    && result.getDocId().length() > 0)
-            {
-                doc = sysRagDocMapper
-                        .selectSysRagDocByDocId(
-                                result.getDocId()
-                        );
-            }
+            SysRagDoc doc = documents.get(result.getDocId());
 
             if (doc == null)
             {
@@ -123,6 +143,13 @@ public class RagSecondFilterServiceImpl
                         "DOCUMENT_STATUS_NOT_ACTIVE",
                         "文档状态不是 ACTIVE"
                 );
+                continue;
+            }
+
+            String policyDenial = WorkingHoursRule.denialReason(context, level);
+            if (policyDenial != null)
+            {
+                reject(result, policyDenial, "当前不满足适用策略的访问条件");
                 continue;
             }
 
