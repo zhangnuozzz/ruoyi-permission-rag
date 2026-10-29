@@ -16,6 +16,8 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
+import com.ruoyi.system.domain.rag.QueryExecutionStatus;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -28,8 +30,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.ruoyi.system.domain.SysRagBehaviorAlert;
+import com.ruoyi.system.domain.rag.RagAuditLog;
+import com.ruoyi.system.domain.rag.AuditSyslogMessage;
 
-/** 将告警摘要提交到独立、有界的发送队列，网络异常不阻塞业务请求。 */
+/** 将审计与告警摘要提交到独立、有界的发送队列。 */
 @Service
 public class SyslogForwardService
 {
@@ -91,6 +95,28 @@ public class SyslogForwardService
     public boolean forwardAlert(SysRagBehaviorAlert alert)
     {
         if (alert == null || !enabled) return false;
+        return submit(buildMessage(alert));
+    }
+
+    public boolean forwardAudit(RagAuditLog audit)
+    {
+        if (audit == null || !enabled) return false;
+        return forwardAudit(audit, QueryExecutionStatus.from(audit.getAllowAccess(), audit.getResponseJson()));
+    }
+
+    public boolean forwardAudit(RagAuditLog audit, QueryExecutionStatus execution)
+    {
+        if (audit == null || !enabled) return false;
+        return submit(AuditSyslogMessage.snapshot(audit, execution, includeQuery));
+    }
+
+    private boolean submit(final String message)
+    {
+        return submit(() -> message);
+    }
+
+    private boolean submit(Supplier<String> message)
+    {
         ThreadPoolExecutor sender = executor;
         if (!"ACTIVE".equals(state) || sender == null)
         {
@@ -98,16 +124,15 @@ public class SyslogForwardService
             warnFailure("NOT_ACTIVE");
             return false;
         }
-        // 生成不可变消息快照，避免排队期间告警对象被后续处理动作改变。
-        final String message = buildMessage(alert);
         submitted.incrementAndGet();
         try
         {
             sender.execute(() -> {
                 try
                 {
-                    if ("TCP".equals(protocol)) sendTcp(message);
-                    else sendUdp(message);
+                    String rendered = message.get();
+                    if ("TCP".equals(protocol)) sendTcp(rendered);
+                    else sendUdp(rendered);
                     sent.incrementAndGet();
                     lastSentAt = System.currentTimeMillis();
                 }

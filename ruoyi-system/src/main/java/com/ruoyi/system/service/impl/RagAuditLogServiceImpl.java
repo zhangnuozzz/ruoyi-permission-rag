@@ -7,6 +7,7 @@ import com.ruoyi.system.mapper.RagAuditLogMapper;
 import com.ruoyi.system.mapper.BbacSecurityMapper;
 import com.ruoyi.system.service.IRagAuditLogService;
 import com.ruoyi.system.service.ISysRagBehaviorAlertService;
+import com.ruoyi.system.service.SyslogForwardService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -28,6 +29,9 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
     @Autowired
     private ISysRagBehaviorAlertService sysRagBehaviorAlertService;
 
+    @Autowired
+    private SyslogForwardService syslogForwardService;
+
     @Override
     public void record(RagAuditLog auditLog)
     {
@@ -37,6 +41,17 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
             if (rows != 1 || auditLog.getId() == null || auditLog.getId() <= 0)
             {
                 throw new CustomException("审计记录未能完整保存，本次请求未返回检索结果");
+            }
+
+            QueryExecutionStatus executionStatus = QueryExecutionStatus.from(
+                    auditLog.getAllowAccess(), auditLog.getResponseJson());
+            try
+            {
+                syslogForwardService.forwardAudit(auditLog, executionStatus);
+            }
+            catch (Exception exception)
+            {
+                log.warn("检索审计已保存，摘要转发未完成，审计ID：{}", auditLog.getId(), exception);
             }
 
             /*
@@ -49,8 +64,7 @@ public class RagAuditLogServiceImpl implements IRagAuditLogService
             {
                 if (auditLog.getUserId() != null)
                 {
-                    if (QueryExecutionStatus.from(auditLog.getAllowAccess(), auditLog.getResponseJson())
-                            == QueryExecutionStatus.COMPLETED)
+                    if (executionStatus == QueryExecutionStatus.COMPLETED)
                     {
                         bbacSecurityMapper.resetFailCount(auditLog.getUserId());
                     }

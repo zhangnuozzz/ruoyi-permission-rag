@@ -145,7 +145,8 @@
           <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
           <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
           <el-button type="danger" plain size="mini" @click="showRejectedRequests">筛选请求拒绝</el-button>
-          <el-button v-hasPermi="['system:log:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" @click="handleExport">导出</el-button>
+          <el-button v-hasPermi="['system:log:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" :disabled="syslogExporting" @click="handleExport">导出 Excel</el-button>
+          <el-button v-hasPermi="['system:log:export']" type="info" plain icon="el-icon-document" size="mini" :loading="syslogExporting" :disabled="exporting" @click="handleSyslogExport">导出 Syslog</el-button>
         </el-form-item>
       </el-form>
 
@@ -314,7 +315,7 @@
 </template>
 
 <script>
-import { listLog, delLog } from '@/api/system/log'
+import { listLog, delLog, exportLogSyslog } from '@/api/system/log'
 import { exportTable } from '@/utils/tableExport'
 import { canUse } from '@/utils/identityAccess'
 
@@ -327,6 +328,7 @@ export default {
       loadError: '',
       actionError: '',
       exporting: false,
+      syslogExporting: false,
       ids: [],
       showSearch: true,
       total: 0,
@@ -478,7 +480,7 @@ export default {
     },
 
     async handleExport() {
-      if (this.exporting || !canUse(this.$store.getters.permissions, 'system:log:export')) return
+      if (this.exporting || this.syslogExporting || !canUse(this.$store.getters.permissions, 'system:log:export')) return
       this.exporting = true
       this.actionError = ''
       try {
@@ -487,6 +489,32 @@ export default {
         this.actionError = (error && error.message) || '审计日志导出失败，请重试。'
       } finally {
         this.exporting = false
+      }
+    },
+
+    async handleSyslogExport() {
+      if (this.exporting || this.syslogExporting || !canUse(this.$store.getters.permissions, 'system:log:export')) return
+      this.syslogExporting = true
+      this.actionError = ''
+      let url
+      let link
+      try {
+        const response = await exportLogSyslog(this.buildQueryParams())
+        if (!response || response.code !== 200 || typeof response.syslog !== 'string') {
+          throw new Error('审计导出未返回有效的 Syslog 内容，请重试。')
+        }
+        url = window.URL.createObjectURL(new Blob([response.syslog], { type: 'text/plain;charset=utf-8' }))
+        link = document.createElement('a')
+        link.href = url
+        link.download = 'vacp-rag-request-syslog.log'
+        document.body.appendChild(link)
+        link.click()
+      } catch (error) {
+        this.actionError = (error && error.message) || 'Syslog 导出失败，请重试。'
+      } finally {
+        if (link && link.parentNode) link.parentNode.removeChild(link)
+        if (url) window.URL.revokeObjectURL(url)
+        this.syslogExporting = false
       }
     },
 

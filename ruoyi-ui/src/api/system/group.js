@@ -86,3 +86,11 @@ export function removeGroupMember(groupId, userId) {
     method: 'delete'
   })
 }
+
+export function listGroupManagers(keyword) {
+  return request({
+    url: '/system/group/manager/options',
+    method: 'get',
+    params: { keyword }
+  })
+}

@@ -8,6 +8,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="groupCode"    column="group_code"    />
         <result property="groupName"    column="group_name"    />
+        <result property="managerUserId" column="manager_user_id" />
+        <result property="managerName" column="manager_name" />
         <result property="scopeCode"    column="scope_code"    />
         <result property="groupSecretLevel"    column="group_secret_level"    />
         <result property="status"    column="status"    />
@@ -20,7 +22,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSysGroupVo">
-        select id, group_code, group_name, scope_code, group_secret_level, status, remark, create_by, create_time, update_by, update_time, del_flag from sys_group
+        select id, group_code, group_name, manager_user_id, scope_code, group_secret_level,
+               status, remark, create_by, create_time, update_by, update_time, del_flag,
+               (select case when u.del_flag != '0' then '原负责人已删除'
+                       else concat(coalesce(nullif(u.nick_name, ''), u.user_name), '（', u.user_name, '）',
+                                   case when u.status = '0' then '' else '（已停用）' end) end
+                from sys_user u where u.user_id = sys_group.manager_user_id) as manager_name
+        from sys_group
     </sql>
 
     <select id="selectSysGroupList" parameterType="SysGroup" resultMap="SysGroupResult">
@@ -45,6 +53,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="groupCode != null and groupCode != ''">group_code,</if>
             <if test="groupName != null and groupName != ''">group_name,</if>
+            <if test="managerUserId != null">manager_user_id,</if>
             <if test="scopeCode != null">scope_code,</if>
             <if test="groupSecretLevel != null and groupSecretLevel != ''">group_secret_level,</if>
             <if test="status != null and status != ''">status,</if>
@@ -58,6 +67,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="groupCode != null and groupCode != ''">#{groupCode},</if>
             <if test="groupName != null and groupName != ''">#{groupName},</if>
+            <if test="managerUserId != null">#{managerUserId},</if>
             <if test="scopeCode != null">#{scopeCode},</if>
             <if test="groupSecretLevel != null and groupSecretLevel != ''">#{groupSecretLevel},</if>
             <if test="status != null and status != ''">#{status},</if>
@@ -72,7 +82,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <update id="updateSysGroup" parameterType="SysGroup">
         update sys_group
-        set group_name = #{groupName}, status = #{status}, remark = #{remark},
+        set group_name = #{groupName}, manager_user_id = #{managerUserId}, status = #{status}, remark = #{remark},
             update_by = #{updateBy}, update_time = #{updateTime}
         where id = #{id} and del_flag = '0'
     </update>

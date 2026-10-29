@@ -25,7 +25,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
  * RAG检索审计日志Controller
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-05
  */
@@ -60,6 +60,16 @@ public class SysRagAuditLogController extends BaseController
         List<RagAuditExportRow> rows = list.stream().map(RagAuditExportRow::new).collect(Collectors.toList());
         ExcelUtil<RagAuditExportRow> util = new ExcelUtil<RagAuditExportRow>(RagAuditExportRow.class);
         return util.exportExcel(rows, "RAG检索审计日志数据");
+    }
+
+    @PreAuthorize("@ss.hasPermi('system:log:export')")
+    @Log(title = "检索审计Syslog导出", businessType = BusinessType.EXPORT)
+    @RequestMapping(value = "/syslog", method = { RequestMethod.GET, RequestMethod.POST })
+    public AjaxResult exportSyslog(SysRagAuditLog query)
+    {
+        AjaxResult result = AjaxResult.success();
+        result.put("syslog", sysRagAuditLogService.exportSyslog(query));
+        return result;
     }
 
     /**

@@ -33,3 +33,12 @@ export function exportLog(query) {
     params: query
   })
 }
+
+export function exportLogSyslog(query) {
+  return request({
+    url: '/system/log/syslog',
+    method: 'post',
+    params: query,
+    timeout: 60000
+  })
+}

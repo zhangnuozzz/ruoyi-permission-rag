@@ -69,6 +69,9 @@
         </el-button>
       </el-col>
 
+      <el-col :span="1.5">
+        <el-button v-hasPermi="['system:group:export']" type="warning" plain icon="el-icon-download" size="mini" :loading="exporting" @click="handleExport">导出 Excel</el-button>
+      </el-col>
       <right-toolbar :show-search.sync="showSearch" @queryTable="getList" />
     </el-row>
 
@@ -88,6 +91,9 @@
       <el-table-column label="用户组名称" prop="groupName" min-width="160" />
 
       <el-table-column label="用户组编码" prop="groupCode" min-width="180" />
+      <el-table-column label="负责人" min-width="160" show-overflow-tooltip>
+        <template slot-scope="scope">{{ scope.row.managerName || (scope.row.managerUserId ? '原负责人不可用' : '未设置') }}</template>
+      </el-table-column>
 
       <el-table-column label="分组用途" width="150">
         <template slot-scope="scope">
@@ -197,6 +203,12 @@
 
       <div v-if="saveError" class="identity-form-feedback" role="alert">{{ saveError }}</div>
       <el-form ref="form" :model="form" :rules="rules" label-width="110px">
+        <el-form-item label="负责人">
+          <el-select v-model="form.managerUserId" filterable remote clearable :remote-method="loadManagerOptions" :loading="managerOptionsLoading" placeholder="输入账号检索，可留空" style="width: 100%">
+            <el-option v-for="person in managerOptions" :key="person.userId" :label="person.label" :value="person.userId" />
+          </el-select>
+          <div v-if="managerOptionsError" class="identity-form-feedback" role="alert">{{ managerOptionsError }}</div>
+        </el-form-item>
         <el-form-item label="用户组名称" prop="groupName">
           <el-input v-model.trim="form.groupName" :maxlength="128" placeholder="例如：A项目组" />
         </el-form-item>
@@ -374,9 +386,11 @@
 
 <script>
 import '@/assets/styles/identity-access.scss'
+import { exportTable } from '@/utils/tableExport'
 import { canUse } from '@/utils/identityAccess'
 import {
   listGroup,
+  listGroupManagers,
   getGroup,
   delGroup,
   addGroup,
@@ -395,6 +409,12 @@ export default {
     return {
       loading: true,
       saving: false,
+      exporting: false,
+      managerOptions: [],
+      managerOptionsLoading: false,
+      managerOptionsError: '',
+      managerOptionsRequestId: 0,
+      groupDetailRequestId: 0,
       listError: '',
       deleteError: '',
       deletingId: null,
@@ -478,8 +498,41 @@ export default {
     can(permission) {
       return canUse(this.$store.getters.permissions, permission)
     },
+    async handleExport() {
+      if (this.exporting || !this.can('system:group:export')) return
+      this.exporting = true
+      this.deleteError = ''
+      try {
+        await exportTable('/system/group/export', { ...this.queryParams })
+      } catch (error) {
+        this.deleteError = (error && error.message) || '用户组导出失败，请重试。'
+      } finally {
+        this.exporting = false
+      }
+    },
+    async loadManagerOptions(keyword = '') {
+      const requestId = ++this.managerOptionsRequestId
+      this.managerOptionsLoading = true
+      this.managerOptionsError = ''
+      try {
+        const response = await listGroupManagers(keyword)
+        if (requestId !== this.managerOptionsRequestId) return
+        if (!Array.isArray(response.data)) throw new Error('人员选项读取失败')
+        const options = response.data.map(person => ({ userId: person.userId, label: (person.nickName || person.userName) + '（' + person.userName + '）' }))
+        if (this.form.managerUserId && !options.some(person => person.userId === this.form.managerUserId)) {
+          options.unshift({ userId: this.form.managerUserId, label: this.form.managerName || '原负责人不可用' })
+        }
+        this.managerOptions = options
+      } catch (error) {
+        if (requestId === this.managerOptionsRequestId) this.managerOptionsError = (error && error.message) || '负责人选项加载失败，请重新检索。'
+      } finally {
+        if (requestId === this.managerOptionsRequestId) this.managerOptionsLoading = false
+      }
+    },
     closeGroupDialog(done) {
       if (!this.saving) {
+        this.groupDetailRequestId++
+        this.managerOptionsRequestId++
         done()
       }
     },
@@ -551,12 +604,18 @@ export default {
     },
 
     reset() {
+      this.groupDetailRequestId++
+      this.managerOptionsRequestId++
+      this.managerOptions = []
+      this.managerOptionsError = ''
+      this.managerOptionsLoading = false
       this.saveError = ''
       this.form = {
         id: null,
 
         groupCode: null,
         groupName: null,
+        managerUserId: null,
 
         // 旧兼容字段不再参与业务
         scopeCode: null,
@@ -577,14 +636,18 @@ export default {
       this.title = '新建知悉用户组'
 
       this.open = true
+      this.loadManagerOptions()
     },
 
     handleUpdate(row) {
       this.reset()
 
+      const requestId = this.groupDetailRequestId
       getGroup(row.id)
         .then((response) => {
-          this.form = response.data || {}
+          if (requestId !== this.groupDetailRequestId) return
+          if (!response.data || String(response.data.id) !== String(row.id)) throw new Error('用户组不存在或已删除')
+          this.form = response.data
 
           // 不再编辑旧 scope / groupSecretLevel
           this.form.scopeCode = null
@@ -593,8 +656,11 @@ export default {
           this.title = '编辑知悉用户组'
 
           this.open = true
+          this.managerOptions = this.form.managerUserId ? [{ userId: this.form.managerUserId, label: this.form.managerName || '原负责人不可用' }] : []
+          this.loadManagerOptions()
         })
         .catch(() => {
+          if (requestId !== this.groupDetailRequestId) return
           this.$message.error('用户组详情加载失败，请重试。')
         })
     },
@@ -617,6 +683,7 @@ export default {
           id: this.form.id,
           groupCode: this.form.groupCode,
           groupName: this.form.groupName,
+          managerUserId: this.form.managerUserId || null,
           scopeCode: null,
           groupSecretLevel: null,
           status: this.form.status,

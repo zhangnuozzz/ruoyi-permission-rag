@@ -10,6 +10,8 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.domain.SysGroup;
 import com.ruoyi.system.mapper.SysGroupMapper;
 import com.ruoyi.system.service.ISysGroupService;
+import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,6 +30,9 @@ public class SysGroupServiceImpl implements ISysGroupService
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ISysUserService userService;
 
     @Override
     public SysGroup selectSysGroupById(Long id)
@@ -54,6 +59,7 @@ public class SysGroupServiceImpl implements ISysGroupService
         {
             throw new CustomException("用户组编码须以大写字母开头，仅使用大写字母、数字和下划线");
         }
+        group.setManagerUserId(validateManager(input.getManagerUserId()));
         group.setDelFlag("0");
         group.setCreateBy(SecurityUtils.getUsername());
         group.setCreateTime(DateUtils.getNowDate());
@@ -81,6 +87,11 @@ public class SysGroupServiceImpl implements ISysGroupService
         {
             throw new CustomException("用户组编码是文档归属标识，创建后不能修改");
         }
+        Long currentManager = current.get("manager_user_id") == null ? null
+                : ((Number) current.get("manager_user_id")).longValue();
+        Long requestedManager = input.hasManagerUserId() ? input.getManagerUserId() : currentManager;
+        group.setManagerUserId(java.util.Objects.equals(requestedManager, currentManager)
+                ? currentManager : validateManager(requestedManager));
         group.setUpdateBy(SecurityUtils.getUsername());
         group.setUpdateTime(DateUtils.getNowDate());
         int rows = sysGroupMapper.updateSysGroup(group);
@@ -163,13 +174,28 @@ public class SysGroupServiceImpl implements ISysGroupService
     private Map<String, Object> lockGroup(Long id)
     {
         List<Map<String, Object>> groups = jdbcTemplate.queryForList(
-                "select id, group_code, group_name from sys_group "
+                "select id, group_code, group_name, manager_user_id from sys_group "
                 + "where id = ? and del_flag = '0' for update", id);
         if (groups.size() != 1)
         {
             throw new CustomException("用户组不存在或已删除，请刷新后重试");
         }
         return groups.get(0);
+    }
+
+    private Long validateManager(Long managerUserId)
+    {
+        if (managerUserId == null) return null;
+        if (managerUserId <= 0) throw new CustomException("负责人必须为有效人员");
+        SysUser manager = userService.selectUserById(managerUserId);
+        if (manager == null || !"0".equals(manager.getDelFlag()) || !"0".equals(manager.getStatus()))
+            throw new CustomException("负责人不存在、已删除或已停用");
+        SysUser visible = new SysUser();
+        visible.setUserName(manager.getUserName());
+        List<SysUser> users = userService.selectUserList(visible);
+        if (users == null || users.stream().noneMatch(user -> managerUserId.equals(user.getUserId())))
+            throw new CustomException("负责人不在当前账号的人员管理范围内");
+        return managerUserId;
     }
 
     private SysGroup validateInput(SysGroup input)

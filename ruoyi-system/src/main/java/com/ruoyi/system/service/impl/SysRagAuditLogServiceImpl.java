@@ -1,6 +1,8 @@
 package com.ruoyi.system.service.impl;
 
 import java.util.List;
+import com.github.pagehelper.PageHelper;
+import com.ruoyi.system.domain.rag.AuditSyslogMessage;
 import com.ruoyi.common.exception.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,8 +19,31 @@ import com.ruoyi.system.service.ISysRagAuditLogService;
 @Service
 public class SysRagAuditLogServiceImpl implements ISysRagAuditLogService
 {
+    private static final int SYSLOG_EXPORT_LIMIT = 2000;
+
     @Autowired
     private SysRagAuditLogMapper sysRagAuditLogMapper;
+
+    @Override
+    public String exportSyslog(SysRagAuditLog query)
+    {
+        try
+        {
+            PageHelper.startPage(1, SYSLOG_EXPORT_LIMIT + 1, false);
+            List<SysRagAuditLog> rows = sysRagAuditLogMapper.selectSysRagAuditLogList(
+                    query == null ? new SysRagAuditLog() : query);
+            if (rows == null) throw new CustomException("审计日志读取失败，请重试");
+            if (rows.size() > SYSLOG_EXPORT_LIMIT)
+                throw new CustomException("单次最多导出2000条审计，请缩小筛选范围");
+            StringBuilder result = new StringBuilder();
+            for (SysRagAuditLog row : rows) result.append(AuditSyslogMessage.format(row, false)).append('\n');
+            return result.toString();
+        }
+        finally
+        {
+            PageHelper.clearPage();
+        }
+    }
 
     /**
      * 查询RAG检索审计日志

@@ -1,6 +1,14 @@
 package com.ruoyi.system.controller;
 
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
+import com.github.pagehelper.PageHelper;
+import com.ruoyi.common.core.domain.entity.SysUser;
+import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.common.exception.CustomException;
+import org.springframework.web.bind.annotation.RequestParam;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +31,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
  * 用户组Controller
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-05
  */
@@ -33,6 +41,36 @@ public class SysGroupController extends BaseController
 {
     @Autowired
     private ISysGroupService sysGroupService;
+
+    @Autowired
+    private ISysUserService userService;
+
+    @PreAuthorize("@ss.hasAnyPermi('system:group:add,system:group:edit')")
+    @GetMapping("/manager/options")
+    public AjaxResult managers(@RequestParam(value = "keyword", required = false) String keyword)
+    {
+        String value = keyword == null ? "" : keyword.trim();
+        if (value.length() > 64) throw new CustomException("检索账号不能超过64个字符");
+        SysUser filter = new SysUser();
+        filter.setStatus("0");
+        filter.setUserName(value);
+        try
+        {
+            PageHelper.startPage(1, 50, false);
+            List<Map<String, Object>> rows = userService.selectUserList(filter).stream().map(user -> {
+                Map<String, Object> row = new LinkedHashMap<String, Object>();
+                row.put("userId", user.getUserId());
+                row.put("userName", user.getUserName());
+                row.put("nickName", user.getNickName());
+                return row;
+            }).collect(Collectors.toList());
+            return AjaxResult.success(rows);
+        }
+        finally
+        {
+            PageHelper.clearPage();
+        }
+    }
 
     /**
      * 查询用户组列表

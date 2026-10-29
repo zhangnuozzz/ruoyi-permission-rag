@@ -7,7 +7,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
  * 用户组对象 sys_group
- * 
+ *
  * @author zhangnuo
  * @date 2026-05-05
  */
@@ -27,12 +27,22 @@ public class SysGroup extends BaseEntity
     private String groupName;
 
     /** 知悉范围编码 */
-    @Excel(name = "知悉范围编码")
     private String scopeCode;
 
     /** 用户组密级 */
-    @Excel(name = "用户组密级", readConverterExp = "PUBLIC=公开,INTERNAL=内部,SECRET=秘密,CONFIDENTIAL=机密")
     private String groupSecretLevel;
+
+    private Long managerUserId;
+    private transient boolean managerUserIdPresent;
+
+    @Excel(name = "负责人")
+    private String managerName;
+
+    public Long getManagerUserId() { return managerUserId; }
+    public void setManagerUserId(Long managerUserId) { this.managerUserId = managerUserId; this.managerUserIdPresent = true; }
+    public boolean hasManagerUserId() { return managerUserIdPresent; }
+    public String getManagerName() { return managerName; }
+    public void setManagerName(String managerName) { this.managerName = managerName; }
 
     /** 状态（0正常 1停用） */
     @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
@@ -41,42 +51,42 @@ public class SysGroup extends BaseEntity
     /** 删除标志（0存在 2删除） */
     private String delFlag;
 
-    public void setId(Long id) 
+    public void setId(Long id)
     {
         this.id = id;
     }
 
-    public Long getId() 
+    public Long getId()
     {
         return id;
     }
 
-    public void setGroupCode(String groupCode) 
+    public void setGroupCode(String groupCode)
     {
         this.groupCode = groupCode;
     }
 
-    public String getGroupCode() 
+    public String getGroupCode()
     {
         return groupCode;
     }
 
-    public void setGroupName(String groupName) 
+    public void setGroupName(String groupName)
     {
         this.groupName = groupName;
     }
 
-    public String getGroupName() 
+    public String getGroupName()
     {
         return groupName;
     }
 
-    public void setScopeCode(String scopeCode) 
+    public void setScopeCode(String scopeCode)
     {
         this.scopeCode = scopeCode;
     }
 
-    public String getScopeCode() 
+    public String getScopeCode()
     {
         return scopeCode;
     }
@@ -91,22 +101,22 @@ public class SysGroup extends BaseEntity
         return groupSecretLevel;
     }
 
-    public void setStatus(String status) 
+    public void setStatus(String status)
     {
         this.status = status;
     }
 
-    public String getStatus() 
+    public String getStatus()
     {
         return status;
     }
 
-    public void setDelFlag(String delFlag) 
+    public void setDelFlag(String delFlag)
     {
         this.delFlag = delFlag;
     }
 
-    public String getDelFlag() 
+    public String getDelFlag()
     {
         return delFlag;
     }
