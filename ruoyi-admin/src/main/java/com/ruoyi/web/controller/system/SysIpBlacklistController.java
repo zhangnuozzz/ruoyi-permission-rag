@@ -1,6 +1,7 @@
 package com.ruoyi.web.controller.system;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,9 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.common.utils.poi.ExcelUtil;
+import com.ruoyi.common.utils.poi.TableExportSupport;
+import com.ruoyi.system.domain.export.IpAccessExportRow;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.domain.SysIpBlacklist;
 import com.ruoyi.system.service.ISysIpBlacklistService;
@@ -41,6 +45,16 @@ public class SysIpBlacklistController extends BaseController
         startPage();
         List<SysIpBlacklist> list = sysIpBlacklistService.selectSysIpBlacklistList(sysIpBlacklist);
         return getDataTable(list);
+    }
+
+    @PreAuthorize("@ss.hasPermi('system:ipBlacklist:export')")
+    @Log(title = "IP黑名单导出", businessType = BusinessType.EXPORT)
+    @PostMapping("/export")
+    public AjaxResult export(SysIpBlacklist query)
+    {
+        List<SysIpBlacklist> records = TableExportSupport.select(() -> sysIpBlacklistService.selectSysIpBlacklistList(query));
+        List<IpAccessExportRow> rows = records.stream().map(IpAccessExportRow::new).collect(Collectors.toList());
+        return new ExcelUtil<IpAccessExportRow>(IpAccessExportRow.class).exportExcel(rows, "IP黑名单数据");
     }
 
     /**

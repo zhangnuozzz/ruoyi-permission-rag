@@ -88,8 +88,22 @@
           >删除</el-button>
         </el-col>
 
+        <el-col :span="1.5">
+          <el-button
+            v-hasPermi="['system:ipBlacklist:export']"
+            type="warning"
+            plain
+            icon="el-icon-download"
+            size="mini"
+            title="按当前筛选导出，单次最多10000条"
+            :loading="exporting"
+            @click="handleExport"
+          >导出Excel</el-button>
+        </el-col>
         <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
+
+      <el-alert v-if="exportError" :title="exportError" type="error" :closable="false" show-icon class="mb8" />
 
       <el-table v-loading="loading" :data="ipBlacklistList" border stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="50" align="center" />
@@ -177,6 +191,8 @@
 </template>
 
 <script>
+import { exportTable } from '@/utils/tableExport'
+import { canUse } from '@/utils/identityAccess'
 import { listIpBlacklist, getIpBlacklist, delIpBlacklist, addIpBlacklist, updateIpBlacklist } from '@/api/system/ipBlacklist'
 
 export default {
@@ -184,6 +200,8 @@ export default {
   data() {
     return {
       loading: true,
+      exporting: false,
+      exportError: '',
       submitting: false,
       ids: [],
       single: true,
@@ -215,6 +233,21 @@ export default {
     this.getList()
   },
   methods: {
+    async handleExport() {
+      if (this.exporting || !canUse(this.$store.getters.permissions, 'system:ipBlacklist:export')) return
+      this.exporting = true
+      this.exportError = ''
+      const query = { ...this.queryParams }
+      delete query.pageNum
+      delete query.pageSize
+      try {
+        await exportTable('/system/ipBlacklist/export', query)
+      } catch (error) {
+        this.exportError = (error && error.message) || '导出失败，请重试。'
+      } finally {
+        this.exporting = false
+      }
+    },
     getList() {
       this.loading = true
       listIpBlacklist(this.queryParams).then(response => {

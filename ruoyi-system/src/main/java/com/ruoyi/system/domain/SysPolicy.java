@@ -4,6 +4,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.core.domain.BaseEntity;
+import com.ruoyi.system.domain.permission.WorkingHoursRule;
 
 /**
  * 权限策略定义对象 sys_policy
@@ -27,7 +28,7 @@ public class SysPolicy extends BaseEntity
     private String policyName;
 
     /** 策略效果（0允许 1拒绝） */
-    @Excel(name = "策略效果", readConverterExp = "0=允许,1=拒绝")
+    @Excel(name = "策略效果", readConverterExp = "0=历史允许配置,1=时段限制,ALLOW=历史允许配置,DENY=时段限制")
     private String effect;
 
     /** 主体类型（USER/GROUP） */
@@ -46,12 +47,12 @@ public class SysPolicy extends BaseEntity
     @Excel(name = "环境条件表达式")
     private String envExpr;
 
-    /** 优先级，数值越小优先级越高 */
+    /** 历史排序值，不参与访问裁决。 */
     @Excel(name = "优先级（预留，暂不参与判定）", width = 38)
     private Integer priority;
 
     /** 状态（0正常 1停用） */
-    @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
+    @Excel(name = "配置状态", readConverterExp = "0=已启用,1=已停用")
     private String status;
 
     /** 删除标志（0存在 2删除） */
@@ -165,6 +166,14 @@ public class SysPolicy extends BaseEntity
     public String getDelFlag()
     {
         return delFlag;
+    }
+
+    public String getConfigurationState()
+    {
+        if ("1".equals(status)) return "DISABLED";
+        if (!"0".equals(status)) return "INVALID";
+        if (WorkingHoursRule.isAllow(effect)) return "LEGACY";
+        return WorkingHoursRule.supports(effect, resourceExpr, envExpr) ? "READY" : "INVALID";
     }
 
     @Override

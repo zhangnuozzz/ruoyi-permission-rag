@@ -9,7 +9,7 @@
     </header>
 
     <div class="identity-rule-note" role="note">
-      策略限定适用人员的访问时段；文档仍按人员密级和知悉用户组授权。
+      策略绑定人员或用户组后限定访问时段，文档仍按人员密级和知悉组授权。
     </div>
 
     <el-form
@@ -33,15 +33,6 @@
         <el-input
           v-model="queryParams.policyName"
           placeholder="请输入策略名称"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-
-      <el-form-item label="优先级" prop="priority">
-        <el-input
-          v-model="queryParams.priority"
-          placeholder="请输入优先级"
           clearable
           @keyup.enter.native="handleQuery"
         />
@@ -145,8 +136,8 @@
       </el-table-column>
       <el-table-column label="配置状态" width="100">
         <template slot-scope="scope">
-          <el-tag size="mini" :type="scope.row.status === '0' ? 'success' : 'info'">
-            {{ scope.row.status === '0' ? '已启用' : '已停用' }}
+          <el-tag size="mini" :type="policyStateType(scope.row)">
+            {{ policyStateLabel(scope.row) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -228,7 +219,7 @@
 
           <el-col :span="12">
             <el-form-item label="策略编码" prop="policyCode">
-              <el-input v-model="form.policyCode" placeholder="例如：RAG_PUBLIC_READ" />
+              <el-input v-model="form.policyCode" placeholder="例如：ACCESS_PROJECT_HOURS" />
             </el-form-item>
           </el-col>
 
@@ -323,8 +314,8 @@
           重新加载选项
         </el-button>
       </div>
-      <p v-if="currentPolicy && currentPolicy.status !== '0'" class="identity-help">
-        当前策略已停用，可查看或取消已有绑定，不能新增绑定。
+      <p v-if="currentPolicy && !canBindPolicy(currentPolicy)" class="identity-help">
+        当前策略不可新增绑定；可查看或取消已有绑定。
       </p>
       <div v-if="can('system:policyBind:add')" class="binding-add-row">
         <el-select
@@ -376,7 +367,7 @@
           :disabled="
             !newBinding.bindTargetId ||
               !currentPolicy ||
-              currentPolicy.status !== '0' ||
+              !canBindPolicy(currentPolicy) ||
               referenceLoading ||
               bindingBusy ||
               bindingsLoading ||
@@ -639,10 +630,28 @@ export default {
     ruleSummary(policy) {
       return timeConditionSummary(policy) || displayExpression(policy.envExpr) || '未设置有效条件'
     },
+    policyState(policy) {
+      if (!policy) return 'INVALID'
+      if (policy.status === '1') return 'DISABLED'
+      if (policy.status !== '0') return 'INVALID'
+      if (this.isAllow(policy.effect)) return 'LEGACY'
+      return hasSupportedTimeCondition(policy) ? 'READY' : 'INVALID'
+    },
+    policyStateLabel(policy) {
+      return { READY: '已启用', DISABLED: '已停用', LEGACY: '历史配置', INVALID: '规则无效' }[this.policyState(policy)]
+    },
+    policyStateType(policy) {
+      return { READY: 'success', DISABLED: 'info', LEGACY: 'warning', INVALID: 'danger' }[this.policyState(policy)]
+    },
+    canBindPolicy(policy) {
+      return this.policyState(policy) === 'READY'
+    },
     ruleSupport(policy) {
-      if (hasSupportedTimeCondition(policy)) return ''
-      if (policy.status === '0' && ['1', 'DENY'].includes(String(policy.effect).toUpperCase())) return '规则无效，请修改配置'
-      return '历史配置，不增加访问权限'
+      const state = this.policyState(policy)
+      if (state === 'READY') return ''
+      if (state === 'DISABLED') return '已停用，不参与访问判断'
+      if (state === 'LEGACY') return '保留历史记录，不增加访问权限'
+      return '启用的无效限制将拒绝请求，请修改或停用'
     },
     loadTimeCondition() {
       const condition = parseTimeCondition(this.form)
@@ -939,7 +948,7 @@ export default {
     async addBinding() {
       if (
         !this.currentPolicy ||
-        this.currentPolicy.status !== '0' ||
+        !this.canBindPolicy(this.currentPolicy) ||
         this.referenceLoading ||
         !this.newBinding.bindTargetId ||
         this.bindingBusy ||
@@ -983,7 +992,7 @@ export default {
         this.newBinding.bindTargetId = null
         await this.refreshBindings()
       } catch (error) {
-        this.bindingError = '绑定添加失败，请刷新后核实，避免重复添加。'
+        this.bindingError = (error && error.message) || '绑定添加失败，请刷新后核实。'
       } finally {
         this.bindingSaving = false
       }

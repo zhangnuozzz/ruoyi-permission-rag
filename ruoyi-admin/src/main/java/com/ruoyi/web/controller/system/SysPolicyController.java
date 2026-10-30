@@ -1,6 +1,7 @@
 package com.ruoyi.system.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.system.domain.SysPolicy;
+import com.ruoyi.system.domain.SysPolicyExportRow;
 import com.ruoyi.system.service.ISysPolicyService;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -56,8 +58,9 @@ public class SysPolicyController extends BaseController
     public AjaxResult export(HttpServletResponse response, SysPolicy sysPolicy)
     {
         List<SysPolicy> list = sysPolicyService.selectSysPolicyList(sysPolicy);
-        ExcelUtil<SysPolicy> util = new ExcelUtil<SysPolicy>(SysPolicy.class);
-        return util.exportExcel(list, "权限策略定义数据");
+        List<SysPolicyExportRow> rows = list.stream().map(SysPolicyExportRow::new).collect(Collectors.toList());
+        ExcelUtil<SysPolicyExportRow> util = new ExcelUtil<SysPolicyExportRow>(SysPolicyExportRow.class);
+        return util.exportExcel(rows, "权限策略定义数据");
     }
 
     /**
