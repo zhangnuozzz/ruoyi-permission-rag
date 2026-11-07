@@ -5,37 +5,17 @@
     <breadcrumb id="breadcrumb-container" class="breadcrumb-container" />
 
     <div class="right-menu">
-      <template v-if="device!=='mobile'">
-        <search id="header-search" class="right-menu-item" />
-        
-        <el-tooltip content="源码地址" effect="dark" placement="bottom">
-          <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <el-tooltip content="文档地址" effect="dark" placement="bottom">
-          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <screenfull id="screenfull" class="right-menu-item hover-effect" />
-
-        <el-tooltip content="布局大小" effect="dark" placement="bottom">
-          <size-select id="size-select" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-      </template>
-
       <el-dropdown class="avatar-container right-menu-item hover-effect" trigger="click">
         <div class="avatar-wrapper">
-          <img :src="avatar" class="user-avatar">
+          <i class="el-icon-user-solid account-icon" aria-hidden="true" />
+          <span class="account-name">{{ name }}</span>
           <i class="el-icon-caret-bottom" />
         </div>
         <el-dropdown-menu slot="dropdown">
           <router-link to="/user/profile">
             <el-dropdown-item>个人中心</el-dropdown-item>
           </router-link>
-          <el-dropdown-item @click.native="setting = true">
-            <span>布局设置</span>
-          </el-dropdown-item>
+          <router-link to="/password"><el-dropdown-item>修改密码</el-dropdown-item></router-link>
           <el-dropdown-item divided @click.native="logout">
             <span>退出登录</span>
           </el-dropdown-item>
@@ -49,39 +29,11 @@
 import { mapGetters } from 'vuex'
 import Breadcrumb from '@/components/Breadcrumb'
 import Hamburger from '@/components/Hamburger'
-import Screenfull from '@/components/Screenfull'
-import SizeSelect from '@/components/SizeSelect'
-import Search from '@/components/HeaderSearch'
-import RuoYiGit from '@/components/RuoYi/Git'
-import RuoYiDoc from '@/components/RuoYi/Doc'
 
 export default {
-  components: {
-    Breadcrumb,
-    Hamburger,
-    Screenfull,
-    SizeSelect,
-    Search,
-    RuoYiGit,
-    RuoYiDoc
-  },
+  components: { Breadcrumb, Hamburger },
   computed: {
-    ...mapGetters([
-      'sidebar',
-      'avatar',
-      'device'
-    ]),
-    setting: {
-      get() {
-        return this.$store.state.settings.showSettings
-      },
-      set(val) {
-        this.$store.dispatch('settings/changeSetting', {
-          key: 'showSettings',
-          value: val
-        })
-      }
-    }
+    ...mapGetters(['sidebar', 'name'])
   },
   methods: {
     toggleSideBar() {
@@ -94,7 +46,7 @@ export default {
         type: 'warning'
       }).then(() => {
         this.$store.dispatch('LogOut').then(() => {
-          location.href = '/index';
+          location.replace('/login')
         })
       })
     }
@@ -166,6 +118,8 @@ export default {
         margin-top: 5px;
         position: relative;
 
+        .account-name { margin-left: 8px; font-size: 14px; color: #405369; }
+        .account-icon { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 50%; background: #edf4fc; color: #3a80cf; }
         .user-avatar {
           cursor: pointer;
           width: 40px;

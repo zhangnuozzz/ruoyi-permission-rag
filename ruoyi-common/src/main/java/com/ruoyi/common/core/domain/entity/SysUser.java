@@ -413,7 +413,6 @@ public class SysUser extends BaseEntity
             .append("secretLevel", getSecretLevel())
             .append("groupNames", getGroupNames())
             .append("avatar", getAvatar())
-            .append("password", getPassword())
             .append("salt", getSalt())
             .append("status", getStatus())
             .append("delFlag", getDelFlag())

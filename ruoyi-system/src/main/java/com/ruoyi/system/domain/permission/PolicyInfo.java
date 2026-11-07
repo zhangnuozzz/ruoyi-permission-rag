@@ -11,6 +11,10 @@ public class PolicyInfo implements Serializable
 {
     private static final long serialVersionUID = 1L;
 
+    private Integer conditionVersion = 0;
+    public Integer getConditionVersion() { return conditionVersion; }
+    public void setConditionVersion(Integer value) { conditionVersion = value; }
+
     /** 策略ID */
     private Long policyId;
 

@@ -2,7 +2,7 @@ package com.ruoyi.system.service.impl;
 
 import com.ruoyi.system.domain.SysRagDoc;
 import com.ruoyi.system.domain.permission.PermissionContext;
-import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.domain.permission.AccessPolicyRule;
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.mapper.SysRagDocMapper;
@@ -146,7 +146,7 @@ public class RagSecondFilterServiceImpl
                 continue;
             }
 
-            String policyDenial = WorkingHoursRule.denialReason(context, level);
+            String policyDenial = AccessPolicyRule.denialReason(context, level);
             if (policyDenial != null)
             {
                 reject(result, policyDenial, "当前不满足适用策略的访问条件");

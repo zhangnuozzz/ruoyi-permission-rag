@@ -9,7 +9,7 @@
     </header>
 
     <div class="identity-rule-note" role="note">
-      策略绑定人员或用户组后限定访问时段，文档仍按人员密级和知悉组授权。
+      先校验人员密级与知悉组，再按命中策略的优先级裁决；同级拒绝优先。
     </div>
 
     <el-form
@@ -38,6 +38,27 @@
         />
       </el-form-item>
 
+      <el-form-item label="资源范围" prop="resourceExpr">
+        <el-input v-model="queryParams.resourceExpr" placeholder="如 SECRET 或资源表达式" clearable @keyup.enter.native="handleQuery" />
+      </el-form-item>
+      <el-form-item label="对象类型" prop="subjectType">
+        <el-select v-model="queryParams.subjectType" clearable placeholder="全部">
+          <el-option label="人员" value="USER" /><el-option label="用户组" value="GROUP" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="效果" prop="effect">
+        <el-select v-model="queryParams.effect" clearable placeholder="全部">
+          <el-option label="允许" value="0" /><el-option label="拒绝" value="1" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" clearable placeholder="全部">
+          <el-option label="启用" value="0" /><el-option label="停用" value="1" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="优先级" prop="priority">
+        <el-input-number v-model="queryParams.priority" :controls="false" :min="0" :max="9999" />
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">
           搜索
@@ -134,6 +155,7 @@
           <span v-else class="identity-muted">未绑定对象</span>
         </template>
       </el-table-column>
+      <el-table-column label="优先级" prop="priority" width="80" align="center" />
       <el-table-column label="配置状态" width="100">
         <template slot-scope="scope">
           <el-tag size="mini" :type="policyStateType(scope.row)">
@@ -225,16 +247,16 @@
 
           <el-col :span="12">
             <el-form-item label="访问效果" prop="effect">
-              <el-radio-group v-model="form.effect">
-                <el-radio v-if="form.id && isAllow(form.effect)" label="0" disabled>历史允许配置</el-radio>
-                <el-radio label="1">限定访问时段</el-radio>
+              <el-radio-group v-model="form.effect" @change="updateCondition">
+                <el-radio label="0">命中时允许</el-radio>
+                <el-radio label="1">条件外拒绝</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
 
           <el-col :span="24">
             <el-form-item label="文档密级">
-              <el-select v-model="documentLevels" multiple clearable placeholder="全部密级" style="width: 100%" :disabled="form.effect !== '1'" @change="updateTimeCondition">
+              <el-select v-model="documentLevels" multiple clearable placeholder="全部密级" style="width: 100%" :disabled="saving" @change="updateCondition">
                 <el-option label="公开" value="PUBLIC" />
                 <el-option label="内部" value="INTERNAL" />
                 <el-option label="秘密" value="SECRET" />
@@ -243,10 +265,31 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="限制维度">
+              <el-checkbox-group v-model="conditionTypes" :disabled="saving" @change="updateCondition">
+                <el-checkbox label="TIME">访问时段</el-checkbox>
+                <el-checkbox label="IP">来源网段</el-checkbox>
+                <el-checkbox label="RISK">人员风险等级</el-checkbox>
+              </el-checkbox-group>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="conditionTypes.includes('TIME')" :span="24">
             <el-form-item label="允许时段">
-              <el-time-picker v-model="policyTimeRange[0]" value-format="HH:mm" format="HH:mm" placeholder="开始时间" style="width: 46%" :disabled="form.effect !== '1'" @change="updateTimeCondition" />
+              <el-time-picker v-model="policyTimeRange[0]" value-format="HH:mm" format="HH:mm" placeholder="开始时间" style="width: 46%" :disabled="saving" @change="updateCondition" />
               <span style="display: inline-block; width: 8%; text-align: center">至</span>
-              <el-time-picker v-model="policyTimeRange[1]" value-format="HH:mm" format="HH:mm" placeholder="结束时间" style="width: 46%" :disabled="form.effect !== '1'" @change="updateTimeCondition" />
+              <el-time-picker v-model="policyTimeRange[1]" value-format="HH:mm" format="HH:mm" placeholder="结束时间" style="width: 46%" :disabled="saving" @change="updateCondition" />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="conditionTypes.includes('IP')" :span="24">
+            <el-form-item label="允许来源">
+              <el-input v-model="policyNetworks" type="textarea" :rows="2" maxlength="400" placeholder="如 192.168.10.0/24, 10.0.0.8；多个地址或网段用逗号分隔" :disabled="saving" @input="updateCondition" />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="conditionTypes.includes('RISK')" :span="24">
+            <el-form-item label="最高风险">
+              <el-select v-model="policyMaxRisk" :disabled="saving" @change="updateCondition">
+                <el-option label="低风险" value="LOW" /><el-option label="中风险" value="MEDIUM" /><el-option label="高风险" value="HIGH" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -266,6 +309,12 @@
             </el-collapse>
           </el-col>
 
+          <el-col :span="24">
+            <el-form-item label="优先级" prop="priority">
+              <el-input-number v-model="form.priority" :min="0" :max="9999" :precision="0" />
+              <span class="identity-help">数值越小越优先，同级拒绝优先。</span>
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
@@ -488,7 +537,7 @@
 import { accessPolicyScenarios } from '@/utils/accessPolicyScenarios'
 import { exportTable } from '@/utils/tableExport'
 import '@/assets/styles/identity-access.scss'
-import { canUse, displayExpression, hasSupportedTimeCondition, parseTimeCondition, timeConditionSummary } from '@/utils/identityAccess'
+import { canUse, displayExpression, hasSupportedAccessCondition, parseAccessCondition, accessConditionSummary } from '@/utils/identityAccess'
 import {
   listPolicy,
   getPolicy,
@@ -556,13 +605,17 @@ export default {
         policyName: null,
         effect: null,
         subjectType: null,
-        priority: null,
+        resourceExpr: null,
+        priority: undefined,
         status: null
       },
 
       form: {},
       scenarios: accessPolicyScenarios,
       selectedScenario: null,
+      conditionTypes: ['TIME'],
+      policyNetworks: '',
+      policyMaxRisk: 'MEDIUM',
       policyTimeRange: ['09:00', '18:00'],
       documentLevels: [],
 
@@ -628,14 +681,14 @@ export default {
       return canUse(this.$store.getters.permissions, permission)
     },
     ruleSummary(policy) {
-      return timeConditionSummary(policy) || displayExpression(policy.envExpr) || '未设置有效条件'
+      return accessConditionSummary(policy) || displayExpression(policy.envExpr) || '未设置有效条件'
     },
     policyState(policy) {
       if (!policy) return 'INVALID'
       if (policy.status === '1') return 'DISABLED'
       if (policy.status !== '0') return 'INVALID'
-      if (this.isAllow(policy.effect)) return 'LEGACY'
-      return hasSupportedTimeCondition(policy) ? 'READY' : 'INVALID'
+      if (this.isAllow(policy.effect) && policy.conditionVersion !== 1) return 'LEGACY'
+      return policy.configurationState || (hasSupportedAccessCondition(policy) ? 'READY' : 'INVALID')
     },
     policyStateLabel(policy) {
       return { READY: '已启用', DISABLED: '已停用', LEGACY: '历史配置', INVALID: '规则无效' }[this.policyState(policy)]
@@ -650,27 +703,37 @@ export default {
       const state = this.policyState(policy)
       if (state === 'READY') return ''
       if (state === 'DISABLED') return '已停用，不参与访问判断'
-      if (state === 'LEGACY') return '保留历史记录，不增加访问权限'
+      if (state === 'LEGACY') return '历史表达式未参与裁决，可重新配置后保存'
       return '启用的无效限制将拒绝请求，请修改或停用'
     },
-    loadTimeCondition() {
-      const condition = parseTimeCondition(this.form)
-      this.policyTimeRange = condition ? [condition.start, condition.end] : []
+    loadCondition() {
+      const condition = parseAccessCondition(this.form)
+      this.conditionTypes = condition ? condition.types : []
+      this.policyTimeRange = condition && condition.start ? [condition.start, condition.end] : ['09:00', '18:00']
+      this.policyNetworks = condition ? condition.networks.join(', ') : ''
+      this.policyMaxRisk = condition && condition.maxRisk ? condition.maxRisk : 'MEDIUM'
       this.documentLevels = condition ? condition.levels : []
       this.selectedScenario = null
     },
-    updateTimeCondition() {
-      if (this.form.effect !== '1') return
-      const range = this.policyTimeRange || []
-      this.form.envExpr = range.length === 2 ? 'time not in [' + range[0] + '-' + range[1] + ']' : ''
+    updateCondition() {
+      this.form.conditionVersion = 1
+      const allow = this.form.effect === '0'
+      const clauses = []
+      if (this.conditionTypes.includes('TIME')) clauses.push((allow ? 'time in [' : 'time not in [') + this.policyTimeRange[0] + '-' + this.policyTimeRange[1] + ']')
+      if (this.conditionTypes.includes('IP')) clauses.push((allow ? 'ip in [' : 'ip not in [') + this.policyNetworks.split(/[,，\n]/).map(value => value.trim()).join(',') + ']')
+      if (this.conditionTypes.includes('RISK')) clauses.push((allow ? 'risk at most [' : 'risk above [') + this.policyMaxRisk + ']')
+      this.form.envExpr = clauses.join(allow ? ' && ' : ' || ')
       this.form.resourceExpr = this.documentLevels.length ? 'level in [' + this.documentLevels.join(',') + ']' : ''
     },
     applyWorkingHoursTemplate() {
       this.form.effect = '1'
+      this.conditionTypes = ['TIME']
       this.policyTimeRange = ['09:00', '18:00']
+      this.policyNetworks = ''
+      this.policyMaxRisk = 'MEDIUM'
       this.documentLevels = []
       this.form.subjectExpr = null
-      this.updateTimeCondition()
+      this.updateCondition()
     },
     applyScenario(code) {
       const scenario = this.scenarios.find(item => item.code === code)
@@ -678,11 +741,15 @@ export default {
       this.form.policyCode = scenario.code
       this.form.policyName = scenario.name
       this.form.remark = scenario.description
-      this.form.effect = '1'
-      this.policyTimeRange = [scenario.start, scenario.end]
+      this.form.effect = scenario.effect || '1'
+      this.form.priority = typeof scenario.priority === 'number' ? scenario.priority : 100
+      this.conditionTypes = scenario.types ? scenario.types.slice() : ['TIME']
+      this.policyTimeRange = [scenario.start || '09:00', scenario.end || '18:00']
+      this.policyNetworks = scenario.networks || ''
+      this.policyMaxRisk = scenario.maxRisk || 'MEDIUM'
       this.documentLevels = scenario.levels.slice()
       this.form.subjectExpr = null
-      this.updateTimeCondition()
+      this.updateCondition()
     },
     closePolicyDialog(done) {
       if (!this.saving) {
@@ -823,7 +890,8 @@ export default {
         id: null,
         policyCode: null,
         policyName: null,
-        effect: '0',
+        effect: '1',
+        conditionVersion: 1,
         subjectType: 'GROUP',
         subjectExpr: null,
         resourceExpr: null,
@@ -853,7 +921,7 @@ export default {
         const response = await getPolicy(row.id)
         if (!response.data || String(response.data.id) !== String(row.id)) throw new Error('策略不存在或已删除')
         this.form = response.data
-        this.loadTimeCondition()
+        this.loadCondition()
         this.title = '编辑附加访问策略'
         this.open = true
       } catch (error) {
@@ -873,8 +941,8 @@ export default {
           return
         }
         this.saveError = ''
-        if (this.form.status === '0' && !hasSupportedTimeCondition(this.form)) {
-          this.saveError = '请设置有效的访问时段和文档密级。'
+        if (this.form.status === '0' && !hasSupportedAccessCondition(this.form)) {
+          this.saveError = '请选择有效的限制维度，并填写时段、来源网段或最高风险等级。'
           return
         }
         this.saving = true

@@ -15,6 +15,7 @@ public final class SysPolicyExportRow extends SysPolicy
         setPolicyCode(policy.getPolicyCode());
         setPolicyName(policy.getPolicyName());
         setEffect(policy.getEffect());
+        setConditionVersion(policy.getConditionVersion());
         setSubjectType(policy.getSubjectType());
         setSubjectExpr(policy.getSubjectExpr());
         setResourceExpr(policy.getResourceExpr());

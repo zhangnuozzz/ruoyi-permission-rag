@@ -38,6 +38,14 @@ public class PermissionContext implements Serializable
     /** 请求时间 */
     private String requestTime;
 
+    private String requestIp;
+    private String userRiskLevel;
+
+    public String getRequestIp() { return requestIp; }
+    public void setRequestIp(String value) { requestIp = value; }
+    public String getUserRiskLevel() { return userRiskLevel; }
+    public void setUserRiskLevel(String value) { userRiskLevel = value; }
+
     /** 是否允许本次请求继续执行 */
     private Boolean allowAccess = true;
 

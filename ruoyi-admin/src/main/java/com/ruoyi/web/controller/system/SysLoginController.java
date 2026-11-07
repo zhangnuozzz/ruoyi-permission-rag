@@ -94,6 +94,7 @@ public class SysLoginController
             identity.put("avatar", user.getAvatar() == null ? "" : user.getAvatar());
             ajax.put("user", identity);
         }
+        ajax.put("passwordChangeRequired", loginUser.isPasswordChangeRequired());
         ajax.put("roles", roles);
         ajax.put("permissions", permissions);
         return ajax;

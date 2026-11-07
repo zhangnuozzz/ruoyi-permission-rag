@@ -36,6 +36,12 @@ public class SysUserServiceImpl implements ISysUserService
     private static final Logger log = LoggerFactory.getLogger(SysUserServiceImpl.class);
 
     @Autowired
+    private com.ruoyi.system.service.AccountPasswordService accountPasswordService;
+
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Autowired
     private SysUserMapper userMapper;
 
     @Autowired
@@ -211,8 +217,9 @@ public class SysUserServiceImpl implements ISysUserService
     @Transactional
     public int insertUser(SysUser user)
     {
-        // 新增用户信息
+        user.setPassword(accountPasswordService.encodeInitial(user.getPassword()));
         int rows = userMapper.insertUser(user);
+        accountPasswordService.register(user.getUserId(), user.getPassword());
         // 新增用户岗位关联
         insertUserPost(user);
         // 新增用户与角色管理
@@ -230,6 +237,7 @@ public class SysUserServiceImpl implements ISysUserService
     @Transactional
     public int updateUser(SysUser user)
     {
+        rejectPasswordChange(user);
         Long userId = user.getUserId();
         // 删除用户与角色关联
         userRoleMapper.deleteUserRoleByUserId(userId);
@@ -251,7 +259,10 @@ public class SysUserServiceImpl implements ISysUserService
     @Override
     public int updateUserStatus(SysUser user)
     {
-        return userMapper.updateUser(user);
+        SysUser patch = new SysUser(user.getUserId());
+        patch.setStatus(user.getStatus());
+        patch.setUpdateBy(user.getUpdateBy());
+        return userMapper.updateUser(patch);
     }
 
     /**
@@ -263,6 +274,7 @@ public class SysUserServiceImpl implements ISysUserService
     @Override
     public int updateUserProfile(SysUser user)
     {
+        rejectPasswordChange(user);
         return userMapper.updateUser(user);
     }
 
@@ -288,7 +300,9 @@ public class SysUserServiceImpl implements ISysUserService
     @Override
     public int resetPwd(SysUser user)
     {
-        return userMapper.updateUser(user);
+        accountPasswordService.change(user.getUserId(), null, user.getPassword(), true);
+        user.setPassword(null);
+        return 1;
     }
 
     /**
@@ -301,7 +315,10 @@ public class SysUserServiceImpl implements ISysUserService
     @Override
     public int resetUserPwd(String userName, String password)
     {
-        return userMapper.resetUserPwd(userName, password);
+        SysUser user = userMapper.selectUserByUserName(userName);
+        if (user == null) throw new CustomException("账号不存在");
+        accountPasswordService.change(user.getUserId(), null, password, true);
+        return 1;
     }
 
     /**
@@ -309,6 +326,12 @@ public class SysUserServiceImpl implements ISysUserService
      * 
      * @param user 用户对象
      */
+    private void rejectPasswordChange(SysUser user)
+    {
+        if (user.getPassword() != null && !user.getPassword().isEmpty())
+            throw new CustomException("修改密码请使用独立的密码入口");
+    }
+
     public void insertUserRole(SysUser user)
     {
         Long[] roles = user.getRoleIds();
@@ -416,16 +439,18 @@ public class SysUserServiceImpl implements ISysUserService
                 SysUser u = userMapper.selectUserByUserName(user.getUserName());
                 if (StringUtils.isNull(u))
                 {
-                    user.setPassword(SecurityUtils.encryptPassword(password));
+                    user.setPassword(password);
                     user.setCreateBy(operName);
-                    this.insertUser(user);
+                    transactionTemplate.execute(status -> this.insertUser(user));
                     successNum++;
                     successMsg.append("<br/>" + successNum + "、账号 " + user.getUserName() + " 导入成功");
                 }
                 else if (isUpdateSupport)
                 {
+                    user.setUserId(u.getUserId());
+                    user.setPassword(null);
                     user.setUpdateBy(operName);
-                    this.updateUser(user);
+                    transactionTemplate.execute(status -> this.updateUser(user));
                     successNum++;
                     successMsg.append("<br/>" + successNum + "、账号 " + user.getUserName() + " 更新成功");
                 }

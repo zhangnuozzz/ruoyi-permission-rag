@@ -43,6 +43,12 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: '/password',
+    component: () => import('@/views/account/password'),
+    hidden: true,
+    meta: { title: '修改密码', noCache: true }
+  },
+  {
     path: '/knowledge',
     component: (resolve) => require(['@/views/knowledge/index'], resolve),
     name: 'KnowledgePortal',

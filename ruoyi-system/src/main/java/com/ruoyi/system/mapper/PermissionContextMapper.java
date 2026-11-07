@@ -33,4 +33,6 @@ public interface PermissionContextMapper
      * @return 策略列表
      */
     List<PolicyInfo> selectPoliciesByUserId(@Param("userId") Long userId);
+
+    String selectUserRiskLevel(@Param("userId") Long userId);
 }

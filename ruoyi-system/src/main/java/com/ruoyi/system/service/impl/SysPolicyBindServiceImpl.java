@@ -10,7 +10,7 @@ import com.ruoyi.common.exception.CustomException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.domain.SysPolicyBind;
-import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.domain.permission.AccessPolicyRule;
 import com.ruoyi.system.mapper.SysPolicyBindMapper;
 import com.ruoyi.system.service.ISysPolicyBindService;
 import com.ruoyi.system.service.ISysUserService;
@@ -191,7 +191,7 @@ public class SysPolicyBindServiceImpl implements ISysPolicyBindService
     private void lockPolicy(Long policyId, boolean requireActive)
     {
         List<Map<String, Object>> policies = jdbcTemplate.queryForList(
-                "select status, effect, resource_expr, env_expr from sys_policy "
+                "select status, effect, resource_expr, env_expr, condition_version from sys_policy "
                 + "where id = ? and del_flag = '0' for update", policyId);
         if (policies.isEmpty())
         {
@@ -203,10 +203,13 @@ public class SysPolicyBindServiceImpl implements ISysPolicyBindService
         {
             throw new CustomException("策略已停用，不能新增或启用绑定");
         }
-        if (!WorkingHoursRule.supports((String) policy.get("effect"),
+        if (AccessPolicyRule.isAllow((String) policy.get("effect"))
+                && ((Number) policy.get("condition_version")).intValue() != 1)
+            throw new CustomException("历史允许配置需重新保存为有效规则后才能绑定");
+        if (!AccessPolicyRule.supports((String) policy.get("effect"),
                 (String) policy.get("resource_expr"), (String) policy.get("env_expr")))
         {
-            throw new CustomException("策略不是有效的访问时段规则，请修改后再绑定");
+            throw new CustomException("策略条件无效，请修改后再绑定");
         }
     }
 

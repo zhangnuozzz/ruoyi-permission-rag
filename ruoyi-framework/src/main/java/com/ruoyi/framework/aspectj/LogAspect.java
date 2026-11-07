@@ -91,7 +91,7 @@ public class LogAspect
             String ip = IpUtils.getIpAddr(ServletUtils.getRequest());
             operLog.setOperIp(ip);
             // 返回参数
-            operLog.setJsonResult(JSON.toJSONString(jsonResult));
+            operLog.setJsonResult(JSON.toJSONString(redact(JSON.toJSON(jsonResult))));
 
             operLog.setOperUrl(ServletUtils.getRequest().getRequestURI());
             if (loginUser != null)
@@ -196,8 +196,8 @@ public class LogAspect
             {
                 if (!isFilterObject(paramsArray[i]))
                 {
-                    Object jsonObj = JSON.toJSON(paramsArray[i]);
-                    params += jsonObj.toString() + " ";
+                    Object jsonObj = redact(JSON.toJSON(paramsArray[i]));
+                    params += String.valueOf(jsonObj) + " ";
                 }
             }
         }
@@ -210,6 +210,29 @@ public class LogAspect
      * @param o 对象信息。
      * @return 如果是需要过滤的对象，则返回true；否则返回false。
      */
+    private Object redact(Object value)
+    {
+        if (value instanceof Map)
+        {
+            Map<?, ?> map = (Map<?, ?>) value;
+            java.util.Map<String, Object> safe = new java.util.LinkedHashMap<>();
+            map.forEach((key, item) -> {
+                String name = String.valueOf(key);
+                String normalized = name.toLowerCase(java.util.Locale.ROOT);
+                safe.put(name, normalized.contains("password") || normalized.contains("token")
+                        || normalized.contains("secret") && normalized.contains("key") ? "[已隐藏]" : redact(item));
+            });
+            return safe;
+        }
+        if (value instanceof java.util.Collection)
+        {
+            java.util.List<Object> safe = new java.util.ArrayList<>();
+            for (Object item : (java.util.Collection<?>) value) safe.add(redact(item));
+            return safe;
+        }
+        return value;
+    }
+
     public boolean isFilterObject(final Object o)
     {
         return o instanceof MultipartFile || o instanceof HttpServletRequest || o instanceof HttpServletResponse;

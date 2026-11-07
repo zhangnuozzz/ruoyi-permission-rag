@@ -8,6 +8,10 @@ import com.fasterxml.jackson.annotation.JsonFormat;
  */
 public class SysPolicyVersion
 {
+    private Integer conditionVersion = 0;
+    public Integer getConditionVersion() { return conditionVersion; }
+    public void setConditionVersion(Integer value) { conditionVersion = value; }
+
     private Long id;
     private Long policyId;
     private Integer versionNo;

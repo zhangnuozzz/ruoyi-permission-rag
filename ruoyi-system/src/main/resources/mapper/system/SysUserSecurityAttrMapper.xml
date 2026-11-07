@@ -36,6 +36,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectSysUserSecurityAttrList" parameterType="SysUserSecurityAttr" resultMap="SysUserSecurityAttrResult">
         <include refid="selectSysUserSecurityAttrVo"/>
         <where>
+            <if test="userId != null">and user_id = #{userId}</if>
             <if test="userName != null and userName != ''">
                 and user_name like concat('%', #{userName}, '%')
             </if>

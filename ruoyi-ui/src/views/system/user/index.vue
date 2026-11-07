@@ -593,6 +593,7 @@
 </template>
 
 <script>
+import { validPassword, passwordMessage } from '@/utils/password'
 import '@/assets/styles/identity-access.scss'
 import { canUse } from '@/utils/identityAccess'
 import {
@@ -701,7 +702,8 @@ export default {
             required: true,
             message: '初始密码不能为空',
             trigger: 'blur'
-          }
+          },
+          { validator: (rule, value, done) => done(this.form.userId || validPassword(value) ? undefined : new Error(passwordMessage)), trigger: 'blur' }
         ],
 
         accessStatus: [
@@ -983,7 +985,7 @@ export default {
           this.postOptions = response.posts || []
           this.roleOptions = response.roles || []
 
-          this.form.password = this.initPassword
+          this.form.password = ''
 
           this.title = '新增人员及权限配置'
           this.open = true
@@ -1225,7 +1227,9 @@ export default {
     },
 
     handleResetPwd(row) {
-      this.$prompt('请输入“' + row.userName + '”的新密码', '重置密码', {
+      this.$prompt(passwordMessage + '；用户下次登录须修改。', '重置“' + row.userName + '”的密码', {
+        inputType: 'password',
+        inputValidator: value => validPassword(value) || passwordMessage,
         confirmButtonText: '确定',
         cancelButtonText: '取消'
       })

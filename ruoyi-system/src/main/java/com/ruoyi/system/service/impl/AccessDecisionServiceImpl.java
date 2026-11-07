@@ -11,7 +11,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.ruoyi.system.domain.permission.AccessDecisionResult;
 import com.ruoyi.system.domain.permission.PermissionContext;
-import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.domain.permission.AccessPolicyRule;
 import com.ruoyi.system.service.IPermissionContextService;
 import com.ruoyi.system.mapper.AccessDecisionMapper;
 import com.ruoyi.system.service.IAccessDecisionService;
@@ -98,7 +98,7 @@ public class AccessDecisionServiceImpl implements IAccessDecisionService
         }
 
         PermissionContext policyContext = permissionContextService.buildContext(userId, userName, admin);
-        String policyDenial = WorkingHoursRule.denialReason(policyContext, docLevel);
+        String policyDenial = AccessPolicyRule.denialReason(policyContext, docLevel);
         if (Boolean.FALSE.equals(policyContext.getAllowAccess()) || policyDenial != null)
         {
             deny(result, policyDenial == null ? "ACCESS_POLICY_DENIED" : policyDenial);

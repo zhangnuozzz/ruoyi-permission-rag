@@ -186,6 +186,7 @@ public class RagSearchController
          */
         String clientIp = IpUtils.getIpAddr(ServletUtils.getRequest());
 
+        long permissionStarted = System.nanoTime();
         SecureQueryContext secureQueryContext = secureQueryContextService.buildContext(
                 userId,
                 userName,
@@ -211,6 +212,7 @@ public class RagSearchController
          * 后续接 RAG Server 时，下游统一使用这个标准过滤表达式。
          */
         decision.setMetadataFilter(secureQueryContext.getMetadataFilter());
+        com.ruoyi.common.utils.AccessTiming.record(com.ruoyi.common.utils.AccessTiming.Stage.PERMISSION_CONTEXT, permissionStarted);
 
         if (Boolean.FALSE.equals(secureQueryContext.getAllowQuery()))
         {
@@ -287,7 +289,15 @@ public class RagSearchController
                     : ragDocMockSearchService.search(request.getQuery());
             rawResults = limitResults(rawResults, candidateLimit);
             failureStage = "DOCUMENT_AUTHORIZATION";
-            qualifiedResults = ragSecondFilterService.filter(context, rawResults);
+            long authorizationStarted = System.nanoTime();
+            try
+            {
+                qualifiedResults = ragSecondFilterService.filter(context, rawResults);
+            }
+            finally
+            {
+                com.ruoyi.common.utils.AccessTiming.record(com.ruoyi.common.utils.AccessTiming.Stage.DOCUMENT_AUTHORIZATION, authorizationStarted);
+            }
             rejectedResults = buildRejectedResults(rawResults, qualifiedResults);
             filteredResults = limitResults(qualifiedResults, secureQueryContext.getSafeTopK());
 
@@ -464,6 +474,7 @@ public class RagSearchController
         {
             auditLog.setRiskScore(secureQueryContext.getRiskScore());
             auditLog.setLimitedQuery(Boolean.TRUE.equals(secureQueryContext.getLimitedQuery()) ? "1" : "0");
+            secureQueryContext.setAccessControlTiming(com.ruoyi.common.utils.AccessTiming.snapshot());
             auditLog.setSecureContextJson(JSON.toJSONString(secureQueryContext));
         }
         else

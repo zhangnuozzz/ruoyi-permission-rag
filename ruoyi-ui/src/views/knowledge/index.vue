@@ -61,6 +61,7 @@
           <i class="el-icon-more user-more"></i>
 
           <el-dropdown-menu slot="dropdown">
+            <el-dropdown-item command="password" icon="el-icon-key">修改密码</el-dropdown-item>
             <el-dropdown-item
               v-if="isAdmin"
               command="admin"
@@ -699,6 +700,7 @@ export default {
     },
 
     handleUserCommand(command) {
+      if (command === 'password') { this.$router.push('/password'); return }
       if (command === 'admin') {
         this.$router.push('/')
         return

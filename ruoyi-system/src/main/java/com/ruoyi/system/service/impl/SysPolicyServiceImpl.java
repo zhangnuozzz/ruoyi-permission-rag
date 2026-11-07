@@ -7,7 +7,7 @@ import com.ruoyi.common.exception.CustomException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import org.springframework.dao.DuplicateKeyException;
-import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.domain.permission.AccessPolicyRule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -134,6 +134,7 @@ public class SysPolicyServiceImpl implements ISysPolicyService
     private SysPolicy writableFields(SysPolicy input, SysPolicy current)
     {
         SysPolicy policy = new SysPolicy();
+        policy.setConditionVersion(1);
         String code = requiredText(input.getPolicyCode(), 64, "策略编码");
         if (!code.matches("[A-Z][A-Z0-9_]{0,63}")
                 && (current == null || !code.equals(current.getPolicyCode())))
@@ -143,11 +144,11 @@ public class SysPolicyServiceImpl implements ISysPolicyService
         policy.setPolicyCode(code);
         policy.setPolicyName(requiredText(input.getPolicyName(), 100, "策略名称"));
         String effect = text(input.getEffect());
-        if (!WorkingHoursRule.isAllow(effect) && !WorkingHoursRule.isDeny(effect))
+        if (!AccessPolicyRule.isAllow(effect) && !AccessPolicyRule.isDeny(effect))
         {
             throw new CustomException("请选择有效的策略效果");
         }
-        policy.setEffect(WorkingHoursRule.isDeny(effect) ? "1" : "0");
+        policy.setEffect(AccessPolicyRule.isDeny(effect) ? "1" : "0");
         String subject = text(input.getSubjectType());
         if (!"USER".equals(subject) && !"GROUP".equals(subject))
         {
@@ -160,7 +161,7 @@ public class SysPolicyServiceImpl implements ISysPolicyService
         policy.setRemark(optionalText(input.getRemark(), 500, "备注"));
         if (input.getPriority() == null || input.getPriority() < 0 || input.getPriority() > 9999)
         {
-            throw new CustomException("预留优先级须为 0 到 9999 的整数");
+            throw new CustomException("优先级须为0至9999的整数，数值越小越优先");
         }
         policy.setPriority(input.getPriority());
         if (!"0".equals(input.getStatus()) && !"1".equals(input.getStatus()))
@@ -170,9 +171,9 @@ public class SysPolicyServiceImpl implements ISysPolicyService
         policy.setStatus(input.getStatus());
         if ("0".equals(policy.getStatus()))
         {
-            if (!WorkingHoursRule.supports(policy.getEffect(), policy.getResourceExpr(), policy.getEnvExpr()))
+            if (!AccessPolicyRule.supports(policy.getEffect(), policy.getResourceExpr(), policy.getEnvExpr()))
             {
-                throw new CustomException("请设置有效的访问时段和文档密级范围");
+                throw new CustomException("请设置有效的访问时段、IP网段或风险等级条件及文档密级范围");
             }
             if (!policy.getSubjectExpr().isEmpty()
                     && (current == null || !policy.getSubjectExpr().equals(text(current.getSubjectExpr()))))
@@ -305,6 +306,7 @@ public class SysPolicyServiceImpl implements ISysPolicyService
         version.setPolicyCode(current.getPolicyCode());
         version.setPolicyName(current.getPolicyName());
         version.setEffect(current.getEffect());
+        version.setConditionVersion(current.getConditionVersion());
         version.setSubjectType(current.getSubjectType());
         version.setSubjectExpr(current.getSubjectExpr());
         version.setResourceExpr(current.getResourceExpr());

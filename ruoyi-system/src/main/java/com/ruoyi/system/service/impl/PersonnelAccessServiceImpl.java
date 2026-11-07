@@ -164,7 +164,7 @@ public class PersonnelAccessServiceImpl implements IPersonnelAccessService
         {
             throw new CustomException("初始密码不能为空，且 UTF-8 长度不能超过72字节");
         }
-        user.setPassword(SecurityUtils.encryptPassword(password));
+        user.setPassword(password);
         user.setCreateBy(SecurityUtils.getUsername());
         if (userService.insertUser(user) != 1 || user.getUserId() == null || user.getUserId() <= 0)
         {

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { Notification, MessageBox, Message } from 'element-ui'
+import { Notification, Message } from 'element-ui'
 import store from '@/store'
 import { getToken } from '@/utils/auth'
 import errorCode from '@/utils/errorCode'
@@ -36,20 +36,14 @@ service.interceptors.response.use(res => {
   if (code === 401) {
     if (!reloginPromptOpen) {
       reloginPromptOpen = true
-      MessageBox.confirm('登录状态已失效，请重新登录后继续操作', '系统提示', {
-        confirmButtonText: '重新登录',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        return store.dispatch('LogOut').finally(() => {
-          location.href = '/login'
-        })
-      }).catch(() => {
-        // 取消提示时仍由服务端拒绝访问；退出失败时请求层保留错误提示。
-      }).finally(() => {
-        reloginPromptOpen = false
+      store.dispatch('FedLogOut').finally(() => {
+        location.replace('/login')
       })
     }
+    return Promise.reject(new Error(msg))
+  } else if (code === 428) {
+    store.commit('SET_PASSWORD_CHANGE', true)
+    if (location.pathname !== '/password') location.replace('/password')
     return Promise.reject(new Error(msg))
   } else if (code === 500) {
     Message({

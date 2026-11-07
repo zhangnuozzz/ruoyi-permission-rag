@@ -21,6 +21,9 @@ public class SessionValidationService
     private ISysUserService userService;
 
     @Autowired
+    private com.ruoyi.system.service.AccountPasswordService passwords;
+
+    @Autowired
     private SysRoleMapper roleMapper;
 
     @Autowired
@@ -64,6 +67,7 @@ public class SessionValidationService
         }
         current.setRoles(activeRoles);
         // 全部查询成功后才替换身份快照，避免异常时保留部分刷新状态。
+        session.setPasswordChangeRequired(passwords.requiresChange(current.getUserId()));
         session.setUser(current);
         session.setPermissions(new HashSet<>(permissions));
         return true;

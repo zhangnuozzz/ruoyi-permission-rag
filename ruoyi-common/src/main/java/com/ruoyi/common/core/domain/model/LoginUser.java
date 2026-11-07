@@ -21,6 +21,11 @@ public class LoginUser implements UserDetails
      */
     private String token;
 
+    private boolean passwordChangeRequired;
+
+    public boolean isPasswordChangeRequired() { return passwordChangeRequired; }
+    public void setPasswordChangeRequired(boolean value) { passwordChangeRequired = value; }
+
     /**
      * 登录时间
      */

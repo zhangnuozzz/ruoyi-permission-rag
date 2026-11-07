@@ -380,6 +380,11 @@ export default {
       const map = {
         USER_SECURITY_ATTR_NOT_FOUND: '当前用户缺少 sys_user_security_attr 安全属性，需要补一条 ACTIVE/LOW 的用户安全属性。',
         USER_ACCESS_STATUS_NOT_ACTIVE: '当前用户访问状态不是 ACTIVE，请在用户安全属性里恢复启用。',
+        OUT_OF_POLICY_TIME_WINDOW: '不在策略允许的访问时段',
+        OUT_OF_POLICY_IP_RANGE: '请求来源不在策略允许的IP网段',
+        ABOVE_POLICY_RISK_LEVEL: '人员风险等级超出策略允许范围',
+        POLICY_TIME_CONTEXT_UNAVAILABLE: '策略所需的请求时间无法核验',
+        POLICY_RISK_CONTEXT_UNAVAILABLE: '策略所需的人员风险等级无法核验',
         OUT_OF_USER_ACCESS_TIME_WINDOW: '当前时间不在用户允许访问时间窗口内，可放宽 access_start_time/access_end_time。',
         NO_VALID_GROUP_ASSIGNED: '普通用户没有绑定有效用户组，需要维护 sys_user_group_rel。',
         NO_VALID_SCOPE_ASSIGNED: '普通用户所属用户组没有 scope_code，无法生成可访问知悉范围。',

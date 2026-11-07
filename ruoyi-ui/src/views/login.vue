@@ -166,7 +166,7 @@
               <el-checkbox
                 v-model="loginForm.rememberMe"
               >
-                记住登录状态
+                记住账号
               </el-checkbox>
 
               <span class="security-tip">
@@ -208,10 +208,6 @@ import {
 
 import Cookies from 'js-cookie'
 
-import {
-  encrypt,
-  decrypt
-} from '@/utils/jsencrypt'
 
 export default {
   name: 'Login',
@@ -219,7 +215,6 @@ export default {
   data() {
     return {
       codeUrl: '',
-      cookiePassword: '',
 
       loginForm: {
         username: '',
@@ -293,8 +288,7 @@ export default {
       const username =
         Cookies.get('username')
 
-      const password =
-        Cookies.get('password')
+      Cookies.remove('password')
 
       const rememberMe =
         Cookies.get('rememberMe')
@@ -302,11 +296,6 @@ export default {
       if (username !== undefined) {
         this.loginForm.username =
           username
-      }
-
-      if (password !== undefined) {
-        this.loginForm.password =
-          decrypt(password)
       }
 
       this.loginForm.rememberMe =
@@ -334,14 +323,6 @@ export default {
             )
 
             Cookies.set(
-              'password',
-              encrypt(
-                this.loginForm.password
-              ),
-              { expires: 30 }
-            )
-
-            Cookies.set(
               'rememberMe',
               this.loginForm.rememberMe,
               { expires: 30 }
@@ -358,6 +339,7 @@ export default {
               this.loginForm
             )
             .then(() => {
+              this.loginForm.password = ''
               this.$router.push({
                 path:
                   this.redirect ||
@@ -366,6 +348,8 @@ export default {
             })
             .catch(() => {
               this.loading = false
+              this.loginForm.password = ''
+              this.loginForm.code = ''
               this.getCode()
             })
         }

@@ -195,7 +195,7 @@
         <el-table-column label="配置效果" width="110">
           <template slot-scope="scope">
             <el-tag size="mini" :type="scope.row.effect === '1' ? 'warning' : 'info'">
-              {{ effectName(scope.row.effect) }}
+              {{ effectName(scope.row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -431,8 +431,9 @@ export default {
         '未知密级'
       )
     },
-    effectName(effect) {
-      return effect === '0' ? '允许配置' : effect === '1' ? '拒绝配置' : '未知配置'
+    effectName(policy) {
+      if (policy.effect === '0' && policy.conditionVersion !== 1) return '历史允许配置'
+      return policy.effect === '0' ? '命中时允许' : policy.effect === '1' ? '条件外拒绝' : '未知配置'
     },
     qualificationText(rule) {
       if (rule.code === 'PUBLIC') {
@@ -457,6 +458,11 @@ export default {
     reasonName(reason) {
       return (
         {
+          OUT_OF_POLICY_TIME_WINDOW: '不在策略允许的访问时段',
+          OUT_OF_POLICY_IP_RANGE: '请求来源不在策略允许的IP网段',
+          ABOVE_POLICY_RISK_LEVEL: '人员风险等级超出策略允许范围',
+          POLICY_TIME_CONTEXT_UNAVAILABLE: '策略所需的请求时间无法核验',
+          POLICY_RISK_CONTEXT_UNAVAILABLE: '策略所需的人员风险等级无法核验',
           OUT_OF_WORKING_HOURS: '当前不在策略允许的工作时间内',
           OUT_OF_USER_ACCESS_TIME_WINDOW: '当前不在人员允许的访问时间内',
           USER_ACCESS_STATUS_NOT_ACTIVE: '人员访问状态未启用',

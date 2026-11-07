@@ -22,6 +22,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="subjectExpr" column="subject_expr"/>
         <result property="resourceExpr" column="resource_expr"/>
         <result property="envExpr" column="env_expr"/>
+        <result property="conditionVersion" column="condition_version"/>
         <result property="priority" column="priority"/>
         <result property="status" column="status"/>
     </resultMap>
@@ -51,6 +52,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             p.subject_expr,
             p.resource_expr,
             p.env_expr,
+            p.condition_version,
             p.priority,
             p.status
         FROM sys_policy p
@@ -74,4 +76,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         ORDER BY p.priority ASC, p.id ASC
     </select>
 
+    <select id="selectUserRiskLevel" parameterType="Long" resultType="String">
+        select risk_level from sys_user_security_attr where user_id = #{userId}
+    </select>
 </mapper>

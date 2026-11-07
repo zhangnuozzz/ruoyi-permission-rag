@@ -49,6 +49,7 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter
             chain.doFilter(request, response);
             return;
         }
+        long validationStarted = System.nanoTime();
         LoginUser loginUser;
         try
         {
@@ -74,12 +75,23 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter
                     unauthenticated(response);
                     return;
                 }
-                tokenService.verifyToken(loginUser);
+                response.setHeader("Cache-Control", "no-store");
+                String path = request.getServletPath();
+                if (loginUser.isPasswordChangeRequired() && !"/getInfo".equals(path)
+                        && !"/account/password/status".equals(path) && !"/account/password/change".equals(path)
+                        && !"/system/user/profile/updatePwd".equals(path) && !"/logout".equals(path))
+                {
+                    respond(response, 428, "密码已到期或已重置，请先修改密码");
+                    return;
+                }
+                if (!"false".equalsIgnoreCase(request.getHeader("X-Session-Touch")))
+                    tokenService.verifyToken(loginUser);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         loginUser, null, loginUser.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 request.setAttribute(TokenService.REQUEST_LOGIN_USER, loginUser);
+                com.ruoyi.common.utils.AccessTiming.record(request, com.ruoyi.common.utils.AccessTiming.Stage.AUTHENTICATION, validationStarted);
             }
         }
         catch (RuntimeException e)

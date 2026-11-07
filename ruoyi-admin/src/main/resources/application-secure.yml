@@ -1,0 +1,10 @@
+# 配合受信任的 HTTPS 反向代理使用，不向外部开放后端端口。
+server:
+  address: 127.0.0.1
+account:
+  password:
+    maxAgeDays: 90
+  login:
+    maxAttempts: 5
+    windowSeconds: 900
+    lockSeconds: 900

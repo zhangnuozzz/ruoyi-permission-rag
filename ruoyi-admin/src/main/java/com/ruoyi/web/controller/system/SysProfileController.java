@@ -38,6 +38,9 @@ public class SysProfileController extends BaseController
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private com.ruoyi.framework.web.service.AccountService accountService;
+
     /**
      * 个人信息
      */
@@ -59,7 +62,14 @@ public class SysProfileController extends BaseController
     @PutMapping
     public AjaxResult updateProfile(@RequestBody SysUser user)
     {
-        if (userService.updateUserProfile(user) > 0)
+        LoginUser current = tokenService.getLoginUser(ServletUtils.getRequest());
+        SysUser patch = new SysUser(current.getUser().getUserId());
+        patch.setNickName(user.getNickName());
+        patch.setPhonenumber(user.getPhonenumber());
+        patch.setEmail(user.getEmail());
+        patch.setSex(user.getSex());
+        patch.setUpdateBy(current.getUsername());
+        if (userService.updateUserProfile(patch) > 0)
         {
             LoginUser loginUser = tokenService.getLoginUser(ServletUtils.getRequest());
             // 更新缓存用户信息
@@ -76,29 +86,11 @@ public class SysProfileController extends BaseController
     /**
      * 重置密码
      */
-    @Log(title = "个人信息", businessType = BusinessType.UPDATE)
+    @Log(title = "修改密码", businessType = BusinessType.UPDATE, isSaveRequestData = false)
     @PutMapping("/updatePwd")
-    public AjaxResult updatePwd(String oldPassword, String newPassword)
+    public AjaxResult updatePwd(@RequestBody com.ruoyi.common.core.domain.model.PasswordChangeRequest body)
     {
-        LoginUser loginUser = tokenService.getLoginUser(ServletUtils.getRequest());
-        String userName = loginUser.getUsername();
-        String password = loginUser.getPassword();
-        if (!SecurityUtils.matchesPassword(oldPassword, password))
-        {
-            return AjaxResult.error("修改密码失败，旧密码错误");
-        }
-        if (SecurityUtils.matchesPassword(newPassword, password))
-        {
-            return AjaxResult.error("新密码不能与旧密码相同");
-        }
-        if (userService.resetUserPwd(userName, SecurityUtils.encryptPassword(newPassword)) > 0)
-        {
-            // 更新缓存用户密码
-            loginUser.getUser().setPassword(SecurityUtils.encryptPassword(newPassword));
-            tokenService.setLoginUser(loginUser);
-            return AjaxResult.success();
-        }
-        return AjaxResult.error("修改密码异常，请联系管理员");
+        return accountService.change(body);
     }
 
     /**

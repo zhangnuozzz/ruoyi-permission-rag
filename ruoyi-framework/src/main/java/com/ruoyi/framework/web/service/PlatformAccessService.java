@@ -23,9 +23,9 @@ public class PlatformAccessService
 {
     private static final Logger log = LoggerFactory.getLogger(PlatformAccessService.class);
     private static final Set<String> PORTAL_GET = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "/getInfo", "/rag/context", "/rag/file/mine/groups", "/rag/file/mine/list")));
+            "/getInfo", "/account/password/status", "/rag/context", "/rag/file/mine/groups", "/rag/file/mine/list")));
     private static final Set<String> PORTAL_POST = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "/rag/search", "/rag/file/mine/upload", "/rag/file/mine/status")));
+            "/account/password/change", "/rag/search", "/rag/file/mine/upload", "/rag/file/mine/status")));
 
     @Autowired
     private SysRoleMapper roleMapper;

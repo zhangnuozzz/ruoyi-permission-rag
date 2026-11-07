@@ -7,10 +7,12 @@ const user = {
     name: '',
     avatar: '',
     roles: [],
+    passwordChangeRequired: false,
     permissions: []
   },
 
   mutations: {
+    SET_PASSWORD_CHANGE: (state, value) => { state.passwordChangeRequired = !!value },
     SET_TOKEN: (state, token) => {
       state.token = token
     },
@@ -59,6 +61,7 @@ const user = {
             commit('SET_ROLES', ['ROLE_DEFAULT'])
             commit('SET_PERMISSIONS', [])
           }
+          commit('SET_PASSWORD_CHANGE', res.passwordChangeRequired)
           commit('SET_NAME', user.userName)
           commit('SET_AVATAR', avatar)
           resolve(res)
@@ -73,6 +76,7 @@ const user = {
       return logout(state.token).catch(() => {
         // 服务端错误由请求层提示，仍必须结束本地登录，避免残留身份和权限。
       }).finally(() => {
+        commit('SET_PASSWORD_CHANGE', false)
         commit('SET_TOKEN', '')
         commit('SET_NAME', '')
         commit('SET_AVATAR', '')
@@ -85,6 +89,7 @@ const user = {
     // 前端 登出
     FedLogOut({ commit }) {
       return new Promise(resolve => {
+        commit('SET_PASSWORD_CHANGE', false)
         commit('SET_TOKEN', '')
         commit('SET_NAME', '')
         commit('SET_AVATAR', '')

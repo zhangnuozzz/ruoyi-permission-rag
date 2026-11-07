@@ -4,7 +4,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.core.domain.BaseEntity;
-import com.ruoyi.system.domain.permission.WorkingHoursRule;
+import com.ruoyi.system.domain.permission.AccessPolicyRule;
 
 /**
  * 权限策略定义对象 sys_policy
@@ -15,6 +15,10 @@ import com.ruoyi.system.domain.permission.WorkingHoursRule;
 public class SysPolicy extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
+
+    private Integer conditionVersion = 0;
+    public Integer getConditionVersion() { return conditionVersion; }
+    public void setConditionVersion(Integer value) { conditionVersion = value; }
 
     /** 主键ID */
     private Long id;
@@ -28,7 +32,7 @@ public class SysPolicy extends BaseEntity
     private String policyName;
 
     /** 策略效果（0允许 1拒绝） */
-    @Excel(name = "策略效果", readConverterExp = "0=历史允许配置,1=时段限制,ALLOW=历史允许配置,DENY=时段限制")
+    @Excel(name = "策略效果", readConverterExp = "0=允许,1=拒绝,ALLOW=允许,DENY=拒绝")
     private String effect;
 
     /** 主体类型（USER/GROUP） */
@@ -47,8 +51,8 @@ public class SysPolicy extends BaseEntity
     @Excel(name = "环境条件表达式")
     private String envExpr;
 
-    /** 历史排序值，不参与访问裁决。 */
-    @Excel(name = "优先级（预留，暂不参与判定）", width = 38)
+    /** 数值越小优先级越高，同级拒绝优先。 */
+    @Excel(name = "优先级", width = 14)
     private Integer priority;
 
     /** 状态（0正常 1停用） */
@@ -172,8 +176,10 @@ public class SysPolicy extends BaseEntity
     {
         if ("1".equals(status)) return "DISABLED";
         if (!"0".equals(status)) return "INVALID";
-        if (WorkingHoursRule.isAllow(effect)) return "LEGACY";
-        return WorkingHoursRule.supports(effect, resourceExpr, envExpr) ? "READY" : "INVALID";
+        if (AccessPolicyRule.isAllow(effect) && Integer.valueOf(0).equals(conditionVersion)) return "LEGACY";
+        if (!Integer.valueOf(0).equals(conditionVersion) && !Integer.valueOf(1).equals(conditionVersion)) return "INVALID";
+        if (priority == null || priority < 0 || priority > 9999) return "INVALID";
+        return AccessPolicyRule.supports(effect, resourceExpr, envExpr) ? "READY" : "INVALID";
     }
 
     @Override

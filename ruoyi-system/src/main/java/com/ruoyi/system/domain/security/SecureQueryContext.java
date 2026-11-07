@@ -14,6 +14,10 @@ public class SecureQueryContext implements Serializable
 {
     private static final long serialVersionUID = 1L;
 
+    private java.util.Map<String, Double> accessControlTiming = java.util.Collections.emptyMap();
+    public java.util.Map<String, Double> getAccessControlTiming() { return accessControlTiming; }
+    public void setAccessControlTiming(java.util.Map<String, Double> value) { accessControlTiming = value; }
+
     /** 当前用户ID */
     private Long userId;
 
