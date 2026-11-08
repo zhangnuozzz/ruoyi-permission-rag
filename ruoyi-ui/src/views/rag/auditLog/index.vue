@@ -78,7 +78,7 @@
         <el-form-item label="用户组" prop="groupCodes">
           <el-input
             v-model="queryParams.groupCodes"
-            placeholder="用户组编码"
+            placeholder="完整用户组编码"
             clearable
             style="width: 160px"
             @keyup.enter.native="handleQuery"
@@ -88,7 +88,7 @@
         <el-form-item label="权限标签" prop="scopeCodes">
           <el-input
             v-model="queryParams.scopeCodes"
-            placeholder="权限标签"
+            placeholder="完整权限标签编码"
             clearable
             style="width: 160px"
             @keyup.enter.native="handleQuery"

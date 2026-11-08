@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.ruoyi.system.domain.security.SecureQueryContext;
+import com.ruoyi.system.domain.security.RequestActivityCounts;
 import com.ruoyi.system.mapper.SecureQueryContextMapper;
 import com.ruoyi.system.mapper.BbacSecurityMapper;
 import com.ruoyi.system.service.ISecureQueryContextService;
@@ -121,7 +122,13 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         }
 
         // BBAC 2：单位时间访问次数 <= 阈值。
-        int requestCount = bbacSecurityMapper.countUserRequestsLastMinute(userId);
+        RequestActivityCounts activity = bbacSecurityMapper.selectRequestActivity(
+                userId, context.getSanitizedQuery());
+        if (activity == null)
+        {
+            throw new IllegalStateException("访问行为统计未返回有效结果");
+        }
+        int requestCount = activity.getRequestCount();
         context.setRequestCountInWindow(requestCount);
         if (requestCount >= REQUEST_LIMIT_PER_MINUTE)
         {
@@ -131,11 +138,7 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
         }
 
         // BBAC 4：重复 query pattern -> 限制访问。
-        int repeatedQueryCount = 0;
-        if (context.getSanitizedQuery() != null && context.getSanitizedQuery().length() > 0)
-        {
-            repeatedQueryCount = bbacSecurityMapper.countRepeatedQueryLastFiveMinutes(userId, context.getSanitizedQuery());
-        }
+        int repeatedQueryCount = activity.getRepeatedQueryCount();
         context.setRepeatedQueryCount(repeatedQueryCount);
         if (repeatedQueryCount >= REPEAT_QUERY_LIMIT_FIVE_MINUTES)
         {

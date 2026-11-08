@@ -386,13 +386,10 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteUserById(Long userId)
     {
-        // 删除用户与角色关联
-        userRoleMapper.deleteUserRoleByUserId(userId);
-        // 删除用户与岗位表
-        userPostMapper.deleteUserPostByUserId(userId);
-        return userMapper.deleteUserById(userId);
+        return deleteUserByIds(new Long[] { userId });
     }
 
     /**
@@ -402,12 +399,23 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteUserByIds(Long[] userIds)
     {
+        if (userIds == null || userIds.length == 0)
+        {
+            throw new CustomException("请选择需要删除的人员");
+        }
         for (Long userId : userIds)
         {
+            if (userId == null || userId <= 0)
+            {
+                throw new CustomException("人员编号无效，请刷新后重试");
+            }
             checkUserAllowed(new SysUser(userId));
         }
+        userRoleMapper.deleteUserRole(userIds);
+        userPostMapper.deleteUserPost(userIds);
         return userMapper.deleteUserByIds(userIds);
     }
 

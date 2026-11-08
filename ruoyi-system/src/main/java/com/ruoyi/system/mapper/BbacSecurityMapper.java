@@ -1,5 +1,6 @@
 package com.ruoyi.system.mapper;
 
+import com.ruoyi.system.domain.security.RequestActivityCounts;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -49,20 +50,17 @@ public interface BbacSecurityMapper
     int resetFailCount(@Param("userId") Long userId);
 
     /**
-     * 统计当前用户 1 分钟内 RAG 请求次数。
+     * 在同一次数据库读取中统计当前请求需要的频次与重复次数。
      */
-    @Select("select count(1) from sys_rag_audit_log " +
-            "where user_id = #{userId} and create_time >= date_sub(now(), interval 1 minute)")
-    int countUserRequestsLastMinute(@Param("userId") Long userId);
-
-    /**
-     * 统计当前用户 5 分钟内重复 query pattern 次数。
-     */
-    @Select("select count(1) from sys_rag_audit_log " +
-            "where user_id = #{userId} " +
-            "and query_text = #{queryText} " +
-            "and create_time >= date_sub(now(), interval 5 minute)")
-    int countRepeatedQueryLastFiveMinutes(@Param("userId") Long userId, @Param("queryText") String queryText);
+    @Select("select " +
+            "(select count(1) from sys_rag_audit_log " +
+            "where user_id = #{userId} and create_time >= date_sub(now(), interval 1 minute)) as requestCount, " +
+            "case when #{queryText} is null or char_length(#{queryText}) = 0 then 0 else " +
+            "(select count(1) from sys_rag_audit_log where user_id = #{userId} " +
+            "and query_text = #{queryText} and create_time >= date_sub(now(), interval 5 minute)) " +
+            "end as repeatedQueryCount")
+    RequestActivityCounts selectRequestActivity(@Param("userId") Long userId,
+            @Param("queryText") String queryText);
 
     /**
      * 如果临时封禁已过期，自动恢复 ACTIVE。

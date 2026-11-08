@@ -44,8 +44,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="userId != null "> and user_id = #{userId}</if>
             <if test="userName != null  and userName != ''"> and user_name like concat('%', #{userName}, '%')</if>
             <if test="queryText != null  and queryText != ''"> and query_text like concat('%', #{queryText}, '%')</if>
-            <if test="groupCodes != null  and groupCodes != ''"> and group_codes = #{groupCodes}</if>
-            <if test="scopeCodes != null  and scopeCodes != ''"> and scope_codes like concat('%', #{scopeCodes}, '%')</if>
+            <if test="groupCodes != null and groupCodes.trim() != ''"> and find_in_set(trim(#{groupCodes}), replace(coalesce(group_codes, ''), ' ', '')) &gt; 0</if>
+            <if test="scopeCodes != null and scopeCodes.trim() != ''"> and find_in_set(trim(#{scopeCodes}), replace(coalesce(scope_codes, ''), ' ', '')) &gt; 0</if>
             <if test="allowAccess != null  and allowAccess != ''"> and allow_access = #{allowAccess}</if>
             <if test="blockedReasons != null  and blockedReasons != ''"> and blocked_reasons like concat('%', #{blockedReasons}, '%')</if>
             <if test="limitedQuery != null  and limitedQuery != ''"> and limited_query = #{limitedQuery}</if>
