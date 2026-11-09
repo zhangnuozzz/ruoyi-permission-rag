@@ -3,7 +3,6 @@
     <header class="page-header">
       <div>
         <h1>权限上下文</h1>
-        <p>查看当前人员的身份、密级和知悉用户组，了解文档访问条件。</p>
       </div>
       <div class="header-actions">
         <span class="updated-at">{{ loadedAt ? '本次加载 ' + loadedAt : '等待加载' }}</span>

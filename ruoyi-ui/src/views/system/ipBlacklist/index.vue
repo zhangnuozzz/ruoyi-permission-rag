@@ -4,9 +4,6 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">IP 黑名单</div>
-          <div class="page-subtitle">
-            对高风险 IP 进行封禁管理，命中启用状态黑名单的访问请求将被安全过滤器拦截并记录到访问监控日志。
-          </div>
         </div>
       </div>
 

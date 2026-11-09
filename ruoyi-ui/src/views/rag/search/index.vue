@@ -4,9 +4,6 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">RAG 安全检索</div>
-          <div class="page-subtitle">
-            按当前权限检索知识文档，并保留访问记录。
-          </div>
         </div>
         <el-tag type="success" effect="plain">安全检索</el-tag>
       </div>

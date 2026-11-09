@@ -4,9 +4,6 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">访问监控</div>
-          <div class="page-subtitle">
-            记录后台接口访问来源、访问路径、请求方式、访问状态和耗时，为安全审计与异常访问分析提供依据。
-          </div>
         </div>
       </div>
 

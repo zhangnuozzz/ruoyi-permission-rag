@@ -4,21 +4,9 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">RAG 行为分析告警中心</div>
-          <div class="page-subtitle">
-            基于 RAG 审计日志自动识别拒绝访问、高风险查询、敏感词查询、topK 异常、大量结果拦截与慢查询等安全行为。
-          </div>
         </div>
         <el-tag type="danger" effect="plain">安全行为告警</el-tag>
       </div>
-
-      <el-alert
-        title="分析链路：审计日志 → 风险评分 → 行为规则匹配 → 告警生成 → 安全处置"
-        description="已停用文档的正常过滤保留审计；权限异常继续告警，历史告警及处置记录保留。"
-        type="warning"
-        :closable="false"
-        show-icon
-        class="tips-alert"
-      />
 
       <div class="forwarding-status" role="status">
         <span v-if="forwardingError" class="forwarding-error">{{ forwardingError }}</span>

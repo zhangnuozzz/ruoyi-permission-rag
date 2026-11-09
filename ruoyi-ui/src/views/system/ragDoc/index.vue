@@ -3,7 +3,6 @@
     <div class="rag-doc-header">
       <div>
         <div class="rag-doc-title">文档权限标签</div>
-        <div class="rag-doc-desc">维护文档密级、唯一知悉用户组和访问状态。原文件通过“RAG 文件入库”登记。</div>
         <div class="rag-doc-desc">公开不设密级与组门槛；内部仅要求人员密级；秘密、机密还须匹配知悉组。实际访问仍需通过状态、时间和策略校验。</div>
       </div>
       <span class="rag-doc-count">{{ loading || listError ? '数量待确认' : '共 ' + total + ' 条' }}</span>

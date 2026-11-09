@@ -2,9 +2,7 @@
   <div class="library-page">
     <div class="library-heading">
       <div>
-        <div class="eyebrow">MY KNOWLEDGE BASE</div>
         <h1>我的知识库</h1>
-        <p>上传知识文件并查看入库状态。公开文档可直接分享，内部文档按人员密级访问，国家秘密还需知悉用户组授权。</p>
       </div>
       <el-button type="primary" icon="el-icon-upload2" @click="openUpload">上传知识文件</el-button>
     </div>
@@ -17,7 +15,7 @@
 
     <div class="library-panel">
       <div class="panel-heading">
-        <div><h2>已上传文档</h2><p>查看解析与向量化结果，按需停用或重新启用自己的文档</p></div>
+        <div><h2>已上传文档</h2></div>
         <el-button icon="el-icon-refresh" size="small" :loading="loading" @click="loadFiles">刷新</el-button>
       </div>
 

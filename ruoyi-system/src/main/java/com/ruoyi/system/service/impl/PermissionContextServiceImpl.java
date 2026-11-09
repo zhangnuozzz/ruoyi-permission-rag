@@ -17,6 +17,7 @@ import com.ruoyi.system.domain.permission.PolicyInfo;
 import com.ruoyi.system.domain.permission.AccessPolicyRule;
 import com.ruoyi.system.mapper.PermissionContextMapper;
 import com.ruoyi.system.service.IPermissionContextService;
+import com.ruoyi.system.service.UserGroupQueryService;
 
 /** 使用当前人员归属和可信请求来源构建附加策略上下文。 */
 @Service
@@ -24,6 +25,9 @@ public class PermissionContextServiceImpl implements IPermissionContextService
 {
     @Autowired
     private PermissionContextMapper permissionContextMapper;
+
+    @Autowired
+    private UserGroupQueryService userGroupQueryService;
 
     private Clock clock = Clock.systemDefaultZone();
 
@@ -36,7 +40,7 @@ public class PermissionContextServiceImpl implements IPermissionContextService
         context.setAdmin(Boolean.TRUE.equals(admin));
         context.setRequestTime(LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
-        List<GroupInfo> groups = permissionContextMapper.selectGroupsByUserId(userId);
+        List<GroupInfo> groups = userGroupQueryService.selectForRequest(userId);
         List<PolicyInfo> policies = permissionContextMapper.selectPoliciesByUserId(userId);
 
         context.setGroups(groups);

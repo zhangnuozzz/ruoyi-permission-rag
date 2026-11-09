@@ -4,16 +4,12 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">RAG 检索审计</div>
-          <div class="page-subtitle">
-            展示 RAG 安全检索请求的身份上下文、查询安全上下文、Metadata Filter、访问决策、风险分数、结果过滤与拦截原因。
-          </div>
         </div>
         <el-tag type="info" effect="plain">全链路审计</el-tag>
       </div>
 
       <el-alert
-        title="请求准入与文档授权分别判定"
-        description="请求获准执行后，仍逐条校验文档。停用或不符合权限的候选会被拦截，不会返回给用户。"
+        title="请求放行后，仍逐条校验文档权限。"
         type="info"
         :closable="false"
         show-icon
@@ -302,7 +298,6 @@
         </el-tab-pane>
 
         <el-tab-pane label="响应JSON" name="response">
-          <div class="page-subtitle">新记录与对应账号的接口响应一致；历史记录可能包含内部诊断字段。</div>
           <pre class="json-viewer">{{ formatJson(jsonDetail.responseJson) }}</pre>
         </el-tab-pane>
       </el-tabs>

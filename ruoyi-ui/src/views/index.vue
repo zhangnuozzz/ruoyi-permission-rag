@@ -2,9 +2,7 @@
   <div v-loading="loading && !loaded" class="situation-page">
     <header class="overview-header">
       <div class="header-copy">
-        <div class="eyebrow"><span class="pulse-dot" /> SECURITY SITUATION OVERVIEW</div>
         <h1>安全态势感知</h1>
-        <p>向量库访问控制系统 · 聚合身份、知识资产、检索请求与风险告警</p>
       </div>
       <div class="header-actions">
         <div class="update-info">
@@ -66,9 +64,7 @@
         <div class="panel trend-panel">
           <div class="panel-heading">
             <div>
-              <div class="panel-kicker">REQUEST TRAFFIC</div>
               <h2>近七日请求趋势</h2>
-              <p>按审计日志产生时间统计，每日请求量与拒绝量</p>
             </div>
             <span class="period-chip">最近 7 天</span>
           </div>
@@ -79,9 +75,7 @@
         <div class="panel decision-panel">
           <div class="panel-heading">
             <div>
-              <div class="panel-kicker">ACCESS DECISION</div>
               <h2>请求准入分布</h2>
-              <p>请求准入结果；获准后仍逐条校验文档</p>
             </div>
           </div>
           <div v-if="decisionTotal" class="decision-body">
@@ -103,7 +97,6 @@
         <div class="panel levels-panel">
           <div class="panel-heading compact">
             <div>
-              <div class="panel-kicker">KNOWLEDGE ASSETS</div>
               <h2>文档分级概览</h2>
               <p>按文档权限标签中的密级统计</p>
             </div>
@@ -120,7 +113,6 @@
         <div class="panel alerts-panel">
           <div class="panel-heading compact">
             <div>
-              <div class="panel-kicker">RISK WATCH</div>
               <h2>最新待处理告警</h2>
               <p>优先关注尚未处置的安全事件</p>
             </div>
@@ -140,7 +132,6 @@
       <section class="panel activity-panel" aria-label="最近检索请求">
         <div class="panel-heading compact">
           <div>
-            <div class="panel-kicker">LATEST ACTIVITY</div>
             <h2>最近检索请求</h2>
             <p>仅展示必要的审计摘要，不在首页暴露检索正文</p>
           </div>
@@ -354,7 +345,7 @@ export default {
 
 <style scoped>
 .situation-page { min-height: calc(100vh - 84px); padding: 22px 24px 28px; background: #f3f6fb; color: #263b55; }
-.overview-header { min-height: 172px; padding: 29px 34px; display: flex; justify-content: space-between; align-items: center; gap: 24px; border-radius: 15px; background: linear-gradient(115deg, #153455 0%, #1b456f 54%, #245b88 100%); color: #fff; box-shadow: 0 12px 28px rgba(28, 63, 101, .13); }
+.overview-header { min-height: 120px; padding: 26px 30px; display: flex; justify-content: space-between; align-items: center; gap: 24px; border-radius: 15px; background: linear-gradient(115deg, #153455 0%, #1b456f 54%, #245b88 100%); color: #fff; box-shadow: 0 12px 28px rgba(28, 63, 101, .13); }
 .eyebrow { display: flex; align-items: center; gap: 8px; color: #9fc8ee; font-size: 11px; font-weight: 700; letter-spacing: 1.8px; }
 .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: #64d9c1; box-shadow: 0 0 0 4px rgba(100, 217, 193, .15); }
 .header-copy h1 { margin: 13px 0 9px; font-size: 29px; line-height: 1.2; font-weight: 650; letter-spacing: .5px; }

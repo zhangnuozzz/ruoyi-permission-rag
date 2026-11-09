@@ -3,7 +3,6 @@
     <header class="identity-header">
       <div>
         <h1>用户组管理</h1>
-        <p>一个人可加入多个用户组；秘密、机密文档各绑定一个知悉组。</p>
       </div>
       <span class="identity-count">当前筛选：{{ total }} 组</span>
     </header>

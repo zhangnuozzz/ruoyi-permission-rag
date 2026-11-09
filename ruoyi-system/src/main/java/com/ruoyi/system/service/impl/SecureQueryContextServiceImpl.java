@@ -3,6 +3,10 @@ package com.ruoyi.system.service.impl;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import com.ruoyi.system.domain.permission.GroupInfo;
+import com.ruoyi.system.service.UserGroupQueryService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -42,6 +46,9 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
 
     @Autowired
     private IpAccessService ipAccessService;
+
+    @Autowired
+    private UserGroupQueryService userGroupQueryService;
 
     @Override
     public SecureQueryContext buildContext(Long userId, String userName, Boolean admin, String query, Integer topK)
@@ -182,8 +189,11 @@ public class SecureQueryContextServiceImpl implements ISecureQueryContextService
             return context;
         }
 
-        List<String> groupCodes = secureQueryContextMapper.selectGroupCodesByUserId(userId);
-        List<String> scopeCodes = secureQueryContextMapper.selectScopeCodesByUserId(userId);
+        List<GroupInfo> memberships = userGroupQueryService.selectForRequest(userId);
+        List<String> groupCodes = memberships.stream().map(GroupInfo::getGroupCode)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<String> scopeCodes = memberships.stream().map(GroupInfo::getScopeCode)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
 
         context.setGroupCodes(groupCodes);
         context.setScopeCodes(scopeCodes);

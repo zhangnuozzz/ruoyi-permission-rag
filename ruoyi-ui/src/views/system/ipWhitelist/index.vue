@@ -4,9 +4,6 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">IP 白名单</div>
-          <div class="page-subtitle">
-            管理可信 IP 地址。命中启用状态白名单的请求将优先通过 IP 安全检查，不再执行 IP 黑名单拒绝判断。
-          </div>
         </div>
       </div>
 

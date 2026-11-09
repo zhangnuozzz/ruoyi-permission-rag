@@ -87,9 +87,6 @@
       <header class="topbar">
         <div>
           <div class="topbar-title">向量库访问控制系统</div>
-          <div class="topbar-subtitle">
-            知识安全检索与智能问答服务
-          </div>
         </div>
 
         <div class="topbar-right">
@@ -181,7 +178,6 @@
 
               <div>
                 <div class="quick-title">{{ item.title }}</div>
-                <div class="quick-question">{{ item.question }}</div>
               </div>
 
               <i class="el-icon-arrow-right quick-arrow"></i>
@@ -940,11 +936,6 @@ export default {
   color: #25364a;
 }
 
-.topbar-subtitle {
-  margin-top: 4px;
-  font-size: 11px;
-  color: #99a6b5;
-}
 
 .topbar-right {
   display: flex;
@@ -1017,7 +1008,7 @@ export default {
 }
 
 .quick-card {
-  min-height: 88px;
+  min-height: 84px;
   padding: 17px;
   box-sizing: border-box;
   background: #fff;
@@ -1055,11 +1046,6 @@ export default {
   font-weight: 500;
 }
 
-.quick-question {
-  margin-top: 6px;
-  color: #9aa7b5;
-  font-size: 11px;
-}
 
 .quick-arrow {
   margin-left: auto;

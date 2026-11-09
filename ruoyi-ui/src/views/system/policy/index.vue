@@ -3,7 +3,6 @@
     <header class="identity-header">
       <div>
         <h1>访问策略管理</h1>
-        <p>为指定人员或用户组配置附加访问限制。</p>
       </div>
       <span class="identity-count">当前筛选：{{ total }} 条</span>
     </header>

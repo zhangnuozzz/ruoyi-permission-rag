@@ -4,20 +4,9 @@
       <div slot="header" class="card-header">
         <div>
           <div class="page-title">RAG 检索审计日志</div>
-          <div class="page-subtitle">
-            记录每一次 RAG 安全检索请求的用户身份、用户组、权限标签、Metadata Filter、访问决策、拒绝原因和耗时，用于后续安全审计与权限追踪。
-          </div>
         </div>
         <el-tag type="info" effect="plain">sys_rag_audit_log</el-tag>
       </div>
-
-      <el-alert
-        title="审计链路：检索问题 → 权限上下文 → 策略决策 → Metadata Filter → 二次过滤 → 审计留痕"
-        type="info"
-        :closable="false"
-        show-icon
-        class="tips-alert"
-      />
 
       <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="82px">
         <el-form-item label="用户名" prop="userName">

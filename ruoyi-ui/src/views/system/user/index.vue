@@ -3,7 +3,6 @@
     <header class="identity-header">
       <div>
         <h1>人员权限管理</h1>
-        <p>设置人员密级与所属用户组，明确可接触的数据等级和知悉范围。</p>
       </div>
       <span class="identity-count">当前筛选：{{ total }} 人</span>
     </header>

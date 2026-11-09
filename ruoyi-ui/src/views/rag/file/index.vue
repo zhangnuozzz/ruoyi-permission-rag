@@ -3,18 +3,7 @@
     <el-card shadow="never" class="box-card">
       <div slot="header">
         <div class="page-title">RAG 文件入库</div>
-        <div class="page-subtitle">
-          上传带权限标签的知识文件，系统完成文件解析、原文件保存、向量切块写入及文档权限标签同步。
-        </div>
       </div>
-
-      <el-alert
-        title="入库链路：文件提交 → 内容解析与切块 → 原文件保存 → 向量写入 → 文档权限标签同步"
-        type="info"
-        :closable="false"
-        show-icon
-        class="tips-alert"
-      />
 
       <el-row :gutter="12" class="status-row">
         <el-col :span="6">
