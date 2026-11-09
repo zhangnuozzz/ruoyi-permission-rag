@@ -9,9 +9,13 @@ import com.ruoyi.system.domain.rag.RagSearchRequest;
 import com.ruoyi.system.domain.rag.RagSearchResult;
 import com.ruoyi.system.service.IRagRemoteSearchService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.ResourceAccessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,18 +30,14 @@ import java.util.Map;
 @Service
 public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
 {
+    private static final Logger log = LoggerFactory.getLogger(RagRemoteSearchServiceImpl.class);
+
     @Value("${rag.server.url:http://localhost:8081}")
     private String ragServerUrl;
 
-    private final RestTemplate restTemplate = createRestTemplate();
-
-    private static RestTemplate createRestTemplate()
-    {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(3000);
-        factory.setReadTimeout(15000);
-        return new RestTemplate(factory);
-    }
+    @Autowired
+    @Qualifier("ragSearchRestTemplate")
+    private RestTemplate restTemplate;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -96,7 +96,17 @@ public class RagRemoteSearchServiceImpl implements IRagRemoteSearchService
                 "security_level_and_knowledge_group_prefilter"
         );
 
-        Object response = restTemplate.postForObject(ragServerUrl + "/rag/search", body, Object.class);
+        Object response;
+        try
+        {
+            response = restTemplate.postForObject(ragServerUrl + "/rag/search", body, Object.class);
+        }
+        catch (ResourceAccessException exception)
+        {
+            log.warn("检索服务连接失败，异常类型：{}，根因类型：{}",
+                    exception.getClass().getSimpleName(), exception.getMostSpecificCause().getClass().getSimpleName());
+            throw exception;
+        }
 
         if (!(response instanceof Map))
         {
