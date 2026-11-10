@@ -85,6 +85,12 @@ public interface SysUserMapper
      */
     public int deleteUserByIds(Long[] userIds);
 
+    /** 按稳定顺序锁定待删除人员，与组成员维护共用人员行锁。 */
+    List<Long> lockUsersForDeletion(Long[] userIds);
+
+    /** 删除指定人员的用户组关系，保留用户组本身。 */
+    int deleteUserGroupRelations(Long[] userIds);
+
     /**
      * 校验用户名称是否唯一
      * 

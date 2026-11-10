@@ -221,4 +221,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach> 
  	</delete>
 	
+    <select id="lockUsersForDeletion" parameterType="Long" resultType="Long">
+        select user_id from sys_user where user_id in
+        <foreach collection="array" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+        order by user_id for update
+    </select>
+
+    <delete id="deleteUserGroupRelations" parameterType="Long">
+        delete from sys_user_group_rel where user_id in
+        <foreach collection="array" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
 </mapper> 

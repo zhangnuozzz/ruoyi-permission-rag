@@ -1,7 +1,9 @@
 package com.ruoyi.system.service.impl;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -414,9 +416,17 @@ public class SysUserServiceImpl implements ISysUserService
             }
             checkUserAllowed(new SysUser(userId));
         }
-        userRoleMapper.deleteUserRole(userIds);
-        userPostMapper.deleteUserPost(userIds);
-        return userMapper.deleteUserByIds(userIds);
+        Long[] identifiers = new TreeSet<Long>(Arrays.asList(userIds))
+                .toArray(new Long[0]);
+        List<Long> lockedUsers = userMapper.lockUsersForDeletion(identifiers);
+        if (lockedUsers == null || lockedUsers.size() != identifiers.length)
+        {
+            throw new CustomException("部分人员不存在，请刷新后重试");
+        }
+        userRoleMapper.deleteUserRole(identifiers);
+        userPostMapper.deleteUserPost(identifiers);
+        userMapper.deleteUserGroupRelations(identifiers);
+        return userMapper.deleteUserByIds(identifiers);
     }
 
     /**

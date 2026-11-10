@@ -88,17 +88,9 @@ public class RagSecondFilterServiceImpl
                         ? null
                         : context.getUserId();
 
-        Map<String, Object> userAttr =
-                userId == null
-                        ? null
-                        : accessDecisionMapper
-                        .selectUserSecurityAttr(userId);
-
-        List<String> userGroups =
-                userId == null
-                        ? new ArrayList<String>()
-                        : accessDecisionMapper
-                        .selectUserGroupCodes(userId);
+        UserAccessSnapshot snapshot = readUserAccess(userId);
+        Map<String, Object> userAttr = snapshot.attributes;
+        List<String> userGroups = snapshot.groupCodes;
 
         for (RagSearchResult result : results)
         {
@@ -298,6 +290,61 @@ public class RagSecondFilterServiceImpl
         }
 
         return filtered;
+    }
+
+    private UserAccessSnapshot readUserAccess(Long userId)
+    {
+        if (userId == null)
+        {
+            return new UserAccessSnapshot(null, new ArrayList<String>());
+        }
+        List<Map<String, Object>> rows = accessDecisionMapper.selectUserAccessSnapshot(userId);
+        if (rows == null)
+        {
+            throw new CustomException("人员安全属性和用户组暂时无法核验");
+        }
+        Map<String, Object> attributes = null;
+        Set<String> groupCodes = new LinkedHashSet<String>();
+        for (Map<String, Object> row : rows)
+        {
+            if (row == null || !(row.get("user_id") instanceof Number)
+                    || ((Number) row.get("user_id")).longValue() != userId.longValue())
+            {
+                throw new CustomException("人员安全属性读取结果无效");
+            }
+            Map<String, Object> current = new HashMap<String, Object>();
+            for (String key : new String[] {"secret_level", "access_status", "access_start_time", "access_end_time"})
+            {
+                current.put(key, row.get(key));
+            }
+            if (attributes != null && !attributes.equals(current))
+            {
+                throw new CustomException("人员安全属性读取结果不一致");
+            }
+            attributes = current;
+            Object groupCode = row.get("group_code");
+            if (groupCode != null)
+            {
+                if (!(groupCode instanceof String))
+                {
+                    throw new CustomException("用户组归属读取结果无效");
+                }
+                groupCodes.add((String) groupCode);
+            }
+        }
+        return new UserAccessSnapshot(attributes, new ArrayList<String>(groupCodes));
+    }
+
+    private static final class UserAccessSnapshot
+    {
+        private final Map<String, Object> attributes;
+        private final List<String> groupCodes;
+
+        private UserAccessSnapshot(Map<String, Object> attributes, List<String> groupCodes)
+        {
+            this.attributes = attributes;
+            this.groupCodes = groupCodes;
+        }
     }
 
     private void enrichResult(
