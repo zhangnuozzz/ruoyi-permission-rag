@@ -173,6 +173,10 @@ ruoyi_need_build() {
     return 0
   fi
 
+  if ! JAVA_HOME="$RUOYI_JAVA_HOME" bash "$BASE_DIR/scripts/check-platform-jar.sh" "$jar"; then
+    return 0
+  fi
+
   if find \
       "$BASE_DIR/ruoyi-admin/src" \
       "$BASE_DIR/ruoyi-common/src" \
@@ -180,6 +184,12 @@ ruoyi_need_build() {
       "$BASE_DIR/ruoyi-system/src" \
       "$BASE_DIR/ruoyi-quartz/src" \
       "$BASE_DIR/ruoyi-generator/src" \
+      "$BASE_DIR/ruoyi-admin/pom.xml" \
+      "$BASE_DIR/ruoyi-common/pom.xml" \
+      "$BASE_DIR/ruoyi-framework/pom.xml" \
+      "$BASE_DIR/ruoyi-system/pom.xml" \
+      "$BASE_DIR/ruoyi-quartz/pom.xml" \
+      "$BASE_DIR/ruoyi-generator/pom.xml" \
       -type f -newer "$jar" -print -quit 2>/dev/null | grep -q .; then
     return 0
   fi
@@ -361,7 +371,10 @@ if ruoyi_need_build; then
 
   JAVA_HOME="$RUOYI_JAVA_HOME" \
   PATH="$RUOYI_JAVA_HOME/bin:$PATH" \
-  mvn -DskipTests package
+  mvn -DskipTests clean package
+
+  JAVA_HOME="$RUOYI_JAVA_HOME" bash "$BASE_DIR/scripts/check-platform-jar.sh" \
+    "$BASE_DIR/ruoyi-admin/target/ruoyi-admin.jar"
 
   echo "✅ 若依构建完成"
 else

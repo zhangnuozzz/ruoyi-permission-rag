@@ -88,6 +88,7 @@ public class SysUserController extends BaseController
         return AjaxResult.success(message);
     }
 
+    @PreAuthorize("@ss.hasPermi('system:user:import')")
     @GetMapping("/importTemplate")
     public AjaxResult importTemplate()
     {

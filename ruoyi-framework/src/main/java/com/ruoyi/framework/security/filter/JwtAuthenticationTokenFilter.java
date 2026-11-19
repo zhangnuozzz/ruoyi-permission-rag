@@ -81,7 +81,7 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter
                         && !"/account/password/status".equals(path) && !"/account/password/change".equals(path)
                         && !"/system/user/profile/updatePwd".equals(path) && !"/logout".equals(path))
                 {
-                    respond(response, 428, "密码已到期或已重置，请先修改密码");
+                    respond(response, 428, "首次登录、密码到期或重置后，请先修改密码");
                     return;
                 }
                 if (!"false".equalsIgnoreCase(request.getHeader("X-Session-Touch")))

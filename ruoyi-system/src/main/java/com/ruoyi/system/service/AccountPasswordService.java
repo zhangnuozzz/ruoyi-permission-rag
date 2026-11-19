@@ -20,7 +20,7 @@ public class AccountPasswordService
     @Autowired
     private JdbcTemplate jdbc;
 
-    @Value("${account.password.maxAgeDays:90}")
+    @Value("${account.password.maxAgeDays:7}")
     private int maxAgeDays;
 
     private final Clock clock;
@@ -57,7 +57,7 @@ public class AccountPasswordService
     @Transactional(rollbackFor = Exception.class)
     public void register(Long userId, String encodedPassword)
     {
-        jdbc.update("insert into sys_password_state (user_id, changed_at, change_required) values (?, ?, 0)",
+        jdbc.update("insert into sys_password_state (user_id, changed_at, change_required) values (?, ?, 1)",
                 userId, Timestamp.from(clock.instant()));
         remember(userId, encodedPassword);
     }

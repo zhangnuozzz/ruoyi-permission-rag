@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.filter.CorsFilter;
 import com.ruoyi.framework.security.filter.JwtAuthenticationTokenFilter;
 import com.ruoyi.framework.security.handle.AuthenticationEntryPointImpl;
+import com.ruoyi.framework.security.handle.AccessDeniedHandlerImpl;
 import com.ruoyi.framework.security.handle.LogoutSuccessHandlerImpl;
 
 /**
@@ -37,6 +38,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter
      */
     @Autowired
     private AuthenticationEntryPointImpl unauthorizedHandler;
+
+    @Autowired
+    private AccessDeniedHandlerImpl accessDeniedHandler;
 
     /**
      * 退出处理类
@@ -91,7 +95,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter
                 // CSRF禁用，因为不使用session
                 .csrf().disable()
                 // 认证失败处理类
-                .exceptionHandling().authenticationEntryPoint(unauthorizedHandler).and()
+                .exceptionHandling().authenticationEntryPoint(unauthorizedHandler)
+                .accessDeniedHandler(accessDeniedHandler).and()
                 // 基于token，所以不需要session
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
                 // 过滤请求

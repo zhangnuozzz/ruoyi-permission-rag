@@ -3,7 +3,7 @@ server:
   address: 127.0.0.1
 account:
   password:
-    maxAgeDays: 90
+    maxAgeDays: 7
   login:
     maxAttempts: 5
     windowSeconds: 900

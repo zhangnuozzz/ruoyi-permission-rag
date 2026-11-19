@@ -81,6 +81,7 @@ public class SysDeptController extends BaseController
     /**
      * 获取部门下拉树列表
      */
+    @PreAuthorize("@ss.hasAnyPermi('system:dept:list,system:user:list,system:user:add,system:user:edit,system:role:add,system:role:edit')")
     @GetMapping("/treeselect")
     public AjaxResult treeselect(SysDept dept)
     {
@@ -91,6 +92,7 @@ public class SysDeptController extends BaseController
     /**
      * 加载对应角色部门列表树
      */
+    @PreAuthorize("@ss.hasAnyPermi('system:role:query,system:role:edit')")
     @GetMapping(value = "/roleDeptTreeselect/{roleId}")
     public AjaxResult roleDeptTreeselect(@PathVariable("roleId") Long roleId)
     {
