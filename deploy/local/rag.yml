@@ -1,0 +1,19 @@
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    url: jdbc:mariadb://127.0.0.1:3307/ry-vue-320?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ruoyi
+    password: "001106"
+rag:
+  file:
+    minio:
+      endpoint: http://127.0.0.1:9000
+    milvus:
+      host: 127.0.0.1
+      collection-name: rag_bge_small_zh_v1
+      vector-dimension: 512
+  embedding:
+    mode: http
+    base-url: http://127.0.0.1:8001/v1
+    model: bge-small-zh-v1.5

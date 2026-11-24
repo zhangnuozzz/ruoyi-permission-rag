@@ -250,7 +250,7 @@
                   >
                     <div class="source-main">
                       <div class="source-name">
-                        {{ source.title || '知识文档' }}
+                        [{{ sourceIndex + 1 }}] {{ source.title || '知识文档' }}
                       </div>
 
                       <div class="source-tags">

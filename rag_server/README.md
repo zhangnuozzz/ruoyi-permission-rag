@@ -21,6 +21,8 @@ java -jar target/rag-server-1.0.0.jar
 
 默认端口为 `8081`，配置在 `src/main/resources/application.yml`。
 
+全新本机测试环境的正式 embedding 配置、模型服务、空库迁移与端到端验收见[本地运行记录](../docs/本地测试环境准备.md)。`rag.embedding.mode=http` 时文档与查询共用本地向量模型，文档通过同一 tokenizer 分块；`fake` 仅保留历史演示用途。
+
 ## 初始化表
 
 执行：

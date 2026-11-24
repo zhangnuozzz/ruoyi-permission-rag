@@ -1,0 +1,26 @@
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    druid:
+      master:
+        url: jdbc:mysql://127.0.0.1:3307/ry-vue-320?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2B8
+        username: ruoyi
+        password: "001106"
+  redis:
+    host: 127.0.0.1
+    port: 6380
+rag:
+  server:
+    url: http://127.0.0.1:8081
+  search:
+    mode: remote
+    remote-url: http://127.0.0.1:8081/rag/search
+  answer:
+    enabled: true
+    base-url: http://127.0.0.1:8000/v1
+    model: rag-local
+    api-key: ""
+vacp:
+  syslog:
+    enabled: false

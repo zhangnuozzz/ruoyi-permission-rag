@@ -1,6 +1,93 @@
 # 向量库访问控制平台
 
-基于 RuoYi-Vue 的身份权限与知识访问控制平台，包含管理端和普通用户知识门户。平台功能与业务流程见 [功能说明](doc/platform-overview.md)，开发实现见[系统开发文档](doc/向量库访问控制系统开发文档.docx)，安装升级步骤见[运行与升级](doc/platform-upgrade.md)。正式语义嵌入、回答模型与跨服务一致性仍有待联调，当前版本不代表整套 RAG 系统已完成最终验收。
+基于 RuoYi-Vue 的身份权限与知识访问控制平台，包含管理端和普通用户知识门户。平台功能与业务流程见 [功能说明](doc/platform-overview.md)，开发实现见[系统开发文档](doc/向量库访问控制系统开发文档.docx)，安装升级步骤见[运行与升级](doc/platform-upgrade.md)。正式语义嵌入、本地回答和扫描 PDF 已在全新本机测试环境完成基础闭环，运行入口与验证边界见[本地 RAG 运行与验收记录](docs/本地测试环境准备.md)。这不代表生产部署、持续负载和跨存储一致性已完成最终验收。
+
+## 本地快速启动
+
+以下命令用于**已经准备好的本机测试工作区**，不是任意机器上的全自动安装器。当前目录布局为：
+
+```text
+/home/fufu/workspace/
+├── .local-runtime/           # JDK、Maven、Node、日志及后台进程记录
+├── models/                   # 生成模型及 bge-small-zh-v1.5
+└── vllm-project/
+    ├── .venv/                # vLLM、PyTorch、Transformers、FastAPI 等
+    └── RAGproject/           # 本项目
+```
+
+在普通终端执行：
+
+```bash
+cd /home/fufu/workspace/vllm-project/RAGproject
+
+# 启动容器、检查数据库并执行未应用的迁移，再启动模型及前后端
+python3 scripts/local-stack.py start
+
+# 检查容器与各服务入口
+python3 scripts/local-stack.py status
+
+# 停止本入口管理的进程和容器，保留数据库、原件与向量数据卷
+python3 scripts/local-stack.py stop
+```
+
+启动入口要求 Docker Engine/Compose 可用，镜像已在本机、模型和构建工具已就位、后端 JAR 与前端依赖已安装。它使用 `--no-build --pull never`，不会自动下载镜像、模型或重新构建后端。首次迁移到其他机器时，需要先准备这些依赖并核对目录、连接配置和空库初始化；详见[本地运行记录](docs/本地测试环境准备.md)。
+
+### 访问地址与测试账号
+
+网页入口：[http://127.0.0.1:1024](http://127.0.0.1:1024)。当前 Java 服务、模型服务与容器映射端口均仅监听本机。
+
+| 账号 | 本机测试身份 |
+| --- | --- |
+| `admin` | 管理后台；机密级，具有演示知悉用户组 |
+| `test_user` | 普通知识门户；公开级 |
+| `rag_internal` | 普通知识门户；内部级，无项目秘密权限 |
+| `rag_project` | 普通知识门户；秘密级，项目 A 知悉组成员 |
+
+上述已初始化测试账号的密码均为 `admin123`，登录验证码正常启用。测试身份初始化脚本为 `sql/local_rag_acceptance.sql`，仅适用于专用新测试库，不应对既有业务库执行。
+
+| 服务 | 本机地址 |
+| --- | --- |
+| 前端 | `127.0.0.1:1024` |
+| 平台后端 / 文件、OCR 与检索服务 | `127.0.0.1:8080` / `127.0.0.1:8081` |
+| vLLM 生成接口 | `http://127.0.0.1:8000/v1`，模型别名 `rag-local` |
+| CPU embedding 与 token 分块接口 | `http://127.0.0.1:8001/v1` |
+| MariaDB / Redis | `127.0.0.1:3307` / `127.0.0.1:6380` |
+| MinIO API / 控制台 | `127.0.0.1:9000` / `127.0.0.1:9001` |
+| Milvus / 健康入口 | `127.0.0.1:19530` / `127.0.0.1:9091` |
+
+本地容器编排使用 `docker-compose.local.yml`，数据保存在独立的 `rag-local` 卷中。连接与模型配置在 [平台配置](deploy/local/platform.yml)、[文件服务配置](deploy/local/rag.yml)；日志和进程记录位于 `/home/fufu/workspace/.local-runtime/`。历史 `docker-compose.rag.yml`、`start_all.sh` 不作为本轮启动入口。
+
+## 当前模型方案
+
+文档处理、embedding 和生成推理都在本机执行，不需要外部模型 API Key。当前 RTX 5080 有约 16 GB 显存，采用**一个 GPU 生成模型配合 CPU embedding**，避免多个生成模型同时常驻占用显存。
+
+| 用途 | 模型 | 当前设置与状态 |
+| --- | --- | --- |
+| 默认生成 | `Qwen3-4B-Instruct-2507` | vLLM；上下文总长上限 8192 token；最多 4 个并行序列；显存预算 0.80；纯文本、eager 模式。已通过完整本地 RAG 闭环 |
+| 正式语义向量 | `BAAI/bge-small-zh-v1.5` | CPU；512 维；CLS pooling 后 L2 归一化；Milvus 使用 COSINE 相似度 |
+| 可选生成 | `Qwen3.5-9B-FP8` | 4096 上下文上限、单并发、显存预算 0.90；基础推理测试通过，尚未完成完整 RAG 的质量与持续负载对比 |
+| 其他候选 | `Qwen3.5-4B`、`Qwen3.5-2B`、`Qwen2.5-1.5B-Instruct` | 保留作替代主力或低显存候选，当前未启用，不要求全部部署 |
+
+文档与查询共用同一 embedding 模型，查询添加中文检索指令。文档按该模型的 tokenizer 切分为 **384 token、重叠 48 token** 的片段；embedding 接口最多每批 32 条，拒绝超过 512 token 的输入。正式向量写入独立集合 `rag_bge_small_zh_v1`，不混用原有的 128 维过渡向量。
+
+本地配置显式启用 `rag.embedding.mode=http`。`fake` 模式仅保留历史演示用途，正式模式发生错误时不会自动回退到 fake。切换 embedding 模型时必须同步核对分块、维度和集合，并重新生成文档向量。
+
+扫描 PDF 使用文件服务内置的 Tesseract OCR 与 `chi_sim+eng` 语言文件，识别结果经过切块后进入同一入库流程。问答仍通过平台 `/rag/search` 完成：检索前权限约束 → 语义检索 → 最新权限复核 → 授权片段生成回答 → 编号引用与审计。
+
+### 切换到可选 9B 模型
+
+先停止当前服务以释放 GPU，再启动：
+
+```bash
+python3 scripts/local-stack.py stop
+MODEL_PATH=/home/fufu/workspace/models/Qwen3.5-9B-FP8 \
+MAX_MODEL_LEN=4096 MAX_NUM_SEQS=1 GPU_MEMORY_UTILIZATION=0.90 \
+python3 scripts/local-stack.py start
+```
+
+平台继续使用 `rag-local` 别名，无需改变调用地址；生成请求显式关闭 thinking。9B 已完成连续请求及 3417 输入 token 的基础测试，观察到整卡占用最高为 14268 MiB，包含桌面进程，不是持续采样得到的峰值。该配置作为可选模式，默认仍使用 4B。
+
+恢复默认模型时，停止后在未设置上述覆盖变量的终端执行 `python3 scripts/local-stack.py start`。若此前曾通过 `export` 设置覆盖变量，先执行 `unset MODEL_PATH MAX_MODEL_LEN MAX_NUM_SEQS GPU_MEMORY_UTILIZATION`。
 
 ## 目录说明
 
@@ -39,20 +126,44 @@
 
 文件原件、元数据与向量切块分别由对象存储、MariaDB 和 Milvus 保存。停用不会物理删除原件或向量；完整物理删除与回收流程尚未提供。
 
-## 运行与迁移
+## 构建与数据库迁移
 
-本轮验证使用平台 Java 8、文件服务 Java 17，前端生产构建使用 Node.js 24.11.1。本机实际数据库为 MariaDB 12.3.2，并在 MariaDB 10.11 隔离实例完成了逻辑恢复验证；同时使用 Redis、MinIO 和 Milvus。平台端口为 8080，文件服务为 8081，前端为 1024。依赖与连接配置分别在各模块的配置文件中。
+当前本机已验证的工具为 JDK 8（平台）、JDK 17（文件服务）、Maven 3.9.16、Node.js 24.22.3 与 npm 11.19.1；推理环境为 vLLM 0.34.0、PyTorch 2.14.0+cu132、Transformers 5.22.2。数据库使用容器 MariaDB 10.11，平台和文件服务统一连接本机 `3307/ry-vue-320`，Redis 使用 `6380`。历史文档中的原生数据库 `3306` 和其他机器的版本记录不代表本轮运行目标。
 
-分别使用对应 Java 环境构建和启动两个后端：
+代码变更后，先停止服务，再使用对应 Java 版本构建，避免替换正在运行的 JAR：
 
 ```bash
-mvn -pl ruoyi-admin -am -DskipTests clean package
-java -jar ruoyi-admin/target/ruoyi-admin.jar
+cd /home/fufu/workspace/vllm-project/RAGproject
+python3 scripts/local-stack.py stop
+source /home/fufu/workspace/.local-runtime/env.sh
+
+# 平台使用 Java 8
+mvn -pl ruoyi-admin -am -DskipTests package
+
+# 文件服务使用 Java 17；子 shell 不影响平台 Java 环境
+(
+  export JAVA_HOME="$JAVA17_HOME"
+  export PATH="$JAVA_HOME/bin:$PATH"
+  mvn -f rag_server/pom.xml -DskipTests package
+)
+
+# 复用本机已生成的前端锁文件
+(
+  cd ruoyi-ui
+  npm ci --legacy-peer-deps
+  NODE_OPTIONS=--openssl-legacy-provider npm run build:prod
+)
+
+python3 scripts/local-stack.py start
 ```
 
-文件服务的启动方式见 [RAG Server 说明](rag_server/README.md)。前端在 `ruoyi-ui` 目录安装锁定依赖后执行 `npm run dev`，访问 `http://localhost:1024`。本地容器配置为 `docker-compose.rag.yml`；已有数据卷不会自动重放初始化脚本。当前开发运行使用本机原生数据库和 Redis，容器编排中的数据库及缓存端口与实际应用连接不同，不能直接将容器默认库当作现有平台数据源或恢复目标。新环境需要先统一连接配置和数据迁移方案。
+前端锁文件目前仍受原仓库忽略规则影响；在没有本地锁文件的新机器上需要先安装依赖并生成锁文件。本轮后端构建跳过单元测试，端到端验证范围见下文。
 
-既有数据库先备份，并核对已执行的历史迁移。本轮迁移为：
+全新本地库已完成基础初始化和 `scripts/migrate-local-db.py` 中的 14 项后续迁移，执行记录与文件 SHA256 存于 `rag_local_schema_migration`。已有数据卷不会自动重放容器初始化脚本，启动入口只会继续应用尚未记录的后续迁移。不要按文件名遍历执行整个 `sql` 目录。
+
+MinIO 原有镜像不可公开拉取，本机改用官方固定源码 `RELEASE.2025-10-15T17-29-55Z` 编译的本地镜像。需重建时执行 `python3 scripts/prepare-local-minio.py`；源码校验摘要、镜像下载网络处理和恢复步骤见[本地运行记录](docs/本地测试环境准备.md)。
+
+既有业务数据库的升级仍需先备份并核对迁移历史，不应直接套用本轮新测试库初始化。历史增量迁移包括：
 
 1. `sql/add_rag_audit_query_indexes_20261029.sql`：审计频次与重复查询的组合索引。先检查同名索引定义，适用于本轮 MariaDB 环境。
 2. `sql/add_access_time_scenarios_20261029.sql`：12 条常用时间策略及首次版本记录。需先完成历史策略版本表迁移；不覆盖既有同编码策略，不添加人员或用户组绑定。
@@ -65,4 +176,8 @@ java -jar ruoyi-admin/target/ruoyi-admin.jar
 
 ## 当前边界
 
-当前检索链路能调用 Milvus，并实施前后两阶段权限过滤；现有向量生成仍为过渡实现，正式语义嵌入与回答服务尚未完成集成。向量标签同步、上传结果确认及 OCR 弱版式质量仍需补齐。性能数据仅覆盖记录中的本地数据量与协议，接入正式模型或改变部署环境后须重新验证受影响项。
+已验证登录、网页扫描 PDF 上传与 OCR、正式语义检索、本地回答、编号引用和审计；公开、内部、项目秘密三类身份隔离，以及组成员关系撤销和文档停用后的权限复核均通过。完整停止／启动后，数据卷与服务正常恢复。
+
+少量本地测试文档下，1／2／4 路完整 RAG 短请求约为 0.4～0.7 秒，跨四种身份的 8 路突发请求约为 0.31～0.60 秒。这些结果不是公司规模语料的持续压测、容量承诺或模型质量评测。
+
+真实扫描件的模糊、倾斜、复杂表格与多栏效果，向量标签一致性、上传异常确认、持续负载及跨存储备份恢复仍需专项验证。完整测试条件与日志位置见[本地 RAG 运行与验收记录](docs/本地测试环境准备.md)。

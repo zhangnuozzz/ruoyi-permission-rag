@@ -2,6 +2,7 @@ package com.fufu.ragserver.service.impl;
 
 import com.fufu.ragserver.config.RagFileProperties;
 import com.fufu.ragserver.domain.RagFileChunk;
+import com.fufu.ragserver.service.RagEmbeddingService;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
@@ -20,23 +21,30 @@ import org.springframework.stereotype.Service;
 public class LangChain4jDocumentChunkService
 {
     private final RagFileProperties properties;
+    private final RagEmbeddingService embeddingService;
 
-    public LangChain4jDocumentChunkService(RagFileProperties properties)
+    public LangChain4jDocumentChunkService(RagFileProperties properties, RagEmbeddingService embeddingService)
     {
         this.properties = properties;
+        this.embeddingService = embeddingService;
     }
 
     public List<RagFileChunk> split(String fileId, String content, String securityLevel, String scopeCode, String groupId,
             String groupName)
     {
-        DocumentSplitter splitter = DocumentSplitters.recursive(properties.getChunkSize(), properties.getChunkOverlap());
-        List<TextSegment> segments = splitter.split(Document.from(content));
+        List<String> texts;
+        if (embeddingService.realMode()) {
+            texts = embeddingService.split(content);
+        } else {
+            DocumentSplitter splitter = DocumentSplitters.recursive(properties.getChunkSize(), properties.getChunkOverlap());
+            texts = splitter.split(Document.from(content)).stream().map(TextSegment::text).toList();
+        }
         List<RagFileChunk> chunks = new ArrayList<>();
-        for (int i = 0; i < segments.size(); i++)
+        for (int i = 0; i < texts.size(); i++)
         {
             RagFileChunk chunk = new RagFileChunk();
             chunk.setChunkId(fileId + "-" + (i + 1));
-            chunk.setContent(segments.get(i).text());
+            chunk.setContent(texts.get(i));
             chunk.setFileId(fileId);
             chunk.setSecurityLevel(securityLevel);
             chunk.setScopeCode(scopeCode);

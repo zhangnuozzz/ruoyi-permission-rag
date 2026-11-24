@@ -7,6 +7,7 @@ import com.fufu.ragserver.domain.RagSearchResult;
 import com.fufu.ragserver.domain.SysRagFile;
 import com.fufu.ragserver.exception.ServiceException;
 import com.fufu.ragserver.mapper.SysRagFileMapper;
+import com.fufu.ragserver.service.RagEmbeddingService;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.DataType;
 import io.milvus.grpc.DescribeCollectionResponse;
@@ -31,7 +32,6 @@ import io.milvus.param.index.CreateIndexParam;
 import io.milvus.param.index.DescribeIndexParam;
 import io.milvus.response.QueryResultsWrapper;
 import io.milvus.response.SearchResultsWrapper;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -63,12 +63,14 @@ public class MilvusChunkStoreService
 
     private final RagFileProperties properties;
     private final SysRagFileMapper sysRagFileMapper;
+    private final RagEmbeddingService embeddingService;
     private final AtomicBoolean collectionReady = new AtomicBoolean(false);
 
-    public MilvusChunkStoreService(RagFileProperties properties, SysRagFileMapper sysRagFileMapper)
+    public MilvusChunkStoreService(RagFileProperties properties, SysRagFileMapper sysRagFileMapper, RagEmbeddingService embeddingService)
     {
         this.properties = properties;
         this.sysRagFileMapper = sysRagFileMapper;
+        this.embeddingService = embeddingService;
     }
 
     public void saveChunks(List<RagFileChunk> chunks)
@@ -114,11 +116,11 @@ public class MilvusChunkStoreService
             int topK = request.getTopK() == null || request.getTopK() <= 0 ? 5 : request.getTopK();
             R<SearchResults> result = client.search(SearchParam.newBuilder()
                 .withCollectionName(properties.getMilvus().getCollectionName())
-                .withMetricType(MetricType.L2)
+                .withMetricType(embeddingService.realMode() ? MetricType.COSINE : MetricType.L2)
                 .withVectorFieldName(FIELD_EMBEDDING)
                 .withTopK(topK)
                 .withExpr(request.getMetadataFilter())
-                .withFloatVectors(Arrays.asList(textVector(request.getQuery())))
+                .withFloatVectors(Arrays.asList(embeddingService.query(request.getQuery())))
                 .withOutFields(availableOutFields(fieldNames))
                 .build());
             if (result.getStatus() != R.Status.Success.getCode())
@@ -244,7 +246,7 @@ public class MilvusChunkStoreService
             .withCollectionName(collectionName)
             .withFieldName(FIELD_EMBEDDING)
             .withIndexType(IndexType.AUTOINDEX)
-            .withMetricType(MetricType.L2)
+            .withMetricType(embeddingService.realMode() ? MetricType.COSINE : MetricType.L2)
             .withSyncMode(Boolean.TRUE)
             .build());
         if (created.getStatus() != R.Status.Success.getCode())
@@ -360,8 +362,9 @@ public class MilvusChunkStoreService
             scopeCodes.add(chunk.getScopeCode());
             groupIds.add(chunk.getGroupId());
             groupNames.add(chunk.getGroupName());
-            embeddings.add(textVector(chunk.getContent()));
         }
+
+        embeddings = embeddingService.embed(contents);
 
         List<InsertParam.Field> fields = new ArrayList<>();
         addInsertField(fields, fieldNames, FIELD_CHUNK_ID, chunkIds);
@@ -425,24 +428,6 @@ public class MilvusChunkStoreService
             return value;
         }
         return value.substring(0, maxLength);
-    }
-
-    private List<Float> textVector(String text)
-    {
-        int dimension = properties.getMilvus().getVectorDimension();
-        float[] vector = new float[dimension];
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        for (int i = 0; i < bytes.length; i++)
-        {
-            int index = i % dimension;
-            vector[index] += (bytes[i] & 0xff) / 255.0F;
-        }
-        List<Float> values = new ArrayList<>(dimension);
-        for (float value : vector)
-        {
-            values.add(value);
-        }
-        return values;
     }
 
     private List<RagSearchResult> toSearchResults(SearchResults data)
